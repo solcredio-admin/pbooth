@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.next/
+.env
+.env.*
+!.env.example
+apps/api/src/generated/
+coverage/
+playwright-report/
+test-results/
+.DS_Store

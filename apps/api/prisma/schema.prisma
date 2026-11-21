@@ -1,0 +1,100 @@
+// Phase 1 models only. Booth, Device, Session, Photo, etc. arrive with their phases
+// as new migrations, so every table in this file is one the app actually uses.
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Admin {
+  id           String         @id @default(uuid()) @db.Uuid
+  email        String         @unique
+  passwordHash String
+  createdAt    DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime       @updatedAt @db.Timestamptz(3)
+  sessions     AdminSession[]
+}
+
+// Server-side login sessions: the cookie holds a random token, the DB only its SHA-256.
+// Deleting a row signs that browser out for real.
+model AdminSession {
+  id         String   @id @default(uuid()) @db.Uuid
+  adminId    String   @db.Uuid
+  admin      Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  tokenHash  String   @unique
+  expiresAt  DateTime @db.Timestamptz(3)
+  lastUsedAt DateTime @default(now()) @db.Timestamptz(3)
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  ip         String?
+  userAgent  String?
+
+  @@index([adminId])
+  @@index([expiresAt])
+}
+
+enum EventStatus {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+model Event {
+  id            String       @id @default(uuid()) @db.Uuid
+  name          String
+  organizerName String?
+  // Exact instants in UTC; timeZone (IANA, e.g. "America/Los_Angeles") is how they're shown.
+  startsAt      DateTime     @db.Timestamptz(3)
+  endsAt        DateTime     @db.Timestamptz(3)
+  timeZone      String
+  venueName     String?
+  venueAddress  String?
+  status        EventStatus  @default(DRAFT)
+  activatedAt   DateTime?    @db.Timestamptz(3)
+  completedAt   DateTime?    @db.Timestamptz(3)
+  createdAt     DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime     @updatedAt @db.Timestamptz(3)
+  config        EventConfig?
+
+  @@index([status, startsAt])
+  @@index([startsAt])
+}
+
+// Guest-experience settings, one row per event. Kept apart from Event so the
+// growing list of kiosk options doesn't crowd the core record.
+model EventConfig {
+  id                   String   @id @default(uuid()) @db.Uuid
+  eventId              String   @unique @db.Uuid
+  event                Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  welcomeTitle         String   @default("Strike a pose")
+  welcomeMessage       String   @default("Tap anywhere to start")
+  primaryColor         String   @default("#0b0c0a")
+  accentColor          String   @default("#c6f36b")
+  countdownSeconds     Int      @default(3)
+  shotsPerSession      Int      @default(1)
+  printEnabled         Boolean  @default(false)
+  printCopies          Int      @default(1)
+  galleryEnabled       Boolean  @default(true)
+  galleryRetentionDays Int      @default(30)
+  createdAt            DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime @updatedAt @db.Timestamptz(3)
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  at         DateTime @default(now()) @db.Timestamptz(3)
+  actor      String // "admin:<id>", "anonymous", later "device:<id>"
+  action     String // e.g. "auth.login.failed", "event.activate"
+  entityType String?
+  entityId   String?
+  ip         String?
+  metadata   Json?
+
+  @@index([at])
+  @@index([entityType, entityId])
+}

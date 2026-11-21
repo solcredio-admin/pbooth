@@ -1,0 +1,6 @@
+# Add to /etc/caddy/Caddyfile on Veldora (public reverse proxy).
+# pbooth runs on Stravex and is published only on its Tailscale IP.
+pbooth.solcredio.net {
+	import access_log
+	reverse_proxy 100.86.234.119:3310
+}

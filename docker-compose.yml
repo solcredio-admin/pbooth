@@ -1,0 +1,56 @@
+# Production / staging stack: the pbooth app + Postgres.
+#   cp .env.example .env   (fill it in)
+#   docker compose up -d --build
+# Network exposure is explicit:
+#   - Postgres publishes NO port; only the app can reach it, on the private "internal" network.
+#   - The app publishes one port on PBOOTH_BIND. Docker-published ports bypass UFW, so bind to a
+#     private address (Tailscale IP or 127.0.0.1) and let the reverse proxy (Caddy) be public.
+name: pbooth
+
+services:
+  app:
+    image: ${PBOOTH_IMAGE:-ghcr.io/solcredio-admin/pbooth:latest}
+    build:
+      context: .
+      args: { PBOOTH_VERSION: "${PBOOTH_VERSION:-dev}" }
+    restart: unless-stopped
+    # Updates are deliberate (between events), never automatic: opt out of WUD/Watchtower-style updaters.
+    labels: { wud.watch: "false", com.centurylinklabs.watchtower.enable: "false" }
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql://pbooth:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/pbooth
+      APP_ORIGIN: ${APP_ORIGIN:?set APP_ORIGIN in .env}
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-2}
+    ports:
+      - "${PBOOTH_BIND:-127.0.0.1}:${PBOOTH_PORT:-3000}:3000"
+    networks: [internal]
+    mem_limit: 768m
+    cpus: 1.5
+    logging: { driver: json-file, options: { max-size: "10m", max-file: "5" } }
+
+  db:
+    # Major upgrades need pg_upgrade/dump+restore; the major version is pinned on purpose.
+    image: postgres:17-alpine
+    restart: unless-stopped
+    labels: { wud.watch: "false", com.centurylinklabs.watchtower.enable: "false" }
+    environment:
+      POSTGRES_USER: pbooth
+      POSTGRES_DB: pbooth
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pbooth -d pbooth"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    networks: [internal]
+    mem_limit: 512m
+    shm_size: 128m
+    logging: { driver: json-file, options: { max-size: "10m", max-file: "3" } }
+
+volumes:
+  pgdata:
+
+networks:
+  internal:
