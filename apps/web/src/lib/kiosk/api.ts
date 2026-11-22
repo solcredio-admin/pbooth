@@ -1,6 +1,8 @@
 // Kiosk → API. The kiosk's HttpOnly cookie rides along automatically; nothing secret lives here.
 export interface KioskConfig {
   version: string;
+  storage: boolean; // photos can be saved and shared by QR
+  galleryRetentionDays: number;
   booth: { id: string; name: string; code: string };
   camera: import("./camera").CameraSettings;
   printer: { enabled: boolean; printerName: string | null; paperSize: string; orientation: string };

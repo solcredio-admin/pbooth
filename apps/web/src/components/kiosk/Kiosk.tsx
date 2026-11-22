@@ -4,6 +4,8 @@ import { useWebcam } from "@/lib/kiosk/camera";
 import { useAgent, type AgentJob } from "@/lib/kiosk/agent";
 import { kioskFetch, sendInBackground, type KioskConfig } from "@/lib/kiosk/api";
 import { composeTemplate, toJpeg } from "@/lib/template/compose";
+import { newGalleryToken, uploadPhoto } from "@/lib/kiosk/upload";
+import QRCode from "qrcode";
 
 type Screen =
   | "loading" | "unpaired" | "wrong-booth" | "idle" | "agent" | "camera"
@@ -11,6 +13,7 @@ type Screen =
 
 const INACTIVITY_MS = 60_000; // a guest who walks away mid-session
 const DONE_RESET_S = 20;      // the thank-you screen clears itself
+const DONE_RESET_QR_S = 35;   // longer when there's a QR code to scan
 const GUEST = new Set<Screen>(["ready", "countdown", "composing", "review", "done"]);
 
 interface Shot { blob: Blob; url: string }
@@ -32,7 +35,9 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   const [print, setPrint] = useState<null | { state: "sending" | "queued" | "printing" | "done" | "failed" | "unavailable"; message?: string }>(null);
 
   // ---------- one guest's session ----------
-  const session = useRef<{ id: string; retakes: number; finished: boolean } | null>(null);
+  const session = useRef<{ id: string; retakes: number; finished: boolean; galleryToken: string } | null>(null);
+  const [qr, setQr] = useState<string | null>(null);
+  const [saving, setSaving] = useState<{ done: number; total: number; failed: number } | null>(null);
   const [shots, setShots] = useState<Shot[]>([]);
   const [design, setDesign] = useState<Shot | null>(null); // the photos inside the event template
   const [redo, setRedo] = useState<number | null>(null);   // retaking just this photo
@@ -133,7 +138,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     shotsRef.current.forEach((x) => URL.revokeObjectURL(x.url));
     if (designRef.current) URL.revokeObjectURL(designRef.current.url);
     session.current = null;
-    setShots([]); setDesign(null); setRedo(null); setCaptureError(""); setPrint(null);
+    setShots([]); setDesign(null); setRedo(null); setCaptureError(""); setPrint(null); setQr(null); setSaving(null);
     history.replaceState(null, "", `/kiosk/${boothCode}`);
     setScreen("loading"); // the resting-screen effect picks welcome / idle / camera
   }, [boothCode]);
@@ -141,8 +146,9 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   const begin = () => {
     document.documentElement.requestFullscreen?.().catch(() => undefined);
     const id = crypto.randomUUID();
-    session.current = { id, retakes: 0, finished: false };
-    sendInBackground("POST", "/sessions", { id, startedAt: new Date().toISOString() });
+    const galleryToken = newGalleryToken();
+    session.current = { id, retakes: 0, finished: false, galleryToken };
+    sendInBackground("POST", "/sessions", { id, startedAt: new Date().toISOString(), galleryToken });
     history.replaceState(null, "", `/kiosk/${boothCode}/session/${id}`);
     setScreen("ready");
   };
@@ -215,8 +221,29 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     shoot();
   };
   const approve = () => {
-    setDoneLeft(DONE_RESET_S);
+    const sharing = !!config?.storage && guest?.galleryEnabled !== false;
+    setDoneLeft(sharing ? DONE_RESET_QR_S : DONE_RESET_S);
     setScreen("done");
+    const s = session.current;
+    if (s && config?.storage) {
+      // Save the design and every original in the background; uploads keep going after the screen
+      // resets (the next guest never sees them), retrying through network blips.
+      const files: [Blob, "DESIGN" | "ORIGINAL", number][] = [
+        ...(design ? [[design.blob, "DESIGN", 0] as [Blob, "DESIGN", number]] : []),
+        ...shots.map((x, i) => [x.blob, "ORIGINAL", i + 1] as [Blob, "ORIGINAL", number]),
+      ];
+      setSaving({ done: 0, total: files.length, failed: 0 });
+      void (async () => {
+        for (const [blob, kind, index] of files) {
+          const ok = await uploadPhoto(s.id, blob, kind, index);
+          if (session.current?.id === s.id) setSaving((v) => v && { ...v, done: v.done + (ok ? 1 : 0), failed: v.failed + (ok ? 0 : 1) });
+        }
+      })();
+      if (sharing) {
+        QRCode.toDataURL(`${location.origin}/g/${s.galleryToken}`, { margin: 1, width: 360, errorCorrectionLevel: "M", color: { dark: "#0b0c0a", light: "#ffffff" } })
+          .then(setQr).catch(() => setQr(null));
+      }
+    }
     if (!printWanted) return;
     // Printing never holds up the guest: the done screen just reports how it's going.
     const id = session.current?.id;
@@ -364,6 +391,9 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
             {(guest?.countdownSeconds ?? 3) > 0 ? `We count down from ${guest?.countdownSeconds ?? 3}, then snap` : "We snap right away"}
             {needed > 1 ? `, then ${needed - 1} more, ${guest?.captureIntervalSeconds ?? 3} seconds apart. Change poses between shots!` : ". Look at the camera."}
           </p>
+          {config?.storage && (
+            <p className="k-consent">By continuing, you agree that your photos are saved for {config.galleryRetentionDays} days and shared only with people who have your QR link.</p>
+          )}
           {captureError && <p className="k-error" role="alert">{captureError}</p>}
           <div className="k-actions">
             <button className="k-btn big" type="button" onClick={shoot}>Start</button>
@@ -415,7 +445,16 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
             ? <img className="k-design final" src={design.url} alt="Your photos in the event design" />
             : <div className={`k-thumbs n${shots.length}`}>{shots.map((x, i) => <img key={x.url} src={x.url} alt={`Photo ${i + 1}`} />)}</div>}
           {print && <p className={`k-print ${print.state}`} role="status">{PRINT_TEXT[print.state]}</p>}
-          <p className="k-preview">Preview build: photos aren't saved yet.</p>
+          {qr && (
+            <div className="k-qr">
+              <img src={qr} alt="QR code to your photos" />
+              <div>
+                <p className="k-qr-title">Scan for your photos</p>
+                <p className="k-cap">{!saving ? "" : saving.failed ? "Some photos are still trying to save. The link fills in as they arrive." : saving.done < saving.total ? `Saving ${saving.done} of ${saving.total}…` : "Saved. They'll be ready in a moment."}</p>
+              </div>
+            </div>
+          )}
+          {!config?.storage && <p className="k-preview">Preview build: photos aren't saved yet.</p>}
           <div className="k-actions">
             <button className="k-btn big" type="button" onClick={() => reset("COMPLETED")}>Done</button>
           </div>

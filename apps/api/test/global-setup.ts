@@ -12,7 +12,16 @@ let server: ChildProcess | undefined;
 export default async function setup(project: TestProject) {
   const url = process.env.TEST_DATABASE_URL;
   if (!url) return;
-  const env = { ...process.env, DATABASE_URL: url, APP_ORIGIN: "http://app.test", API_PORT: String(PORT), NODE_ENV: "test", TRUST_PROXY_HOPS: "1", ALLOW_SIMULATED_BOOTHS: "true", BOOTH_OFFLINE_AFTER_SECONDS: "30" };
+  // Optional S3-compatible store for the photo tests (SeaweedFS in CI-style runs).
+  const s3 = process.env.TEST_S3_ENDPOINT
+    ? { S3_ENDPOINT: process.env.TEST_S3_ENDPOINT, S3_BUCKET: "pbooth-test", S3_ACCESS_KEY_ID: "test", S3_SECRET_ACCESS_KEY: "test" }
+    : {};
+  if (process.env.TEST_S3_ENDPOINT) {
+    const { S3Client, CreateBucketCommand } = await import("@aws-sdk/client-s3");
+    await new S3Client({ endpoint: process.env.TEST_S3_ENDPOINT, region: "auto", forcePathStyle: true, credentials: { accessKeyId: "test", secretAccessKey: "test" } })
+      .send(new CreateBucketCommand({ Bucket: "pbooth-test" })).catch(() => undefined);
+  }
+  const env = { ...process.env, ...s3, DATABASE_URL: url, APP_ORIGIN: "http://app.test", API_PORT: String(PORT), NODE_ENV: "test", TRUST_PROXY_HOPS: "1", ALLOW_SIMULATED_BOOTHS: "true", BOOTH_OFFLINE_AFTER_SECONDS: "30" };
 
   const db = new pg.Client({ connectionString: url });
   await db.connect();
@@ -28,9 +37,10 @@ export default async function setup(project: TestProject) {
     await new Promise((r) => setTimeout(r, 250));
   }
   project.provide("apiBase", base);
+  project.provide("s3", !!process.env.TEST_S3_ENDPOINT);
   return async () => { server?.kill(); };
 }
 
 declare module "vitest" {
-  export interface ProvidedContext { apiBase: string }
+  export interface ProvidedContext { apiBase: string; s3: boolean }
 }

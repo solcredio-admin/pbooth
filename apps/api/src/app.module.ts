@@ -21,6 +21,12 @@ import { KioskController } from "./kiosk/kiosk.controller.js";
 import { KioskGuard } from "./kiosk/kiosk.guard.js";
 import { SessionsService } from "./sessions/sessions.service.js";
 import { SessionsController } from "./sessions/sessions.controller.js";
+import { StorageService } from "./storage/storage.service.js";
+import { PhotosService } from "./photos/photos.service.js";
+import { PhotosController, EventPhotosController, StorageController } from "./photos/photos.controller.js";
+import { BoothAuthGuard } from "./photos/booth-auth.guard.js";
+import { GalleriesService } from "./galleries/galleries.service.js";
+import { GalleriesController } from "./galleries/galleries.controller.js";
 
 // One module keeps wiring in one place; split per feature if it grows past easy reading.
 @Module({})
@@ -28,10 +34,10 @@ export class AppModule {
   static forRoot(cfg: Config): DynamicModule {
     return {
       module: AppModule,
-      controllers: [HealthController, AuthController, EventsController, BoothsController, EventBoothsController, DevicesController, KioskController, SessionsController],
+      controllers: [HealthController, AuthController, EventsController, BoothsController, EventBoothsController, DevicesController, KioskController, SessionsController, PhotosController, EventPhotosController, StorageController, GalleriesController],
       providers: [
         { provide: CONFIG, useValue: cfg },
-        PrismaService, AuditService, AuthService, EventsService, BoothsService, DevicesService, DeviceGuard, RealtimeGateway, KioskService, KioskGuard, SessionsService,
+        PrismaService, AuditService, AuthService, EventsService, BoothsService, DevicesService, DeviceGuard, RealtimeGateway, KioskService, KioskGuard, SessionsService, StorageService, PhotosService, BoothAuthGuard, GalleriesService,
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_FILTER, useClass: ErrorFilter },
       ],

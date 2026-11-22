@@ -25,9 +25,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm --filter @pbooth/api build
+      - name: S3-compatible store for the photo tests (SeaweedFS)
+        run: docker run -d -p 8333:8333 chrislusf/seaweedfs:latest server -s3 -dir=/data && sleep 12
       - name: API unit + integration tests
         run: pnpm --filter @pbooth/api test
-        env: { TEST_DATABASE_URL: "postgresql://postgres:test@localhost:5432/test" }
+        env: { TEST_DATABASE_URL: "postgresql://postgres:test@localhost:5432/test", TEST_S3_ENDPOINT: "http://localhost:8333" }
       - run: pnpm --filter @pbooth/web build
       - name: Agent unit tests
         run: pnpm --filter @pbooth/agent test

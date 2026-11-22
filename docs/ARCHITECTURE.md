@@ -137,10 +137,43 @@ discovery, job-level sync lists (only counts today), uptime history.
   *unsupported*; ink/paper levels aren't claimed. The Docker hardware test proves the real gPhoto2
   and CUPS paths (to a virtual PDF printer), not specific models.
 
+## Photo delivery (Phase 5)
+
+- **Storage** is any S3-compatible bucket (Cloudflare R2 in production; SeaweedFS in tests, since
+  MinIO and LocalStack images are no longer freely available). It's optional: with no `S3_*` set,
+  nothing breaks and photos aren't saved.
+- **Upload:**
+  1. The booth calls `upload-authorize` with a kiosk-made photo UUID, size and SHA-256.
+  2. It gets a 10-minute signed PUT. The size, type and checksum headers are all signed, so the
+     bucket refuses a different file.
+  3. The browser PUTs straight to R2.
+  4. `upload-complete` HEADs the object and compares size and checksum.
+
+  Both calls are idempotent.
+- **Processing** treats the Photo table as the queue: a 2 s worker claims rows with a conditional
+  update, so it's restart-safe and needs no Redis. It re-hashes the bytes (end-to-end integrity, whatever
+  the bucket checked) and reads them with Sharp (must be a real JPEG, ≤ 12 000 px; filenames and
+  browser types are never trusted). Then it writes the 480 px thumbnail and 1600 px preview, retrying
+  up to 3 times.
+- **Galleries:**
+  - Each has a 256-bit token. The kiosk makes the session token at the start, so the QR works even
+    if the network drops.
+  - Guests read `/galleries/:token` from their own browser (per-guest rate limits). Unknown, disabled
+    or expired all give the same 404.
+  - Views are counted. Event-wide links are rotatable.
+- **Retention:** an hourly job deletes the objects and closes the galleries of events past
+  `endsAt + galleryRetentionDays`. Admins can delete a photo, a session or a whole event at any time.
+  Rows are kept as DELETED for counts and the audit log.
+- **Export** streams a store-only ZIP straight from the bucket. The Next rewrite timeout is raised for it.
+- **Privacy:** the kiosk shows a consent line before shooting (retention days, link-only sharing),
+  and every gallery has a privacy footer with its deletion date. Presigned URLs are never logged.
+- shortcut: kiosk uploads retry from the page's memory. A closed browser or a long outage still
+  loses unsent photos until Phase 6's durable queue (IndexedDB / agent SQLite).
+
 ## Data model
 
 `Admin`, `AdminSession`, `Event`, `EventConfig` (1:1, guest-experience settings), `AuditLog`,
-`Booth`, `Device`, `EventBooth`, `Kiosk`, `Session`. UUID keys, `timestamptz`, indexes on status/date/heartbeat.
+`Booth`, `Device`, `EventBooth`, `Kiosk`, `Session`, `Photo`, `Gallery`. UUID keys, `timestamptz`, indexes on status/date/heartbeat.
 Template, Session, Photo, Gallery, PrintJob and UploadJob arrive with their phases.
 
 ## Audit log
@@ -156,8 +189,8 @@ create/update/each status change, with IP. Never passwords, tokens or cookies.
 | 2 Booths | Registration, enrollment codes, heartbeats, assignment, config sync, live view, simulated booth | **Done** |
 | 3 Kiosk | Browser kiosk, USB webcam, countdown, 1–4 shot sequence, retakes, event template, guest flow | **Done** |
 | 4 Agent | Local agent, authenticated local API, gPhoto2 DSLR (Linux), CUPS/Windows printing | **Done** (hardware models untested) |
-| 5 Delivery | Sharp processing, R2 presigned uploads, QR galleries, downloads, export | Next |
-| 6 Offline | Durable queue, restart recovery, idempotent sync, duplicate prevention | |
+| 5 Delivery | Sharp processing, R2 presigned uploads, QR galleries, downloads, export | **Done** (R2 itself pending your bucket) |
+| 6 Offline | Durable queue, restart recovery, idempotent sync, duplicate prevention | Next |
 | 7 Production | Security review, backup/restore test, monitoring, real hardware, pilot event | |
 
 ## Hardware risks (carried forward)

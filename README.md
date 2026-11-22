@@ -3,7 +3,9 @@
 A photobooth management platform run by one administrator: create events, (later) assign booths,
 run a browser kiosk at the venue, and deliver photos by print and QR gallery.
 
-**Status: Phase 4 (hardware agent).** Admin sign-in, events, booths (enrollment, heartbeats, config
+**Status: Phase 5 (photo delivery).** Photos upload to a private Cloudflare R2 bucket, guests get
+a QR code to their own gallery, and you can share an event gallery, export ZIPs and set retention.
+Before that, Phase 4 (hardware agent): Admin sign-in, events, booths (enrollment, heartbeats, config
 sync, live view), a guest kiosk (1–4 photos, retakes, built-in event design), and the booth agent:
 DSLR via gPhoto2 on Linux, printing via CUPS / the Windows spooler. Real camera and printer models
 are **untested** until tried on hardware ([docs/HARDWARE.md](docs/HARDWARE.md)). Saving/uploading photos,
@@ -103,8 +105,8 @@ session is counted on the event's live view.
 **DSLR and printing** need the booth agent on the booth computer. See
 [apps/agent/README.md](apps/agent/README.md). The kiosk finds and pairs with it automatically.
 
-**Photos are not saved yet.** They live only in the kiosk's memory (DSLR originals also stay on
-the booth computer) until upload arrives (Phase 5). The kiosk says so on its last screen.
+**Photos** are saved once storage is set up (next section). Until then the kiosk says "photos aren't
+saved yet" on its last screen.
 
 ### Event photo design
 
@@ -116,6 +118,58 @@ Each event has a built-in design, set on the event page under **Photo design**, 
 The design uses the event's brand and accent colours, the footer text (or the event name) and the
 date. It's drawn at 300 dpi, so it's print-sized. A template library with uploaded artwork needs
 image storage and comes with R2 (Phase 5).
+
+## Photo storage (Cloudflare R2)
+
+Photos go to a **private** bucket. Browsers never get bucket keys: kiosks upload with 10-minute
+signed links bound to each file's size and SHA-256, and guests view through 15-minute links. Until
+the five settings below are filled in, everything works except saving photos.
+
+**1. Create the bucket.** In the Cloudflare dashboard → R2 → *Create bucket*, name it `pbooth-photos`.
+Leave public access **off**.
+
+**2. Allow the kiosk and gallery pages to use it (CORS).** Bucket → *Settings* → *CORS policy* → *Add*:
+
+```json
+[{ "AllowedOrigins": ["https://pbooth.solcredio.net"], "AllowedMethods": ["PUT", "GET", "HEAD"], "AllowedHeaders": ["content-type", "x-amz-checksum-sha256"], "MaxAgeSeconds": 3600 }]
+```
+
+**3. Create a key for this bucket only.** R2 → *Manage API tokens* → *Create API token*:
+- Permissions: **Object Read & Write**.
+- Apply to specific buckets only: `pbooth-photos`.
+- Copy the *Access Key ID*, the *Secret Access Key*, and the *S3 endpoint*
+  (`https://<account id>.r2.cloudflarestorage.com`).
+
+**4. Put them in the server's `.env`** (on Stravex: `~/compose/pbooth/.env`). Type them there
+yourself; don't paste keys into chats or tickets.
+
+```
+S3_ENDPOINT=https://<account id>.r2.cloudflarestorage.com
+S3_BUCKET=pbooth-photos
+S3_ACCESS_KEY_ID=...
+S3_SECRET_ACCESS_KEY=...
+```
+
+**5. Restart and check:**
+
+```bash
+ssh stravex 'cd ~/compose/pbooth && docker compose up -d'
+```
+
+Then open **Settings → Storage → Run storage check**. All four steps should pass, including
+*tampered upload refused*. Also open a guest gallery and tap Download, to confirm the photo saves
+as a file instead of opening in the browser.
+
+**Where things are:** `events/<event>/sessions/<session>/<photo>.jpg`, with `-thumb.jpg` (480 px) and
+`-preview.jpg` (1600 px) beside each. Designs and originals are both kept.
+
+**Galleries:**
+- Each guest's QR opens `/g/<token>` (256-bit random, no account).
+- The event's **Gallery & export** page has a shareable link for every design (rotate it to revoke the
+  old one), a switch to turn all links off, ZIP export, and per-session or whole-event deletion.
+
+**Retention:** photos and links are removed *N* days after the event ends (event setting "Keep
+gallery photos"), checked hourly.
 
 ## Admin account
 
@@ -197,4 +251,7 @@ CI (`.github/workflows/ci.yml`) runs both against a Postgres service, then publi
 | `ALLOW_SIMULATED_BOOTHS` | api | `true` lets the simulator enroll (staging only) |
 | `BOOTH_OFFLINE_AFTER_SECONDS` | api | No heartbeat this long → offline (default 90) |
 | `HEARTBEAT_INTERVAL_SECONDS` | api | How often booths are told to check in (default 20) |
+| `S3_ENDPOINT` / `S3_BUCKET` / `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | api, web | Private photo bucket (R2). Empty = photos not saved |
+| `S3_REGION` | api | `auto` for R2 |
+| `MAX_PHOTO_MB` | api | Largest accepted photo, default 30 |
 | `PBOOTH_IMAGE` | compose | Image to run (default `ghcr.io/solcredio-admin/pbooth:latest`) |

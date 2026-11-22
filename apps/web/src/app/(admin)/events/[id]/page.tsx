@@ -31,6 +31,7 @@ export default async function EventPage({ params }: Props) {
         <Link className={e.status === "ACTIVE" ? "btn go" : "btn ghost"} href={`/events/${e.id}/booths`}>
           {e.status === "ACTIVE" ? "Open live view" : "Booths"} · {booths.items.length ? `${online}/${booths.items.length} online` : "none booked"}
         </Link>
+        <Link className="btn ghost" href={`/events/${e.id}/gallery`}>Gallery &amp; export</Link>
       </section>
       <main className="narrow">
         <section className="host" aria-labelledby="life">

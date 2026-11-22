@@ -1,5 +1,5 @@
-// Only models the app uses today. Photo, Gallery, PrintJob, UploadJob, Template arrive with
-// their phases as new migrations.
+// Only models the app uses today. Print jobs live on the booth agent (SQLite); the cloud-side
+// UploadJob and a Template library arrive with their phases.
 generator client {
   provider     = "prisma-client"
   output       = "../src/generated/prisma"
@@ -62,6 +62,8 @@ model Event {
   config        EventConfig?
   booths        EventBooth[]
   sessions      Session[]
+  photos        Photo[]
+  galleries     Gallery[]
 
   @@index([status, startsAt])
   @@index([startsAt])
@@ -176,6 +178,8 @@ model Session {
   photoCount  Int           @default(0)
   retakeCount Int           @default(0)
   createdAt   DateTime      @default(now()) @db.Timestamptz(3)
+  photos      Photo[]
+  gallery     Gallery?
 
   @@index([eventId, startedAt])
   @@index([boothId, startedAt])
@@ -217,4 +221,70 @@ model EventBooth {
 
   @@id([eventId, boothId])
   @@index([boothId])
+}
+
+enum PhotoKind {
+  ORIGINAL // a single shot, as captured
+  DESIGN // the shots inside the event template (what's printed)
+}
+
+enum PhotoStatus {
+  PENDING // upload link handed out, not confirmed yet
+  UPLOADED // in the bucket, size + checksum confirmed; waiting for processing
+  PROCESSING
+  PROCESSED // validated as an image, thumbnail and preview made
+  FAILED
+  DELETED // removed from the bucket (by the admin or the retention rule)
+}
+
+// One file in the private bucket. The id is made by the kiosk before uploading, so retries
+// can't create duplicates.
+model Photo {
+  id          String      @id @db.Uuid
+  sessionId   String      @db.Uuid
+  session     Session     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  eventId     String      @db.Uuid
+  event       Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  boothId     String      @db.Uuid
+  kind        PhotoKind
+  index       Int         @default(0) // shot number (1-4); 0 for the design
+  status      PhotoStatus @default(PENDING)
+  contentType String
+  sizeBytes   Int
+  sha256      String // hex; checked by the bucket on upload and again when processing
+  width       Int?
+  height      Int?
+  key         String      @unique
+  thumbKey    String?
+  previewKey  String?
+  attempts    Int         @default(0)
+  error       String?
+  createdAt   DateTime    @default(now()) @db.Timestamptz(3)
+  uploadedAt  DateTime?   @db.Timestamptz(3)
+  processedAt DateTime?   @db.Timestamptz(3)
+
+  @@index([eventId, status])
+  @@index([sessionId])
+  @@index([status, uploadedAt])
+}
+
+enum GalleryScope {
+  SESSION // one guest's photos (the QR on the kiosk)
+  EVENT // every design from the event (a link the admin shares)
+}
+
+// A private link. The token is 256 random bits; knowing it is the only way in.
+model Gallery {
+  id        String       @id @default(uuid()) @db.Uuid
+  token     String       @unique
+  scope     GalleryScope
+  eventId   String       @db.Uuid
+  event     Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  sessionId String?      @unique @db.Uuid
+  session   Session?     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  enabled   Boolean      @default(true)
+  views     Int          @default(0)
+  createdAt DateTime     @default(now()) @db.Timestamptz(3)
+
+  @@index([eventId, scope])
 }

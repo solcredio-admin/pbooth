@@ -10,7 +10,7 @@ export class SessionsService {
   constructor(private readonly db: PrismaService, private readonly realtime: RealtimeGateway) {}
 
   /** Idempotent: the kiosk makes the UUID, so sending the same start twice is harmless. */
-  async start(boothId: string, id: string, startedAt?: string) {
+  async start(boothId: string, id: string, startedAt?: string, galleryToken?: string) {
     const live = await this.db.eventBooth.findFirst({ where: { boothId, event: { status: "ACTIVE" } }, select: { eventId: true } });
     const existing = await this.db.session.findUnique({ where: { id } });
     if (existing) {
@@ -20,7 +20,9 @@ export class SessionsService {
     if (!live) throw new ApiError(HttpStatus.CONFLICT, "NO_LIVE_EVENT", "This booth isn't serving a live event");
     // Trust the kiosk's clock (sessions may be sent late), but never a time in the future.
     const at = startedAt ? new Date(Math.min(new Date(startedAt).getTime(), Date.now())) : new Date();
-    const s = await this.db.session.create({ data: { id, boothId, eventId: live.eventId, startedAt: at } });
+    const s = await this.db.session.create({
+      data: { id, boothId, eventId: live.eventId, startedAt: at, ...(galleryToken ? { gallery: { create: { token: galleryToken, scope: "SESSION", eventId: live.eventId } } } : {}) },
+    });
     await this.emit(s.eventId, boothId);
     return { id, eventId: s.eventId, status: s.status };
   }

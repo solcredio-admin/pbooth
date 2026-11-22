@@ -7,10 +7,11 @@ import { hashToken, newToken } from "../auth/tokens.js";
 import { normalizeEnrollmentCode } from "../booths/codes.js";
 import type { KioskHeartbeat, Pair } from "./kiosk.schemas.js";
 import { signTicket } from "../devices/ticket.js";
+import { StorageService } from "../storage/storage.service.js";
 
 @Injectable()
 export class KioskService {
-  constructor(private readonly db: PrismaService, private readonly audit: AuditService, private readonly booths: BoothsService) {}
+  constructor(private readonly db: PrismaService, private readonly audit: AuditService, private readonly booths: BoothsService, private readonly storage: StorageService) {}
 
   /** Pairs this browser with a booth. The code must belong to the booth in the URL. */
   async pair(body: Pair, meta: { ip?: string; userAgent?: string }) {
@@ -44,7 +45,9 @@ export class KioskService {
   }
 
   async config(boothId: string) {
-    return this.booths.deviceConfig(await this.booths.row(boothId));
+    const b = await this.booths.row(boothId);
+    const live = b.events.find((eb) => eb.event.status === "ACTIVE")?.event;
+    return { ...this.booths.deviceConfig(b), storage: this.storage.enabled, galleryRetentionDays: live?.config?.galleryRetentionDays ?? 30 };
   }
 
   async heartbeat(kioskId: string, boothId: string, hb: KioskHeartbeat, userAgent?: string) {
@@ -53,6 +56,6 @@ export class KioskService {
       data: { lastSeenAt: new Date(), lastError: hb.lastError ?? null, userAgent, telemetry: { camera: hb.camera, cameras: hb.cameras?.map((c) => ({ ...c, provider: "webcam" })) } },
     });
     this.booths.push([boothId]);
-    return { configVersion: (await this.config(boothId)).version };
+    return { configVersion: this.booths.deviceConfig(await this.booths.row(boothId)).version };
   }
 }

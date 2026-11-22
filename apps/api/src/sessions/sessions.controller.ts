@@ -5,7 +5,8 @@ import { KioskGuard, type KioskReq } from "../kiosk/kiosk.guard.js";
 import { SessionsService } from "./sessions.service.js";
 
 const id = { schema: z.string().uuid("Not a valid session id") };
-const startSchema = z.object({ id: z.string().uuid(), startedAt: z.string().datetime().optional() });
+// galleryToken: made by the kiosk at the start (256 random bits) so the QR works even offline.
+const startSchema = z.object({ id: z.string().uuid(), startedAt: z.string().datetime().optional(), galleryToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/).optional() });
 const statusSchema = z.object({
   status: z.enum(["COMPLETED", "ABANDONED"]),
   photoCount: z.number().int().min(0).max(20).default(0),
@@ -20,7 +21,7 @@ export class SessionsController {
   @Public() @UseGuards(KioskGuard)
   @Post()
   start(@Body({ schema: startSchema }) body: z.infer<typeof startSchema>, @Req() r: KioskReq) {
-    return this.sessions.start(r.kiosk!.boothId, body.id, body.startedAt);
+    return this.sessions.start(r.kiosk!.boothId, body.id, body.startedAt, body.galleryToken);
   }
 
   // Kiosk: the turn ended (finished, or timed out / walked away).

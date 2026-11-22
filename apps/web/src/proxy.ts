@@ -2,7 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // Runs before every page: sets a per-request CSP nonce, and sends signed-out visitors to /login.
 // (The cookie is only checked for presence here; the admin layout verifies it with the API.)
-const isPublic = (path: string) => path === "/login" || path.startsWith("/kiosk/"); // kiosks use their own paired cookie
+// Kiosks use their own paired cookie; galleries are opened by guests with a private link.
+const isPublic = (path: string) => path === "/login" || path.startsWith("/kiosk/") || path.startsWith("/g/");
+// The photo bucket (R2): kiosks upload to it and pages show images from it via signed links.
+const STORAGE = (() => { try { return process.env.S3_ENDPOINT ? new URL(process.env.S3_ENDPOINT).origin : ""; } catch { return ""; } })();
 // Paper Shaders' style slot is pre-created empty; this is the hash of the empty string.
 const EMPTY_STYLE = "'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='";
 
@@ -23,9 +26,9 @@ export function proxy(req: NextRequest) {
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
     `style-src 'self' 'nonce-${nonce}' ${EMPTY_STYLE}${dev ? " 'unsafe-inline'" : ""}`,
     // The booth agent on this computer (DSLR live view, capture, printing). Loopback only.
-    "img-src 'self' blob: data: http://127.0.0.1:47800",
+    `img-src 'self' blob: data: http://127.0.0.1:47800 ${STORAGE}`.trim(),
     "font-src 'self' data:",
-    "connect-src 'self' http://127.0.0.1:47800",
+    `connect-src 'self' http://127.0.0.1:47800 ${STORAGE}`.trim(),
     "media-src 'self' blob: mediastream:",
     "worker-src 'self' blob:",
     "object-src 'none'",

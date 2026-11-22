@@ -12,6 +12,8 @@ const config: NextConfig = {
   reactStrictMode: true,
   // Socket.IO's path ends in "/" (/socket.io/?EIO=4…); don't let Next redirect it away.
   skipTrailingSlashRedirect: true,
+  // Event ZIP exports stream for minutes; the rewrite proxy's default 30 s would cut them off.
+  experimental: { proxyTimeout: 15 * 60_000 },
   async rewrites() {
     return [
       { source: "/api/:path*", destination: `${api}/api/:path*` },

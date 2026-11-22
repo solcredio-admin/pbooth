@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+// "VAR=" in .env (or docker compose's ${VAR:-}) arrives as an empty string: treat it as unset.
+const blank = <T extends z.ZodTypeAny>(t: T) => z.preprocess((v) => (v === "" ? undefined : v), t.optional());
+
 // Every setting the API needs, checked once at boot. A missing or malformed value
 // stops the process with a clear message instead of failing later mid-event.
 const schema = z.object({
@@ -21,6 +24,14 @@ const schema = z.object({
   HEARTBEAT_INTERVAL_SECONDS: z.coerce.number().int().min(5).default(20),
   // Simulated booths (tools/simulate-booth.mjs) are for development and staging; off unless enabled.
   ALLOW_SIMULATED_BOOTHS: z.enum(["true", "false"]).default("false").transform((v) => v === "true"),
+  // Photo storage: any S3-compatible bucket (Cloudflare R2 in production, MinIO in tests).
+  // All five must be set to turn storage on; otherwise photos simply aren't saved.
+  S3_ENDPOINT: blank(z.string().url()),
+  S3_REGION: z.string().default("auto"),
+  S3_BUCKET: blank(z.string().min(3)),
+  S3_ACCESS_KEY_ID: blank(z.string().min(1)),
+  S3_SECRET_ACCESS_KEY: blank(z.string().min(1)),
+  MAX_PHOTO_MB: z.coerce.number().int().min(1).max(100).default(30),
 });
 
 export type Config = z.infer<typeof schema> & { cookieSecure: boolean };

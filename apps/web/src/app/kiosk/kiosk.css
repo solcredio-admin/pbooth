@@ -92,3 +92,11 @@
 .k-print.done { color: var(--k-accent); }
 .k-print.failed, .k-print.unavailable { color: #ff8a70; }
 .k-print.sending, .k-print.queued, .k-print.printing { animation: k-breathe 1.6s ease-in-out infinite; }
+
+/* QR to the guest's gallery, and the consent line */
+.k-qr { display: flex; align-items: center; gap: 22px; padding: 14px 22px 14px 14px; border-radius: 20px; background: #fff; color: #0b0c0a; box-shadow: 0 20px 60px -20px rgba(0, 0, 0, .6); }
+.k-qr img { width: min(22vh, 200px); height: min(22vh, 200px); image-rendering: pixelated; }
+.k-qr .k-cap { color: #555; opacity: 1; max-width: 26ch; text-align: left; }
+.k-qr-title { margin: 0 0 6px; font: 300 clamp(26px, 3vw, 38px)/1.05 var(--serif); text-align: left; }
+.k-consent { margin: 0; max-width: 52ch; font: 400 13px/1.5 var(--mono); opacity: .7; }
+.k-done .k-design.final { max-height: 46vh; }
