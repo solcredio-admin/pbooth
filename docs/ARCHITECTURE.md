@@ -27,7 +27,9 @@
 2. **Same origin for web and API.** The browser only talks to the web origin; Next rewrites
    `/api/*` to the API inside the container. Cookies stay first-party and there's no CORS.
    (Phase 2's Socket.IO will be routed by Caddy straight to the API port, since rewrites don't
-   carry WebSockets.)
+   carry WebSockets.) *Phase 2 update:* not needed. Socket.IO goes through the same rewrite,
+   and WebSocket upgrades work end to end through Cloudflare, Caddy and Next; long-polling
+   is the fallback.
 3. **Database-backed admin sessions.** The cookie holds 32 random bytes; the database stores only
    their SHA-256. HttpOnly, SameSite=Strict, Secure on https. Logout deletes the row. Password
    change signs out other sessions.
@@ -57,11 +59,37 @@
     Background jobs (Phase 5) will use a Postgres-backed queue. Shared Zod schemas move to
     `packages/shared` when the hardware agent needs them (Phase 4).
 
-## Data model (Phase 1)
+## Booths (Phase 2)
 
-`Admin`, `AdminSession`, `Event`, `EventConfig` (1:1, guest-experience settings), `AuditLog`.
-UUID keys, `timestamptz`, indexes on status/date. Booth, Device, EventBooth, Template, Session,
-Photo, Gallery, PrintJob and UploadJob arrive with their phases as new migrations.
+- **Booth** = a physical kit, reused across events. **Device** = the computer currently enrolled
+  for it (one per booth; re-enrolling replaces it). **EventBooth** = "this booth works this event".
+- Stored booth state is only `UNREGISTERED / READY / REVOKED`. The status the admin sees
+  (`READY, ONLINE, OFFLINE, ACTIVE, ERROR, REVOKED, UNREGISTERED`) is **computed** from the last
+  heartbeat, the reported error and whether a live event is assigned (`booths/status.ts`), so it
+  can never be stale.
+- **Enrollment:** 40-bit one-time code (30 min, hashed at rest, claimed atomically) → long-lived
+  device token (`pbd_…`, 256-bit, hashed at rest). Revoke deletes the device row: the token fails
+  on its next request.
+- **Config sync:** the server computes a booth's config (camera, printer, live event's guest
+  settings) and a short hash of it. Heartbeats return the hash; the booth fetches and acks. No
+  counters to keep in step.
+- **Double booking:** a booth can be booked for many events but serve one ACTIVE event; enforced
+  on assign (to a live event) and on activate.
+- **Live updates:** an admin-only Socket.IO room. The handshake needs the session cookie, and a
+  foreign Origin is refused (blocks cross-site WebSocket hijacking). Every booth change is pushed;
+  a 15 s sweep pushes booths whose heartbeat just aged out (nothing else announces "offline").
+- **Simulated booths** use the real device API, are flagged at enrollment, need
+  `ALLOW_SIMULATED_BOOTHS=true`, and are badged SIMULATED in every view.
+- Device API reference: [DEVICE_API.md](DEVICE_API.md).
+
+Not in Phase 2 (comes with the agent/kiosk): the kiosk's own booth credential, real hardware
+discovery, job-level sync lists (only counts today), uptime history.
+
+## Data model
+
+`Admin`, `AdminSession`, `Event`, `EventConfig` (1:1, guest-experience settings), `AuditLog`,
+`Booth`, `Device`, `EventBooth`. UUID keys, `timestamptz`, indexes on status/date/heartbeat.
+Template, Session, Photo, Gallery, PrintJob and UploadJob arrive with their phases.
 
 ## Audit log
 
@@ -73,8 +101,8 @@ create/update/each status change, with IP. Never passwords, tokens or cookies.
 | Phase | Scope | Status |
 |---|---|---|
 | 1 Foundation | Repo, auth, DB, dashboard, event CRUD, Docker | **Done** |
-| 2 Booths | Registration, enrollment codes, heartbeats, assignment, config sync, simulated booth | Next |
-| 3 Kiosk | Browser kiosk, USB webcam, countdown, capture/retake, guest flow | |
+| 2 Booths | Registration, enrollment codes, heartbeats, assignment, config sync, live view, simulated booth | **Done** |
+| 3 Kiosk | Browser kiosk, USB webcam, countdown, capture/retake, guest flow | Next |
 | 4 Agent | Local agent, authenticated local API, gPhoto2 DSLR (Linux), CUPS/Windows printing | |
 | 5 Delivery | Sharp processing, R2 presigned uploads, QR galleries, downloads, export | |
 | 6 Offline | Durable queue, restart recovery, idempotent sync, duplicate prevention | |

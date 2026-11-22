@@ -10,17 +10,23 @@ import { EventsService } from "./events/events.service.js";
 import { EventsController } from "./events/events.controller.js";
 import { HealthController } from "./health/health.controller.js";
 import { ErrorFilter } from "./common/error.filter.js";
+import { BoothsService } from "./booths/booths.service.js";
+import { BoothsController, EventBoothsController } from "./booths/booths.controller.js";
+import { DevicesService } from "./devices/devices.service.js";
+import { DevicesController } from "./devices/devices.controller.js";
+import { DeviceGuard } from "./devices/device.guard.js";
+import { RealtimeGateway } from "./realtime/realtime.gateway.js";
 
-// One module is plenty for Phase 1; split per feature when booths/photos arrive.
+// One module keeps wiring in one place; split per feature if it grows past easy reading.
 @Module({})
 export class AppModule {
   static forRoot(cfg: Config): DynamicModule {
     return {
       module: AppModule,
-      controllers: [HealthController, AuthController, EventsController],
+      controllers: [HealthController, AuthController, EventsController, BoothsController, EventBoothsController, DevicesController],
       providers: [
         { provide: CONFIG, useValue: cfg },
-        PrismaService, AuditService, AuthService, EventsService,
+        PrismaService, AuditService, AuthService, EventsService, BoothsService, DevicesService, DeviceGuard, RealtimeGateway,
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_FILTER, useClass: ErrorFilter },
       ],

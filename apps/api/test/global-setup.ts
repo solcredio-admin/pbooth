@@ -5,14 +5,14 @@ import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import pg from "pg";
 import type { TestProject } from "vitest/node";
 
-export const ADMIN = { email: "admin@test.local", password: "correct-horse-battery" };
+import { ADMIN } from "./fixtures.js";
 const PORT = 4100;
 let server: ChildProcess | undefined;
 
 export default async function setup(project: TestProject) {
   const url = process.env.TEST_DATABASE_URL;
   if (!url) return;
-  const env = { ...process.env, DATABASE_URL: url, APP_ORIGIN: "http://app.test", API_PORT: String(PORT), NODE_ENV: "test", TRUST_PROXY_HOPS: "0" };
+  const env = { ...process.env, DATABASE_URL: url, APP_ORIGIN: "http://app.test", API_PORT: String(PORT), NODE_ENV: "test", TRUST_PROXY_HOPS: "1", ALLOW_SIMULATED_BOOTHS: "true", BOOTH_OFFLINE_AFTER_SECONDS: "30" };
 
   const db = new pg.Client({ connectionString: url });
   await db.connect();

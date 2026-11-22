@@ -10,8 +10,15 @@ const config: NextConfig = {
   outputFileTracingRoot: path.join(import.meta.dirname, "../.."),
   poweredByHeader: false,
   reactStrictMode: true,
+  // Socket.IO's path ends in "/" (/socket.io/?EIO=4…); don't let Next redirect it away.
+  skipTrailingSlashRedirect: true,
   async rewrites() {
-    return [{ source: "/api/:path*", destination: `${api}/api/:path*` }];
+    return [
+      { source: "/api/:path*", destination: `${api}/api/:path*` },
+      // Live updates. Long-polling always works through this rewrite; Socket.IO upgrades to a
+      // WebSocket when the proxy in front allows it.
+      { source: "/socket.io/:path*", destination: `${api}/socket.io/:path*` },
+    ];
   },
   async headers() {
     const security = [

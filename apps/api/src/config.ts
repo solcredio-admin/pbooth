@@ -15,6 +15,12 @@ const schema = z.object({
   SESSION_TTL_HOURS: z.coerce.number().int().positive().default(24 * 7),
   LOGIN_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
   LOGIN_WINDOW_MINUTES: z.coerce.number().int().positive().default(15),
+  // A booth with no heartbeat for this long shows as offline.
+  BOOTH_OFFLINE_AFTER_SECONDS: z.coerce.number().int().min(30).default(90),
+  // How often booths are told to check in.
+  HEARTBEAT_INTERVAL_SECONDS: z.coerce.number().int().min(5).default(20),
+  // Simulated booths (tools/simulate-booth.mjs) are for development and staging; off unless enabled.
+  ALLOW_SIMULATED_BOOTHS: z.enum(["true", "false"]).default("false").transform((v) => v === "true"),
 });
 
 export type Config = z.infer<typeof schema> & { cookieSecure: boolean };

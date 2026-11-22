@@ -1,5 +1,5 @@
-// Phase 1 models only. Booth, Device, Session, Photo, etc. arrive with their phases
-// as new migrations, so every table in this file is one the app actually uses.
+// Only models the app uses today. Session, Photo, Gallery, PrintJob, UploadJob, Template
+// arrive with their phases as new migrations.
 generator client {
   provider     = "prisma-client"
   output       = "../src/generated/prisma"
@@ -60,6 +60,7 @@ model Event {
   createdAt     DateTime     @default(now()) @db.Timestamptz(3)
   updatedAt     DateTime     @updatedAt @db.Timestamptz(3)
   config        EventConfig?
+  booths        EventBooth[]
 
   @@index([status, startsAt])
   @@index([startsAt])
@@ -97,4 +98,64 @@ model AuditLog {
 
   @@index([at])
   @@index([entityType, entityId])
+}
+
+// Enrollment state only. What the admin sees (ONLINE, OFFLINE, ACTIVE, ERROR...) is computed
+// from this plus the device's last heartbeat and the booth's live event: see booths/status.ts.
+enum BoothState {
+  UNREGISTERED // no device enrolled yet (or the last one was replaced)
+  READY // a device is enrolled
+  REVOKED // device access withdrawn; needs a new enrollment code
+}
+
+// A physical booth. Reused across events; never confused with an event.
+model Booth {
+  id                  String       @id @default(uuid()) @db.Uuid
+  name                String
+  code                String       @unique // "PB-7K3M": human-friendly, used in the kiosk URL later
+  notes               String?
+  state               BoothState   @default(UNREGISTERED)
+  camera              Json // validated by booths.schemas.ts cameraSchema
+  printer             Json // validated by booths.schemas.ts printerSchema
+  // One-time enrollment code, stored as SHA-256 only; cleared once used.
+  enrollmentCodeHash  String?      @unique
+  enrollmentExpiresAt DateTime?    @db.Timestamptz(3)
+  createdAt           DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime     @updatedAt @db.Timestamptz(3)
+  device              Device?
+  events              EventBooth[]
+}
+
+// The computer currently enrolled as a booth. Re-enrolling replaces it.
+model Device {
+  id                   String    @id @default(uuid()) @db.Uuid
+  boothId              String    @unique @db.Uuid
+  booth                Booth     @relation(fields: [boothId], references: [id], onDelete: Cascade)
+  tokenHash            String    @unique // SHA-256 of the device token; the token itself is never stored
+  identifier           String // machine id reported by the agent
+  hostname             String?
+  os                   String?
+  agentVersion         String?
+  simulated            Boolean   @default(false)
+  enrolledAt           DateTime  @default(now()) @db.Timestamptz(3)
+  lastHeartbeatAt      DateTime? @db.Timestamptz(3)
+  lastIp               String?
+  lastError            String?
+  appliedConfigVersion String?
+  telemetry            Json? // storage, pending jobs, camera/printer status, discovered hardware
+
+  @@index([lastHeartbeatAt])
+}
+
+// "This booth works this event." A booth can be booked for several events over time;
+// it may only serve one ACTIVE event at a time (checked on assign and on activate).
+model EventBooth {
+  eventId    String   @db.Uuid
+  event      Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  boothId    String   @db.Uuid
+  booth      Booth    @relation(fields: [boothId], references: [id], onDelete: Cascade)
+  assignedAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@id([eventId, boothId])
+  @@index([boothId])
 }

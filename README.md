@@ -3,14 +3,17 @@
 A photobooth management platform run by one administrator: create events, (later) assign booths,
 run a browser kiosk at the venue, and deliver photos by print and QR gallery.
 
-**Status: Phase 1 (foundation).** Admin sign-in, events with a full status lifecycle, the
-dashboard, and a single Docker image. Booths, kiosk, cameras, printing, photos and galleries
-come in later phases (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)).
+**Status: Phase 2 (booths).** Admin sign-in, events with a status lifecycle, booth registration,
+device enrollment, heartbeats, config sync, event assignment, and a live view per event (Socket.IO).
+Kiosk, cameras, printing, photos and galleries come in later phases
+(see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); booth computers talk to the
+[device API](docs/DEVICE_API.md)).
 
 ```
 apps/api   NestJS 12 + Fastify REST API (/api/v1), Prisma 7 + PostgreSQL, admin CLI
 apps/web   Next.js 16 admin app, shader-glass design (WebGL gradient, liquid-metal intro)
 infra/     container entrypoint, dev database, Veldora Caddy snippet
+tools/     simulate-booth.mjs: a SIMULATED booth for development and staging
 ```
 
 ## Run it with Docker (production / staging)
@@ -51,6 +54,32 @@ rsync -az --delete --exclude node_modules --exclude .next --exclude dist --exclu
 ```bash
 ssh stravex 'cd ~/compose/pbooth && docker compose up -d --build'
 ```
+
+## Booths
+
+1. **Booths → Add a booth.** Each gets a code like `PB-7K3M`.
+2. On the booth page, **Generate enrollment code** (single use, 30 minutes) and enter it on the
+   booth computer. The real agent arrives in Phase 4.
+3. Book the booth for an event (from the booth page or the event's **Booths** page).
+4. When the event goes live, its booths receive its guest settings. The event's live view
+   (`/events/<id>/booths`, or click a live event on the dashboard) shows each booth's status,
+   last check-in, camera/printer, pending uploads/prints and whether it applied the latest config.
+
+A booth can be booked for several events but serves only one **live** event at a time. Going live
+with a booth that's busy elsewhere is refused. **Revoke** cuts a booth computer off immediately.
+
+### Simulated booth (no hardware)
+
+Needs `ALLOW_SIMULATED_BOOTHS=true` on the server (on for staging, off for production):
+
+```bash
+node tools/simulate-booth.mjs --url https://pbooth.solcredio.net --code 7K3M-Q9TX
+```
+
+It enrolls through the real device API, then heartbeats and applies config like a booth would.
+It's marked **SIMULATED** everywhere and never counts as tested hardware. Options:
+`--error "Camera disconnected"` to show an error, `--flaky` to drop heartbeats. Its token is saved
+in `.sim-booth-<code>.json` (git-ignored); rerun with `--state <file>` to resume.
 
 ## Admin account
 
@@ -129,4 +158,7 @@ CI (`.github/workflows/ci.yml`) runs both against a Postgres service, then publi
 | `TRUST_PROXY_HOPS` | api | Proxies in front of the API (default 2: Caddy + Next) |
 | `SESSION_TTL_HOURS` | api | Session lifetime, default 168 (7 days) |
 | `LOGIN_WINDOW_MINUTES` | api | Window for the failed-login limit, default 15 |
+| `ALLOW_SIMULATED_BOOTHS` | api | `true` lets the simulator enroll (staging only) |
+| `BOOTH_OFFLINE_AFTER_SECONDS` | api | No heartbeat this long → offline (default 90) |
+| `HEARTBEAT_INTERVAL_SECONDS` | api | How often booths are told to check in (default 20) |
 | `PBOOTH_IMAGE` | compose | Image to run (default `ghcr.io/solcredio-admin/pbooth:latest`) |

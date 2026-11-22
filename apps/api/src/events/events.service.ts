@@ -6,6 +6,7 @@ import { EventStatus, type Prisma } from "../generated/prisma/client.js";
 import type { CreateEvent, ListEvents, UpdateEvent } from "./events.schemas.js";
 import { allowedTransitions, TRANSITIONS, type Transition } from "./transitions.js";
 import { eventWindow, utcToWallTime } from "./tz.js";
+import { BoothsService } from "../booths/booths.service.js";
 
 const withConfig = { config: true } as const;
 type EventRow = Prisma.EventGetPayload<{ include: typeof withConfig }>;
@@ -27,7 +28,7 @@ export function toDto(e: EventRow) {
 
 @Injectable()
 export class EventsService {
-  constructor(private readonly db: PrismaService, private readonly audit: AuditService) {}
+  constructor(private readonly db: PrismaService, private readonly audit: AuditService, private readonly booths: BoothsService) {}
 
   async list(q: ListEvents) {
     const where: Prisma.EventWhereInput = {
@@ -78,11 +79,17 @@ export class EventsService {
       include: withConfig,
     });
     await this.audit.record({ actor, action: "event.update", entityType: "event", entityId: id, ip, metadata: { fields: Object.keys(body) } });
+    if (e.status === EventStatus.ACTIVE) await this.booths.pushForEvent(id); // live guest settings changed
     return toDto(e);
   }
 
   async transition(id: string, t: Transition, actor: string, ip?: string) {
     const { from, to } = TRANSITIONS[t];
+    if (t === "activate") {
+      // A booth can only serve one live event at a time.
+      const assigned = await this.db.eventBooth.findMany({ where: { eventId: id }, select: { boothId: true } });
+      await this.booths.assertFree(assigned.map((a) => a.boothId), id);
+    }
     const stamp = t === "activate" ? { activatedAt: new Date(), completedAt: null } : t === "complete" ? { completedAt: new Date() } : {};
     // Conditional update: only succeeds if the status is still one we may move from,
     // so two clicks (or two tabs) can't both apply.
@@ -93,6 +100,7 @@ export class EventsService {
       throw new ApiError(HttpStatus.CONFLICT, "INVALID_TRANSITION", `Can't ${t} an event that is ${e.status.toLowerCase()}`);
     }
     await this.audit.record({ actor, action: `event.${t}`, entityType: "event", entityId: id, ip });
+    await this.booths.pushForEvent(id); // their status and config just changed
     return this.get(id);
   }
 }

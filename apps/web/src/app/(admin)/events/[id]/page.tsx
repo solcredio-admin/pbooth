@@ -4,7 +4,7 @@ import { EventForm } from "@/components/EventForm";
 import { Lifecycle } from "@/components/Lifecycle";
 import { apiGet } from "@/lib/server-api";
 import { longDate, STATUS_LABEL, timeRange } from "@/lib/format";
-import type { EventDto } from "@/lib/types";
+import type { BoothDto, EventDto } from "@/lib/types";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -14,7 +14,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function EventPage({ params }: Props) {
-  const e = await apiGet<EventDto>(`/events/${(await params).id}`);
+  const { id } = await params;
+  const [e, booths] = await Promise.all([apiGet<EventDto>(`/events/${id}`), apiGet<{ items: BoothDto[] }>(`/events/${id}/booths`)]);
+  const online = booths.items.filter((b) => b.online).length;
   return (
     <>
       <section className="hero compact">
@@ -26,6 +28,9 @@ export default async function EventPage({ params }: Props) {
           {e.organizerName && <span>For {e.organizerName}</span>}
         </div>
         <span className={`pill s-${e.status}`}>{STATUS_LABEL[e.status]}</span>
+        <Link className={e.status === "ACTIVE" ? "btn go" : "btn ghost"} href={`/events/${e.id}/booths`}>
+          {e.status === "ACTIVE" ? "Open live view" : "Booths"} · {booths.items.length ? `${online}/${booths.items.length} online` : "none booked"}
+        </Link>
       </section>
       <main className="narrow">
         <section className="host" aria-labelledby="life">

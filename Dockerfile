@@ -36,6 +36,7 @@ COPY --from=build --chown=node:node /src/apps/web/.next/standalone ./web
 COPY --from=build --chown=node:node /src/apps/web/.next/static ./web/apps/web/.next/static
 COPY --from=build --chown=node:node /src/apps/web/public ./web/apps/web/public
 COPY --chown=node:node infra/start.mjs ./start.mjs
+COPY --chown=node:node tools ./tools
 USER node
 EXPOSE 3000
 # Goes through the web app to the API to the database: one check covers all three.

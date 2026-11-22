@@ -2,6 +2,7 @@ import "reflect-metadata";
 import { Logger, StandardSchemaValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
+import { IoAdapter } from "@nestjs/platform-socket.io";
 import helmet from "@fastify/helmet";
 import cookie from "@fastify/cookie";
 import rateLimit from "@fastify/rate-limit";
@@ -48,6 +49,7 @@ async function bootstrap() {
     exceptionFactory: (issues) => new ApiError(400, "VALIDATION_ERROR", "Some fields are invalid",
       issues.map((i) => ({ path: (i.path ?? []).map((p) => (typeof p === "object" ? p.key : p)).join("."), message: i.message }))),
   }));
+  app.useWebSocketAdapter(new IoAdapter(app)); // Socket.IO on the same port, path /socket.io
   app.enableShutdownHooks();
 
   await app.listen(cfg.API_PORT, cfg.API_HOST);

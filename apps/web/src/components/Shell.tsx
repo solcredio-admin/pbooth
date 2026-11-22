@@ -16,6 +16,7 @@ const Intro = dynamic(() => import("./gl/Intro.jsx"), { ssr: false });
 const NAV = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/events", label: "Events" },
+  { href: "/booths", label: "Booths" },
   { href: "/settings", label: "Settings" },
 ];
 const MARKS = [

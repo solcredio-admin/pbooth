@@ -1,29 +1,9 @@
-import { describe, expect, inject, it } from "vitest";
+import { describe, expect, it } from "vitest";
+import { ADMIN, base, call as rawCall, login as rawLogin, newEvent, type CallInit } from "./helpers.js";
 
-const base = inject("apiBase");
-const ORIGIN = "http://app.test";
-const ADMIN = { email: "admin@test.local", password: "correct-horse-battery" };
-
-async function call(path: string, init: { method?: string; body?: unknown; cookie?: string; origin?: string | null } = {}) {
-  const headers: Record<string, string> = {};
-  if (init.body !== undefined) headers["content-type"] = "application/json";
-  if (init.cookie) headers.cookie = init.cookie;
-  if (init.origin !== null) headers.origin = init.origin ?? ORIGIN;
-  const res = await fetch(base + path, { method: init.method ?? "GET", headers, body: init.body === undefined ? undefined : JSON.stringify(init.body) });
-  const text = await res.text();
-  return { status: res.status, body: text ? JSON.parse(text) : null, setCookie: res.headers.get("set-cookie") };
-}
-
-async function login() {
-  const r = await call("/auth/login", { method: "POST", body: ADMIN });
-  expect(r.status).toBe(200);
-  return r.setCookie!.split(";")[0];
-}
-
-const newEvent = {
-  name: "Reyes Wedding", organizerName: "Ana Reyes", venueName: "Casa Loma",
-  date: "2026-12-05", startTime: "18:00", endTime: "01:00", timeZone: "Asia/Manila",
-};
+const IP = "10.0.1.1";
+const call = (path: string, init: CallInit = {}) => rawCall(path, { ip: IP, ...init });
+const login = () => rawLogin(IP);
 
 describe.skipIf(!base)("API against a real database", () => {
   it("reports health", async () => {
@@ -119,10 +99,9 @@ describe.skipIf(!base)("API against a real database", () => {
     await call("/auth/password", { method: "POST", body: { currentPassword: next, newPassword: ADMIN.password }, cookie: a });
   });
 
-  // Last: it uses up this IP's login allowance.
-  it("rate-limits repeated sign-in attempts", async () => {
+  it("rate-limits repeated sign-in attempts per IP", async () => {
     let last = 0;
-    for (let i = 0; i < 12; i++) last = (await call("/auth/login", { method: "POST", body: { ...ADMIN, password: "nope-nope-nope" } })).status;
+    for (let i = 0; i < 12; i++) last = (await call("/auth/login", { method: "POST", body: { ...ADMIN, password: "nope-nope-nope" }, ip: "10.0.9.9" })).status;
     expect(last).toBe(429);
   });
 });

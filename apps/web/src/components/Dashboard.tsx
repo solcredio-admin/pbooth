@@ -16,7 +16,7 @@ const GROUPS = [
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
 // The dashboard: one question with an inline search, and events as keycaps grouped by status.
-export function Dashboard({ events, summary }: { events: EventDto[]; summary: Summary }) {
+export function Dashboard({ events, summary, booths }: { events: EventDto[]; summary: Summary; booths: { online: number; total: number } }) {
   const [q, setQ] = useState("");
   const [hover, setHover] = useState<{ e: EventDto; top: boolean } | null>(null);
   const closing = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -53,7 +53,7 @@ export function Dashboard({ events, summary }: { events: EventDto[]; summary: Su
         <div className="cap answer" role="status">
           {needle
             ? shown.length ? <><b>{plural(shown.length, "match")}</b> <span className="muted">for “{q.trim()}”</span></> : <span className="muted">No event matches “{q.trim()}”</span>
-            : <><span className="free">{b.ACTIVE} live</span> · {b.SCHEDULED} scheduled · {plural(b.DRAFT, "draft")}</>}
+            : <><span className="free">{b.ACTIVE} live</span> · {b.SCHEDULED} scheduled · {plural(b.DRAFT, "draft")} · <Link href="/booths">{booths.online}/{booths.total} booths online</Link></>}
         </div>
       </section>
       <main id="cards">
@@ -72,7 +72,7 @@ export function Dashboard({ events, summary }: { events: EventDto[]; summary: Su
                   {list.map((e) => (
                     <Link
                       key={e.id}
-                      href={`/events/${e.id}`}
+                      href={e.status === "ACTIVE" ? `/events/${e.id}/booths` : `/events/${e.id}`}
                       className={tileClass(e) + (matches(e) ? "" : " hidden-by-search")}
                       onMouseEnter={(ev) => open(e, ev.currentTarget)}
                       onMouseLeave={close}
