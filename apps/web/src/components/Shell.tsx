@@ -88,6 +88,10 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
       )}
       <header className="bar">
+        <Link className="brand" href="/dashboard" aria-label="pbooth home">
+          <Marks className="brand-logo" />
+          <span className="brand-text cap">pbooth</span>
+        </Link>
         <nav className="nav" aria-label="Main">
           {NAV.map((n) => (
             <Link key={n.href} href={n.href} aria-current={path === n.href || (n.href !== "/dashboard" && path.startsWith(n.href)) ? "page" : undefined}>
@@ -95,12 +99,6 @@ export function Shell({ children }: { children: ReactNode }) {
             </Link>
           ))}
         </nav>
-        <span className="cap brand">
-          <Link href="/dashboard" aria-label="pbooth home">
-            <span className="brand-text">pbooth</span>
-            <img className="brand-mark" src={`/logo-light.png?v=${V}`} alt="" />
-          </Link>
-        </span>
         <div className="acts">
           <button className="plain icon" type="button" onClick={signOut} aria-label="Sign out" title="Sign out">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 4H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7" /><path d="M11 12h10" /><path d="M17.5 8.5 21 12l-3.5 3.5" /></svg>

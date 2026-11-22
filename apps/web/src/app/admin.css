@@ -242,3 +242,14 @@ main.narrow { max-width: 900px; }
 .check-steps .bad b { color: var(--warn); }
 .inline-form .field.narrow-field { flex: 0 1 190px; }
 .err-text { color: var(--warn); }
+
+/* Top bar: logo left, tabs centred, sign-out right. */
+.bar { grid-template-columns: 1fr auto 1fr; }
+.bar .brand { justify-self: start; display: flex; align-items: center; gap: 9px; text-decoration: none; color: var(--ink); }
+.bar .brand-logo { width: 22px; height: 22px; }
+.bar .brand-text { color: var(--ink); letter-spacing: .06em; }
+.bar .nav { justify-self: center; }
+@media (max-width: 640px) {
+  .bar .brand-text { display: none; }
+  .bar .nav { gap: 12px; }
+}
