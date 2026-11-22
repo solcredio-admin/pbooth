@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Req } from "@nestjs/common";
 import { z } from "zod";
 import { BoothsService } from "./booths.service.js";
+import { SessionsService } from "../sessions/sessions.service.js";
 import { assignSchema, createBoothSchema, updateBoothSchema, type CreateBooth, type UpdateBooth } from "./booths.schemas.js";
 import type { Req as Request } from "../common/request.js";
 
@@ -32,6 +33,16 @@ export class BoothsController {
     return this.booths.enrollmentCode(id, actor(r), r.ip);
   }
 
+  @Post(":id/kiosk-code") @HttpCode(200)
+  kioskCode(@Param("id", uuid("booth")) id: string, @Req() r: Request) {
+    return this.booths.kioskCode(id, actor(r), r.ip);
+  }
+
+  @Post(":id/kiosk/unpair") @HttpCode(200)
+  unpairKiosk(@Param("id", uuid("booth")) id: string, @Req() r: Request) {
+    return this.booths.unpairKiosk(id, actor(r), r.ip);
+  }
+
   @Post(":id/revoke") @HttpCode(200)
   revoke(@Param("id", uuid("booth")) id: string, @Req() r: Request) {
     return this.booths.revoke(id, actor(r), r.ip);
@@ -40,10 +51,13 @@ export class BoothsController {
 
 @Controller("events/:eventId/booths")
 export class EventBoothsController {
-  constructor(private readonly booths: BoothsService) {}
+  constructor(private readonly booths: BoothsService, private readonly sessions: SessionsService) {}
 
   @Get()
-  list(@Param("eventId", uuid("event")) eventId: string) { return this.booths.boothsForEvent(eventId); }
+  async list(@Param("eventId", uuid("event")) eventId: string) {
+    const [booths, sessions] = await Promise.all([this.booths.boothsForEvent(eventId), this.sessions.stats(eventId)]);
+    return { ...booths, sessions };
+  }
 
   @Post() @HttpCode(200)
   assign(@Param("eventId", uuid("event")) eventId: string, @Body({ schema: assignSchema }) body: z.infer<typeof assignSchema>, @Req() r: Request) {

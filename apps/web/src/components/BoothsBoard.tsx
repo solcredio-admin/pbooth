@@ -87,7 +87,7 @@ export function BoothsBoard({ initial }: { initial: BoothDto[] }) {
             <span className="cap">{BOOTH_LABEL[hover.b.status]}{hover.b.simulated ? " · Simulated" : ""} · {hover.b.code}</span>
             <h3>{hover.b.name}</h3>
             <dl>
-              <dt>Last seen</dt><dd><Ago iso={hover.b.device?.lastHeartbeatAt} /></dd>
+              <dt>Last seen</dt><dd><Ago iso={hover.b.lastSeenAt} /></dd>
               <dt>Event</dt><dd>{hover.b.liveEvent?.name ?? hover.b.nextEvent?.name ?? "—"}</dd>
               <dt>Device</dt><dd>{hover.b.device?.hostname ?? "—"}</dd>
             </dl>

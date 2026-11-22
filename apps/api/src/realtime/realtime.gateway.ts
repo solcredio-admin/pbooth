@@ -34,6 +34,15 @@ export class RealtimeGateway implements OnGatewayConnection {
     await client.join(ADMINS);
   }
 
+  /** Session counts for an event changed (a guest started or finished). */
+  sessionsChanged(payload: unknown) {
+    try {
+      this.server?.to(ADMINS).emit("sessions", payload);
+    } catch (e) {
+      this.log.warn(`emit failed: ${(e as Error).message}`);
+    }
+  }
+
   /** Something about these booths changed; admins re-read them. */
   boothsChanged(payload: unknown) {
     try {

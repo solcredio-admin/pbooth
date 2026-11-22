@@ -16,6 +16,11 @@ import { DevicesService } from "./devices/devices.service.js";
 import { DevicesController } from "./devices/devices.controller.js";
 import { DeviceGuard } from "./devices/device.guard.js";
 import { RealtimeGateway } from "./realtime/realtime.gateway.js";
+import { KioskService } from "./kiosk/kiosk.service.js";
+import { KioskController } from "./kiosk/kiosk.controller.js";
+import { KioskGuard } from "./kiosk/kiosk.guard.js";
+import { SessionsService } from "./sessions/sessions.service.js";
+import { SessionsController } from "./sessions/sessions.controller.js";
 
 // One module keeps wiring in one place; split per feature if it grows past easy reading.
 @Module({})
@@ -23,10 +28,10 @@ export class AppModule {
   static forRoot(cfg: Config): DynamicModule {
     return {
       module: AppModule,
-      controllers: [HealthController, AuthController, EventsController, BoothsController, EventBoothsController, DevicesController],
+      controllers: [HealthController, AuthController, EventsController, BoothsController, EventBoothsController, DevicesController, KioskController, SessionsController],
       providers: [
         { provide: CONFIG, useValue: cfg },
-        PrismaService, AuditService, AuthService, EventsService, BoothsService, DevicesService, DeviceGuard, RealtimeGateway,
+        PrismaService, AuditService, AuthService, EventsService, BoothsService, DevicesService, DeviceGuard, RealtimeGateway, KioskService, KioskGuard, SessionsService,
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_FILTER, useClass: ErrorFilter },
       ],

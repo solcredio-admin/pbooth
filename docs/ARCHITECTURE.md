@@ -85,10 +85,33 @@
 Not in Phase 2 (comes with the agent/kiosk): the kiosk's own booth credential, real hardware
 discovery, job-level sync lists (only counts today), uptime history.
 
+## Kiosk (Phase 3)
+
+- **Credential:** a kiosk pairing code (same format and lifetime as enrollment codes, bound to the
+  booth in the URL) is exchanged for an HttpOnly, SameSite=Strict cookie `pb_kiosk` (180 days,
+  hashed at rest, one kiosk per booth). Kiosk endpoints accept only that cookie, admin endpoints
+  never accept it, and the kiosk pages ignore the admin session.
+- **Webcam booths need no agent:** the kiosk heartbeats too (camera status, actual resolution, the
+  webcams it can see). A booth is "seen" when either its agent or its kiosk checks in. Camera
+  problems are reported immediately, not at the next scheduled heartbeat.
+- **Camera:** `getUserMedia` with the configured device (matched by label) and resolution as an
+  *ideal* (never required). The real settings are read back. Unplugging is detected (track
+  `ended`, `devicechange`) and retried every 3 s. Permission denial stops retrying and shows a guide.
+  Capture uses `ImageCapture.takePhoto()` when available (full sensor resolution), otherwise a
+  canvas frame. The preview may be mirrored; photos never are.
+- **Sessions:** the kiosk makes a UUID first and sends start/finish in the background with retries.
+  Both calls are idempotent, and a session can only start for a booth with a live event.
+  shortcut: retries are in memory; a durable queue is Phase 6.
+- **Event template:** `apps/web/src/lib/template/` (pure layout math, unit-tested, plus a canvas
+  drawer). The same code renders the admin preview and the kiosk's design, so what you see is what
+  guests get. It's client-side for now. Phase 5 adds server-side processing with Sharp and storage.
+- Reloading mid-session (`/kiosk/<code>/session/<id>`) starts fresh: unsaved photos are gone, and the
+  stale session stays STARTED.
+
 ## Data model
 
 `Admin`, `AdminSession`, `Event`, `EventConfig` (1:1, guest-experience settings), `AuditLog`,
-`Booth`, `Device`, `EventBooth`. UUID keys, `timestamptz`, indexes on status/date/heartbeat.
+`Booth`, `Device`, `EventBooth`, `Kiosk`, `Session`. UUID keys, `timestamptz`, indexes on status/date/heartbeat.
 Template, Session, Photo, Gallery, PrintJob and UploadJob arrive with their phases.
 
 ## Audit log
@@ -102,8 +125,8 @@ create/update/each status change, with IP. Never passwords, tokens or cookies.
 |---|---|---|
 | 1 Foundation | Repo, auth, DB, dashboard, event CRUD, Docker | **Done** |
 | 2 Booths | Registration, enrollment codes, heartbeats, assignment, config sync, live view, simulated booth | **Done** |
-| 3 Kiosk | Browser kiosk, USB webcam, countdown, capture/retake, guest flow | Next |
-| 4 Agent | Local agent, authenticated local API, gPhoto2 DSLR (Linux), CUPS/Windows printing | |
+| 3 Kiosk | Browser kiosk, USB webcam, countdown, 1–4 shot sequence, retakes, event template, guest flow | **Done** |
+| 4 Agent | Local agent, authenticated local API, gPhoto2 DSLR (Linux), CUPS/Windows printing | Next |
 | 5 Delivery | Sharp processing, R2 presigned uploads, QR galleries, downloads, export | |
 | 6 Offline | Durable queue, restart recovery, idempotent sync, duplicate prevention | |
 | 7 Production | Security review, backup/restore test, monitoring, real hardware, pilot event | |

@@ -2,13 +2,13 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // Runs before every page: sets a per-request CSP nonce, and sends signed-out visitors to /login.
 // (The cookie is only checked for presence here; the admin layout verifies it with the API.)
-const PUBLIC = ["/login"];
+const isPublic = (path: string) => path === "/login" || path.startsWith("/kiosk/"); // kiosks use their own paired cookie
 // Paper Shaders' style slot is pre-created empty; this is the hash of the empty string.
 const EMPTY_STYLE = "'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='";
 
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  if (!PUBLIC.includes(pathname) && !req.cookies.has("pb_session")) {
+  if (!isPublic(pathname) && !req.cookies.has("pb_session")) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";
@@ -25,6 +25,7 @@ export function proxy(req: NextRequest) {
     "img-src 'self' blob: data:",
     "font-src 'self' data:",
     "connect-src 'self'",
+    "media-src 'self' blob: mediastream:",
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'none'",

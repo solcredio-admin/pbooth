@@ -13,12 +13,18 @@ import { boothStatus, isOnline } from "./status.js";
 
 export const boothInclude = {
   device: true,
+  kiosk: true,
   events: { include: { event: { include: { config: true } } }, orderBy: { event: { startsAt: "asc" } } },
 } as const satisfies Prisma.BoothInclude;
 export type BoothRow = Prisma.BoothGetPayload<{ include: typeof boothInclude }>;
 
 const ENROLLMENT_MINUTES = 30;
 const SWEEP_MS = 15_000;
+
+export interface KioskTelemetry {
+  camera?: { status: string; name?: string; resolution?: string };
+  cameras?: { id: string; name: string; provider: string }[];
+}
 
 export interface Telemetry {
   storage?: { freeBytes: number; totalBytes: number };
@@ -57,8 +63,9 @@ export class BoothsService implements OnModuleInit, OnModuleDestroy {
         id: live.id, name: live.name, timeZone: live.timeZone, startsAt: live.startsAt.toISOString(), endsAt: live.endsAt.toISOString(),
         guest: c ? {
           welcomeTitle: c.welcomeTitle, welcomeMessage: c.welcomeMessage, primaryColor: c.primaryColor, accentColor: c.accentColor,
-          countdownSeconds: c.countdownSeconds, shotsPerSession: c.shotsPerSession, printEnabled: c.printEnabled,
-          printCopies: c.printCopies, galleryEnabled: c.galleryEnabled,
+          countdownSeconds: c.countdownSeconds, shotsPerSession: c.shotsPerSession, captureIntervalSeconds: c.captureIntervalSeconds,
+          printEnabled: c.printEnabled, printCopies: c.printCopies, galleryEnabled: c.galleryEnabled,
+          template: { layout: c.layout, footerText: c.footerText || live.name, showDate: c.showDate },
         } : null,
       } : null,
     };
@@ -68,13 +75,20 @@ export class BoothsService implements OnModuleInit, OnModuleDestroy {
 
   toDto(b: BoothRow, now = new Date()) {
     const d = b.device;
+    const k = b.kiosk;
+    // A booth is "seen" when either its agent or its kiosk browser checks in (webcam booths
+    // have no agent until Phase 4).
+    const seen = [d?.lastHeartbeatAt, k?.lastSeenAt].filter((x): x is Date => !!x).sort((x, y) => y.getTime() - x.getTime())[0] ?? null;
+    const lastError = d?.lastError ?? k?.lastError ?? null;
     const live = b.events.find((eb) => eb.event.status === "ACTIVE")?.event ?? null;
     const upcoming = b.events.map((eb) => eb.event).filter((e) => e.status === "DRAFT" || e.status === "SCHEDULED");
     const config = this.deviceConfig(b);
     return {
       id: b.id, name: b.name, code: b.code, notes: b.notes, state: b.state,
-      status: boothStatus({ state: b.state, hasDevice: !!d, lastHeartbeatAt: d?.lastHeartbeatAt ?? null, lastError: d?.lastError ?? null, hasLiveEvent: !!live }, this.cfg.BOOTH_OFFLINE_AFTER_SECONDS, now),
-      online: isOnline(d?.lastHeartbeatAt ?? null, this.cfg.BOOTH_OFFLINE_AFTER_SECONDS, now),
+      status: boothStatus({ state: b.state, hasDevice: !!d || !!k, lastHeartbeatAt: seen, lastError, hasLiveEvent: !!live }, this.cfg.BOOTH_OFFLINE_AFTER_SECONDS, now),
+      online: isOnline(seen, this.cfg.BOOTH_OFFLINE_AFTER_SECONDS, now),
+      lastSeenAt: seen,
+      lastError,
       simulated: d?.simulated ?? false,
       camera: config.camera,
       printer: config.printer,
@@ -85,6 +99,12 @@ export class BoothsService implements OnModuleInit, OnModuleDestroy {
         lastHeartbeatAt: d.lastHeartbeatAt, lastError: d.lastError, appliedConfigVersion: d.appliedConfigVersion,
         telemetry: (d.telemetry ?? {}) as Telemetry,
       } : null,
+      kiosk: k ? {
+        pairedAt: k.pairedAt, lastSeenAt: k.lastSeenAt, userAgent: k.userAgent, lastError: k.lastError,
+        online: isOnline(k.lastSeenAt, this.cfg.BOOTH_OFFLINE_AFTER_SECONDS, now),
+        telemetry: (k.telemetry ?? {}) as KioskTelemetry,
+      } : null,
+      kioskCodeExpiresAt: b.kioskCodeExpiresAt && b.kioskCodeExpiresAt > now ? b.kioskCodeExpiresAt : null,
       liveEvent: live ? { id: live.id, name: live.name } : null,
       events: b.events.map(({ event: e }) => ({ id: e.id, name: e.name, status: e.status, startsAt: e.startsAt, timeZone: e.timeZone })),
       nextEvent: upcoming[0] ? { id: upcoming[0].id, name: upcoming[0].name, startsAt: upcoming[0].startsAt } : null,
@@ -152,12 +172,34 @@ export class BoothsService implements OnModuleInit, OnModuleDestroy {
     return { code, expiresAt };
   }
 
+  /** One-time code to pair the booth's kiosk browser. Same format and lifetime as enrollment codes. */
+  async kioskCode(id: string, actor: string, ip?: string) {
+    const b = await this.row(id);
+    if (b.state === "REVOKED") throw new ApiError(HttpStatus.CONFLICT, "BOOTH_REVOKED", "This booth is revoked. Enroll it again first.");
+    const code = newEnrollmentCode();
+    const expiresAt = new Date(Date.now() + ENROLLMENT_MINUTES * 60_000);
+    await this.db.booth.update({ where: { id }, data: { kioskCodeHash: hashToken(normalizeEnrollmentCode(code)), kioskCodeExpiresAt: expiresAt } });
+    await this.audit.record({ actor, action: "booth.kiosk-code", entityType: "booth", entityId: id, ip });
+    this.push([id]);
+    return { code, expiresAt };
+  }
+
+  /** Signs the kiosk browser out; it shows the pairing screen on its next request. */
+  async unpairKiosk(id: string, actor: string, ip?: string) {
+    await this.row(id);
+    await this.db.kiosk.deleteMany({ where: { boothId: id } });
+    await this.audit.record({ actor, action: "booth.kiosk-unpair", entityType: "booth", entityId: id, ip });
+    this.push([id]);
+    return this.get(id);
+  }
+
   /** Withdraws device access at once: the device's token stops working on its next request. */
   async revoke(id: string, actor: string, ip?: string) {
     await this.row(id);
     await this.db.$transaction([
       this.db.device.deleteMany({ where: { boothId: id } }),
-      this.db.booth.update({ where: { id }, data: { state: "REVOKED", enrollmentCodeHash: null, enrollmentExpiresAt: null } }),
+      this.db.kiosk.deleteMany({ where: { boothId: id } }),
+      this.db.booth.update({ where: { id }, data: { state: "REVOKED", enrollmentCodeHash: null, enrollmentExpiresAt: null, kioskCodeHash: null, kioskCodeExpiresAt: null } }),
     ]);
     await this.audit.record({ actor, action: "booth.revoke", entityType: "booth", entityId: id, ip });
     this.push([id]);
@@ -228,11 +270,12 @@ export class BoothsService implements OnModuleInit, OnModuleDestroy {
     this.sweeper = setInterval(async () => {
       try {
         const edge = Date.now() - this.cfg.BOOTH_OFFLINE_AFTER_SECONDS * 1000;
-        const rows = await this.db.device.findMany({
-          where: { lastHeartbeatAt: { lte: new Date(edge), gt: new Date(edge - SWEEP_MS - 5_000) } },
-          select: { boothId: true },
-        });
-        this.push(rows.map((r) => r.boothId));
+        const window = { lte: new Date(edge), gt: new Date(edge - SWEEP_MS - 5_000) };
+        const [devices, kiosks] = await Promise.all([
+          this.db.device.findMany({ where: { lastHeartbeatAt: window }, select: { boothId: true } }),
+          this.db.kiosk.findMany({ where: { lastSeenAt: window }, select: { boothId: true } }),
+        ]);
+        this.push([...new Set([...devices, ...kiosks].map((r) => r.boothId))]);
       } catch (e) {
         this.log.warn(`sweep failed: ${(e as Error).message}`);
       }

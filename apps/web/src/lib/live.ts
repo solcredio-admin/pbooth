@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
-import type { BoothDto } from "./types";
+import type { BoothDto, EventSessions } from "./types";
 
 /**
  * Booths that update themselves: starts from the server-rendered list, then applies changes the
@@ -9,8 +9,9 @@ import type { BoothDto } from "./types";
  * `keep` decides which booths belong on this page (e.g. only those assigned to one event).
  * `initial` must be a stable reference (a prop or useMemo): a new array resets the live data.
  */
-export function useLiveBooths(initial: BoothDto[], keep: (b: BoothDto) => boolean = () => true) {
+export function useLiveBooths(initial: BoothDto[], keep: (b: BoothDto) => boolean = () => true, sessionsFor?: { eventId: string; initial: EventSessions }) {
   const [booths, setBooths] = useState(initial);
+  const [sessions, setSessions] = useState(sessionsFor?.initial);
   const [connected, setConnected] = useState(false);
   const [, setTick] = useState(0);
 
@@ -21,6 +22,9 @@ export function useLiveBooths(initial: BoothDto[], keep: (b: BoothDto) => boolea
     socket.on("connect", () => setConnected(true));
     socket.on("disconnect", () => setConnected(false));
     socket.on("unauthorized", () => location.replace("/login"));
+    if (sessionsFor) {
+      socket.on("sessions", (msg: { eventId: string; stats: EventSessions }) => { if (msg.eventId === sessionsFor.eventId) setSessions(msg.stats); });
+    }
     socket.on("booths", ({ booths: changed }: { booths: BoothDto[] }) => {
       setBooths((list) => {
         const byId = new Map(list.map((b) => [b.id, b]));
@@ -37,5 +41,5 @@ export function useLiveBooths(initial: BoothDto[], keep: (b: BoothDto) => boolea
     return () => clearInterval(t);
   }, []);
 
-  return { booths, connected };
+  return { booths, connected, sessions };
 }

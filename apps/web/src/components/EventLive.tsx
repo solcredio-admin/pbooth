@@ -6,12 +6,13 @@ import { BoothCard } from "./BoothCard";
 import { send } from "@/lib/client-api";
 import { useLiveBooths } from "@/lib/live";
 import { longDate, STATUS_LABEL, timeRange } from "@/lib/format";
-import type { BoothDto, EventDto } from "@/lib/types";
+import type { BoothDto, EventDto, EventSessions } from "@/lib/types";
 
 // The live view of one event: its booths, updating as they check in, plus booking controls.
-export function EventLive({ event, initial, allBooths }: { event: EventDto; initial: BoothDto[]; allBooths: BoothDto[] }) {
+export function EventLive({ event, initial, allBooths, initialSessions }: { event: EventDto; initial: BoothDto[]; allBooths: BoothDto[]; initialSessions: EventSessions }) {
   const router = useRouter();
-  const { booths, connected } = useLiveBooths(initial, (b) => b.events.some((e) => e.id === event.id));
+  const { booths, connected, sessions } = useLiveBooths(initial, (b) => b.events.some((e) => e.id === event.id), { eventId: event.id, initial: initialSessions });
+  const total = sessions?.total ?? { sessions: 0, completed: 0, photos: 0 };
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const closed = event.status === "COMPLETED" || event.status === "ARCHIVED";
@@ -41,6 +42,7 @@ export function EventLive({ event, initial, allBooths }: { event: EventDto; init
         </div>
         <div className="cap answer" role="status">
           <span className="free">{online} of {booths.length} online</span>
+          {" · "}{total.completed} guest session{total.completed === 1 ? "" : "s"} · {total.photos} photo{total.photos === 1 ? "" : "s"}
           {problems > 0 && <> · <span className="taken">{problems} need attention</span></>}
           {" · "}{pendingUploads} uploads pending
         </div>
@@ -56,7 +58,7 @@ export function EventLive({ event, initial, allBooths }: { event: EventDto; init
         ) : (
           <div className="booth-grid">
             {booths.map((b) => (
-              <BoothCard key={b.id} b={b} action={!closed && (
+              <BoothCard key={b.id} b={b} stats={sessions?.byBooth[b.id] ?? { sessions: 0, completed: 0, photos: 0 }} action={!closed && (
                 <button type="button" className="plain cap" disabled={busy} onClick={() => run("DELETE", `/events/${event.id}/booths/${b.id}`)}>Remove from event</button>
               )} />
             ))}

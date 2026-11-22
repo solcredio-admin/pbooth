@@ -1,5 +1,5 @@
-// Only models the app uses today. Session, Photo, Gallery, PrintJob, UploadJob, Template
-// arrive with their phases as new migrations.
+// Only models the app uses today. Photo, Gallery, PrintJob, UploadJob, Template arrive with
+// their phases as new migrations.
 generator client {
   provider     = "prisma-client"
   output       = "../src/generated/prisma"
@@ -61,6 +61,7 @@ model Event {
   updatedAt     DateTime     @updatedAt @db.Timestamptz(3)
   config        EventConfig?
   booths        EventBooth[]
+  sessions      Session[]
 
   @@index([status, startsAt])
   @@index([startsAt])
@@ -77,7 +78,15 @@ model EventConfig {
   primaryColor         String   @default("#0b0c0a")
   accentColor          String   @default("#c6f36b")
   countdownSeconds     Int      @default(3)
-  shotsPerSession      Int      @default(1)
+  shotsPerSession      Int      @default(3)
+  // Seconds between shots in a multi-shot sequence.
+  captureIntervalSeconds Int    @default(3)
+  // The built-in event template: how photos are framed. "strip" = 2x6 strip, "grid" = 2x2 on 4x6.
+  // One shot always uses a framed 4x6.
+  layout               String   @default("strip")
+  // Footer line on the design; empty means the event name.
+  footerText           String   @default("")
+  showDate             Boolean  @default(true)
   printEnabled         Boolean  @default(false)
   printCopies          Int      @default(1)
   galleryEnabled       Boolean  @default(true)
@@ -120,10 +129,56 @@ model Booth {
   // One-time enrollment code, stored as SHA-256 only; cleared once used.
   enrollmentCodeHash  String?      @unique
   enrollmentExpiresAt DateTime?    @db.Timestamptz(3)
+  // One-time code that pairs the booth's kiosk browser (separate from the agent's enrollment).
+  kioskCodeHash       String?      @unique
+  kioskCodeExpiresAt  DateTime?    @db.Timestamptz(3)
   createdAt           DateTime     @default(now()) @db.Timestamptz(3)
   updatedAt           DateTime     @updatedAt @db.Timestamptz(3)
   device              Device?
+  kiosk               Kiosk?
   events              EventBooth[]
+  sessions            Session[]
+}
+
+// The browser that runs the booth's guest screen. It holds an HttpOnly cookie (never readable by
+// JavaScript); only the cookie's SHA-256 is stored here. Re-pairing replaces it.
+model Kiosk {
+  id         String    @id @default(uuid()) @db.Uuid
+  boothId    String    @unique @db.Uuid
+  booth      Booth     @relation(fields: [boothId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  pairedAt   DateTime  @default(now()) @db.Timestamptz(3)
+  lastSeenAt DateTime? @db.Timestamptz(3)
+  userAgent  String?
+  lastError  String?
+  telemetry  Json? // camera status and the webcams this browser can see
+
+  @@index([lastSeenAt])
+}
+
+enum SessionStatus {
+  STARTED
+  COMPLETED
+  ABANDONED
+}
+
+// One guest's turn at the booth. The id is a UUID made by the kiosk before anything is sent,
+// so retries after a network blip can't create duplicates.
+model Session {
+  id          String        @id @db.Uuid
+  boothId     String        @db.Uuid
+  booth       Booth         @relation(fields: [boothId], references: [id], onDelete: Cascade)
+  eventId     String        @db.Uuid
+  event       Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  status      SessionStatus @default(STARTED)
+  startedAt   DateTime      @db.Timestamptz(3)
+  endedAt     DateTime?     @db.Timestamptz(3)
+  photoCount  Int           @default(0)
+  retakeCount Int           @default(0)
+  createdAt   DateTime      @default(now()) @db.Timestamptz(3)
+
+  @@index([eventId, startedAt])
+  @@index([boothId, startedAt])
 }
 
 // The computer currently enrolled as a booth. Re-enrolling replaces it.

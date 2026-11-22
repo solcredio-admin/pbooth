@@ -33,11 +33,21 @@ export function BoothDetail({ initial, events, origin }: { initial: BoothDto; ev
         <section className="host" aria-labelledby="conn">
           <div className="host-head"><span className="cap">What the booth reports each time it checks in</span><h2 id="conn">Connection</h2></div>
           <div className="panel">
-            {!b.device ? (
+            {!b.device && !b.kiosk ? (
               <div className="empty-state">
-                <h3>{b.state === "REVOKED" ? "Access revoked." : "No computer enrolled yet."}</h3>
-                <p>Generate an enrollment code below and enter it on the booth computer.</p>
+                <h3>{b.state === "REVOKED" ? "Access revoked." : "Nothing connected yet."}</h3>
+                <p>For a webcam booth, pair its kiosk screen below. DSLR and printing need the booth agent (Phase 4).</p>
               </div>
+            ) : !b.device ? (
+              <>
+                {b.lastError && <p className="booth-error" role="alert">{b.lastError}</p>}
+                <dl className="kv">
+                  <dt>Last seen</dt><dd><Ago iso={b.lastSeenAt} /></dd>
+                  <dt>Kiosk</dt><dd>{b.kiosk!.online ? "On screen" : "Not open right now"} · {browserName(b.kiosk!.userAgent)}</dd>
+                  <dt>Camera</dt><dd>{kioskCamera(b)}</dd>
+                  <dt>Agent</dt><dd>Not installed (webcam booths don't need it)</dd>
+                </dl>
+              </>
             ) : (
               <>
                 {b.device.lastError && <p className="booth-error" role="alert">{b.device.lastError}</p>}
@@ -46,8 +56,9 @@ export function BoothDetail({ initial, events, origin }: { initial: BoothDto; ev
                   <dt>Computer</dt><dd>{b.device.hostname ?? "—"} · {b.device.os ?? "unknown OS"}</dd>
                   <dt>Agent</dt><dd>{b.device.agentVersion ?? "—"}</dd>
                   <dt>Enrolled</dt><dd><Ago iso={b.device.enrolledAt} /></dd>
-                  <dt>Camera</dt><dd>{hw(t.camera)}</dd>
+                  <dt>Camera</dt><dd>{b.kiosk && b.camera.provider === "webcam" ? kioskCamera(b) : hw(t.camera)}</dd>
                   <dt>Printer</dt><dd>{hw(t.printer)}</dd>
+                  <dt>Kiosk</dt><dd>{!b.kiosk ? "Not paired" : b.kiosk.online ? "On screen" : "Not open right now"}</dd>
                   <dt>Storage</dt><dd>{t.storage ? `${bytes(t.storage.freeBytes)} free of ${bytes(t.storage.totalBytes)}` : "—"}</dd>
                   <dt>Pending</dt><dd>{t.pendingUploads ?? 0} uploads · {t.pendingPrints ?? 0} prints</dd>
                   <dt>Config</dt><dd>{b.configApplied ? `Up to date (${b.configVersion})` : `Waiting for the booth to apply ${b.configVersion}`}</dd>
@@ -57,12 +68,70 @@ export function BoothDetail({ initial, events, origin }: { initial: BoothDto; ev
           </div>
         </section>
 
+        <KioskPairing booth={b} origin={origin} />
         <Enroll booth={b} origin={origin} />
         <Hardware booth={b} />
         <Assignments booth={b} events={events} />
         <Revoke booth={b} />
       </main>
     </>
+  );
+}
+
+const browserName = (ua: string | null) =>
+  !ua ? "unknown browser" : /Edg\//.test(ua) ? "Edge" : /Chrome\//.test(ua) ? "Chrome" : /Firefox\//.test(ua) ? "Firefox" : /Safari\//.test(ua) ? "Safari" : "browser";
+
+function kioskCamera(b: BoothDto) {
+  const c = b.kiosk?.telemetry.camera;
+  if (!c) return "Not reported yet";
+  return `${c.name ?? "Webcam"} · ${c.status}${c.resolution ? ` · ${c.resolution}` : ""}`;
+}
+
+function KioskPairing({ booth, origin }: { booth: BoothDto; origin: string }) {
+  const router = useRouter();
+  const [code, setCode] = useState<{ code: string; expiresAt: string } | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const url = `${origin}/kiosk/${booth.code}`;
+  const run = async (path: string) => {
+    setBusy(true);
+    const res = await send<{ code: string; expiresAt: string }>("POST", path);
+    setBusy(false);
+    if (!res.ok) return setError(res.message);
+    setError("");
+    return res.data;
+  };
+  if (booth.state === "REVOKED") return null;
+
+  return (
+    <section className="host" aria-labelledby="kio">
+      <div className="host-head"><span className="cap">The guest screen, in a fullscreen browser at the booth</span><h2 id="kio">Kiosk</h2></div>
+      <div className="panel enroll">
+        <p className="cap center">
+          {booth.kiosk ? <>Paired {booth.kiosk.online ? "· on screen now" : <>· last seen <Ago iso={booth.kiosk.lastSeenAt} /></>}</> : "Not paired yet."}
+        </p>
+        {code ? (
+          <>
+            <p className="enroll-code" aria-label="Kiosk pairing code">{code.code}</p>
+            <ol className="steps-text">
+              <li>On the booth computer, open <b>{url}</b> in Chrome (HTTPS is required for the camera).</li>
+              <li>Enter this code. It works once, for 30 minutes. Pairing a new screen signs out the old one.</li>
+              <li>Allow the camera when Chrome asks. For a locked-down kiosk, start Chrome with:
+                <pre className="code-line">google-chrome --kiosk --noerrdialogs {url}</pre>
+              </li>
+            </ol>
+          </>
+        ) : null}
+        {error && <p className="cap err" role="alert">{error}</p>}
+        <div className="actions">
+          <button className="btn" type="button" disabled={busy} onClick={async () => { const d = await run(`/booths/${booth.id}/kiosk-code`); if (d) setCode(d); }}>
+            {code ? "New code" : booth.kiosk ? "Pair a different screen" : "Pair kiosk"}
+          </button>
+          {booth.kiosk && <button className="btn ghost" type="button" disabled={busy} onClick={async () => { await run(`/booths/${booth.id}/kiosk/unpair`); setCode(null); router.refresh(); }}>Unpair</button>}
+          <a className="btn ghost" href={url} target="_blank" rel="noreferrer">Open kiosk</a>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -80,7 +149,7 @@ function Enroll({ booth, origin }: { booth: BoothDto; origin: string }) {
 
   return (
     <section className="host" aria-labelledby="enr">
-      <div className="host-head"><span className="cap">One-time code, valid 30 minutes</span><h2 id="enr">{booth.device ? "Replace the computer" : "Enroll a computer"}</h2></div>
+      <div className="host-head"><span className="cap">For DSLR cameras and printing · one-time code, valid 30 minutes</span><h2 id="enr">{booth.device ? "Replace the agent computer" : "Booth agent"}</h2></div>
       <div className="panel enroll">
         {code ? (
           <>
@@ -109,7 +178,8 @@ function Hardware({ booth }: { booth: BoothDto }) {
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const t = booth.device?.telemetry ?? {};
-  const cameras = t.cameras ?? [];
+  // Cameras the booth reported: the agent's (DSLR/webcam) plus the kiosk browser's webcams.
+  const cameras = [...(t.cameras ?? []), ...(booth.kiosk?.telemetry.cameras ?? [])];
   const printers = t.printers ?? [];
 
   async function save(e: FormEvent<HTMLFormElement>) {

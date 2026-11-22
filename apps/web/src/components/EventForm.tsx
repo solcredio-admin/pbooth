@@ -3,10 +3,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { send } from "@/lib/client-api";
 import type { EventConfig, EventDto } from "@/lib/types";
+import { TemplatePreview } from "./TemplatePreview";
 
 const DEFAULTS: EventConfig = {
   welcomeTitle: "Strike a pose", welcomeMessage: "Tap anywhere to start", primaryColor: "#0b0c0a", accentColor: "#c6f36b",
-  countdownSeconds: 3, shotsPerSession: 1, printEnabled: false, printCopies: 1, galleryEnabled: true, galleryRetentionDays: 30,
+  countdownSeconds: 3, shotsPerSession: 3, captureIntervalSeconds: 3, layout: "strip", footerText: "", showDate: true, printEnabled: false, printCopies: 1, galleryEnabled: true, galleryRetentionDays: 30,
 };
 
 function Field({ name, label, error, hint, wide, children }: { name: string; label: string; error?: string; hint?: string; wide?: boolean; children: ReactNode }) {
@@ -29,6 +30,16 @@ export function EventForm({ event }: { event?: EventDto }) {
   const zoneList = zones ? [...new Set(["UTC", ...zones.list, ...(event ? [event.timeZone] : [])])] : [event?.timeZone ?? "UTC"];
   const cfg = { ...DEFAULTS, ...(event?.config ?? {}) };
   const [colors, setColors] = useState({ primaryColor: cfg.primaryColor, accentColor: cfg.accentColor });
+  // What the live design preview shows; follows the form as it's edited.
+  const [look, setLook] = useState({ name: event?.name ?? "", date: event?.local.date ?? "", layout: cfg.layout, shots: cfg.shotsPerSession, footer: cfg.footerText, showDate: cfg.showDate });
+  const onFormChange = (e: React.FormEvent<HTMLFormElement>) => {
+    const f = new FormData(e.currentTarget);
+    setLook({
+      name: String(f.get("name") ?? ""), date: String(f.get("date") ?? ""), layout: (f.get("layout") as "strip" | "grid") ?? "strip",
+      shots: Math.min(4, Math.max(1, Number(f.get("shotsPerSession")) || 1)), footer: String(f.get("footerText") ?? ""), showDate: f.get("showDate") === "on",
+    });
+  };
+  const previewDate = look.date ? new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "long", day: "numeric", year: "numeric" }).format(new Date(`${look.date}T12:00:00Z`)) : "Event date";
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -47,6 +58,7 @@ export function EventForm({ event }: { event?: EventDto }) {
         welcomeTitle: str("welcomeTitle"), welcomeMessage: str("welcomeMessage"),
         primaryColor: str("primaryColor"), accentColor: str("accentColor"),
         countdownSeconds: num("countdownSeconds"), shotsPerSession: num("shotsPerSession"),
+        captureIntervalSeconds: num("captureIntervalSeconds"), layout: str("layout"), footerText: str("footerText"), showDate: f.get("showDate") === "on",
         printEnabled: f.get("printEnabled") === "on", printCopies: num("printCopies"),
         galleryEnabled: f.get("galleryEnabled") === "on", galleryRetentionDays: num("galleryRetentionDays"),
       },
@@ -70,7 +82,7 @@ export function EventForm({ event }: { event?: EventDto }) {
   }
 
   return (
-    <form className="form" onSubmit={submit} noValidate>
+    <form className="form" onSubmit={submit} onChange={onFormChange} noValidate>
       <fieldset disabled={readOnly || busy}>
         <div className="fields">
           <h3>The event</h3>
@@ -119,9 +131,31 @@ export function EventForm({ event }: { event?: EventDto }) {
           <Field name="countdownSeconds" label="Countdown (seconds)" error={errors.countdownSeconds}>
             <input {...attrs("countdownSeconds")} type="number" min={0} max={10} defaultValue={cfg.countdownSeconds} />
           </Field>
-          <Field name="shotsPerSession" label="Photos per session" error={errors.shotsPerSession}>
+          <Field name="shotsPerSession" label="Photos per session" error={errors.shotsPerSession} hint="1 to 4, taken in a row">
             <input {...attrs("shotsPerSession")} type="number" min={1} max={4} defaultValue={cfg.shotsPerSession} />
           </Field>
+          <Field name="captureIntervalSeconds" label="Seconds between photos" error={errors.captureIntervalSeconds} hint="Time to change poses">
+            <input {...attrs("captureIntervalSeconds")} type="number" min={1} max={10} defaultValue={cfg.captureIntervalSeconds} />
+          </Field>
+
+          <h3>Photo design</h3>
+          <div className="wide design-row">
+            <div className="design-fields">
+              <Field name="layout" label="Layout" error={errors.layout} hint="One photo always prints as a framed 4×6">
+                <select {...attrs("layout")} defaultValue={cfg.layout}>
+                  <option value="strip">Photo strip (2×6)</option>
+                  <option value="grid">Grid (4×6)</option>
+                </select>
+              </Field>
+              <Field name="footerText" label="Footer text" error={errors.footerText} hint="Leave empty to use the event name">
+                <input {...attrs("footerText")} defaultValue={cfg.footerText} maxLength={60} placeholder={look.name || "Event name"} />
+              </Field>
+              <label className="check"><input type="checkbox" name="showDate" defaultChecked={cfg.showDate} /><span>Show the date</span></label>
+              <p className="hint cap">Uses the brand and accent colours above.</p>
+            </div>
+            <TemplatePreview layout={look.layout} shots={look.shots} primaryColor={colors.primaryColor} accentColor={colors.accentColor}
+              footer={look.footer || look.name || "Event name"} dateText={look.showDate ? previewDate : null} />
+          </div>
 
           <h3>Prints and gallery</h3>
           <label className="check"><input type="checkbox" name="printEnabled" defaultChecked={cfg.printEnabled} /><span>Print photos at the booth</span></label>

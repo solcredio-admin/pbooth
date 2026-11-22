@@ -50,6 +50,8 @@ describe.skipIf(!base)("API against a real database", () => {
     expect(e.endsAt).toBe("2026-12-05T17:00:00.000Z"); // 01:00 the next day in Manila
     expect(e.local).toEqual({ date: "2026-12-05", startTime: "18:00", endTime: "01:00" });
     expect(e.config.countdownSeconds).toBe(3);
+    expect(e.config.shotsPerSession).toBe(3);
+    expect(e.config.layout).toBe("strip");
 
     const patched = await call(`/events/${e.id}`, { method: "PATCH", body: { name: "Reyes–Cruz Wedding", config: { printEnabled: true } }, cookie });
     expect(patched.body.name).toBe("Reyes–Cruz Wedding");

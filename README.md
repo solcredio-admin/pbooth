@@ -3,9 +3,10 @@
 A photobooth management platform run by one administrator: create events, (later) assign booths,
 run a browser kiosk at the venue, and deliver photos by print and QR gallery.
 
-**Status: Phase 2 (booths).** Admin sign-in, events with a status lifecycle, booth registration,
-device enrollment, heartbeats, config sync, event assignment, and a live view per event (Socket.IO).
-Kiosk, cameras, printing, photos and galleries come in later phases
+**Status: Phase 3 (browser kiosk).** Admin sign-in, events, booths (enrollment, heartbeats, config
+sync, live view), and a guest kiosk for USB webcams: 1–4 photos per session, retakes, and a
+built-in event photo design (strip or grid). Saving/uploading photos, printing, DSLR and QR
+galleries come in later phases
 (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); booth computers talk to the
 [device API](docs/DEVICE_API.md)).
 
@@ -80,6 +81,35 @@ It enrolls through the real device API, then heartbeats and applies config like 
 It's marked **SIMULATED** everywhere and never counts as tested hardware. Options:
 `--error "Camera disconnected"` to show an error, `--flaky` to drop heartbeats. Its token is saved
 in `.sim-booth-<code>.json` (git-ignored); rerun with `--state <file>` to resume.
+
+## Kiosk (USB webcam booths)
+
+1. On the booth page, **Pair kiosk**. Open `https://<host>/kiosk/<booth code>` in Chrome on the booth
+   computer and enter the code (single use, 30 minutes). The browser gets an HttpOnly cookie that
+   page scripts can't read. It lasts 180 days and **Unpair** or **Revoke** ends it.
+2. Allow the camera when Chrome asks (HTTPS is required). The kiosk lists the webcams it can see.
+   Pick one on the booth page, or leave "First available".
+3. For a locked-down screen: `google-chrome --kiosk --noerrdialogs https://<host>/kiosk/<code>`.
+
+Guest flow: welcome → get ready → countdown → 1–4 photos in a row (a short countdown between shots)
+→ review the finished design (retake one photo or all) → done → clears itself after 20 s. A minute
+without a touch abandons the session. Nothing from one guest stays on screen for the next. Each
+session is counted on the event's live view.
+
+**Photos are not saved yet.** They live only in the kiosk's memory until upload arrives
+(Phase 5), and the kiosk says so on its last screen. A booth set to DSLR shows that it needs the
+agent (Phase 4) instead of pretending to work.
+
+### Event photo design
+
+Each event has a built-in design, set on the event page under **Photo design**, with a live preview:
+- **Photo strip**: 2×6 in, photos stacked.
+- **Grid**: 4×6 in. 2×2 for four photos, one wide photo over two for three.
+- **One photo**: always a framed 4×6.
+
+The design uses the event's brand and accent colours, the footer text (or the event name) and the
+date. It's drawn at 300 dpi, so it's print-sized. A template library with uploaded artwork needs
+image storage and comes with R2 (Phase 5).
 
 ## Admin account
 
