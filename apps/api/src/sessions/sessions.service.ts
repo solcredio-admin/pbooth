@@ -9,9 +9,16 @@ export interface SessionStats { sessions: number; completed: number; photos: num
 export class SessionsService {
   constructor(private readonly db: PrismaService, private readonly realtime: RealtimeGateway) {}
 
-  /** Idempotent: the kiosk makes the UUID, so sending the same start twice is harmless. */
-  async start(boothId: string, id: string, startedAt?: string, galleryToken?: string) {
-    const live = await this.db.eventBooth.findFirst({ where: { boothId, event: { status: "ACTIVE" } }, select: { eventId: true } });
+  /**
+   * Idempotent: the kiosk makes the UUID, so sending the same start twice is harmless.
+   * Offline booths send sessions late. If the kiosk says which event it was serving, the session is
+   * accepted as long as this booth was booked for that event and it was live (ACTIVE) or has since
+   * been completed, so photos shot during an outage still land even if the event ended meanwhile.
+   */
+  async start(boothId: string, id: string, startedAt?: string, galleryToken?: string, eventId?: string) {
+    const live = eventId
+      ? await this.db.eventBooth.findFirst({ where: { boothId, eventId, event: { status: { in: ["ACTIVE", "COMPLETED"] } } }, select: { eventId: true } })
+      : await this.db.eventBooth.findFirst({ where: { boothId, event: { status: "ACTIVE" } }, select: { eventId: true } });
     const existing = await this.db.session.findUnique({ where: { id } });
     if (existing) {
       if (existing.boothId !== boothId) throw new ApiError(HttpStatus.CONFLICT, "SESSION_CONFLICT", "Session belongs to another booth");

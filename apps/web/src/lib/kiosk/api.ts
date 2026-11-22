@@ -30,17 +30,3 @@ export async function kioskFetch<T>(method: string, path: string, body?: unknown
     return { ok: false, status: 0, message: "offline" };
   }
 }
-
-/**
- * Session bookkeeping must never hold up a guest: send in the background, retry a few times.
- * shortcut: retries live in memory; a durable offline queue (IndexedDB/agent) is Phase 6.
- */
-export function sendInBackground(method: string, path: string, body: unknown, attempts = 4) {
-  void (async () => {
-    for (let i = 0; i < attempts; i++) {
-      const r = await kioskFetch(method, path, body);
-      if (r.ok || (r.status >= 400 && r.status < 500)) return; // done, or a real refusal (no point retrying)
-      await new Promise((res) => setTimeout(res, 2000 * 2 ** i));
-    }
-  })();
-}

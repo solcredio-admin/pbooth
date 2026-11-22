@@ -26,7 +26,9 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm --filter @pbooth/api build
       - name: S3-compatible store for the photo tests (SeaweedFS)
-        run: docker run -d -p 8333:8333 chrislusf/seaweedfs:latest server -s3 -dir=/data && sleep 12
+        run: |
+          docker run -d -p 8333:8333 chrislusf/seaweedfs:latest server -s3 -dir=/data -master.volumeSizeLimitMB=512
+          for i in $(seq 1 60); do curl -s -o /dev/null http://localhost:8333/ && exit 0; sleep 2; done; echo "storage didn't start"; exit 1
       - name: API unit + integration tests
         run: pnpm --filter @pbooth/api test
         env: { TEST_DATABASE_URL: "postgresql://postgres:test@localhost:5432/test", TEST_S3_ENDPOINT: "http://localhost:8333" }

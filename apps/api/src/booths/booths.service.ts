@@ -23,6 +23,7 @@ const SWEEP_MS = 15_000;
 
 export interface KioskTelemetry {
   camera?: { status: string; name?: string; resolution?: string };
+  queue?: { pending: number; failed: number; lastSyncAt: string | null };
   cameras?: { id: string; name: string; provider: string }[];
 }
 

@@ -173,6 +173,34 @@ discovery, job-level sync lists (only counts today), uptime history.
 - shortcut: kiosk uploads retry from the page's memory. A closed browser or a long outage still
   loses unsent photos until Phase 6's durable queue (IndexedDB / agent SQLite).
 
+## Offline operation (Phase 6)
+
+- **Kiosk outbox** (`apps/web/src/lib/offline/`): a `SyncQueue` over an injected store (IndexedDB in
+  the kiosk, memory in tests).
+  - Items: session-start, photo (with its Blob), session-finish.
+  - They're sent strictly in creation order. A transient failure stops the run and backs off up to
+    60 s; the browser's `online` event wakes it.
+  - Hopeless items are marked failed (and their bytes dropped) without blocking the rest. "Limited"
+    retries cover a photo whose session never arrives.
+  - IDs are fixed at enqueue time, and the API is idempotent on them, so a restart or retry can't
+    duplicate anything. A photo is removed only after `upload-complete` confirms size and checksum.
+  - `navigator.storage.persist()` is requested.
+- **Offline shell:** `public/kiosk-sw.js`, scope `/kiosk/`.
+  - Kiosk pages are network-first, falling back to the saved copy (one copy per booth).
+  - `/_next/static`, fonts and logos are cache-first. The page posts the files it loaded so the very
+    first visit is cached.
+  - API, agent and storage requests are never cached.
+  - The kiosk keeps its last config in IndexedDB and starts from it when the API is unreachable.
+  - The cached HTML replays with its own CSP header, so nonces still match.
+- **Late sync:** session-start carries the event the kiosk was serving. The API accepts it if the
+  booth was booked for that event and it's ACTIVE or COMPLETED.
+- **Visibility:** kiosk heartbeats carry `queue: { pending, failed, lastSyncAt }`, shown on the booth
+  card and booth page.
+- **Not here:** the agent doesn't upload (the kiosk holds DSLR blobs too and uploads them). Agent
+  originals stay on the booth disk as a backup copy; cleaning them up is a later improvement.
+- The embedded browser in the Claude desktop app disables service workers, so verification uses
+  Playwright (real headless Chromium, true network cut).
+
 ## Data model
 
 `Admin`, `AdminSession`, `Event`, `EventConfig` (1:1, guest-experience settings), `AuditLog`,
@@ -193,8 +221,8 @@ create/update/each status change, with IP. Never passwords, tokens or cookies.
 | 3 Kiosk | Browser kiosk, USB webcam, countdown, 1–4 shot sequence, retakes, event template, guest flow | **Done** |
 | 4 Agent | Local agent, authenticated local API, gPhoto2 DSLR (Linux), CUPS/Windows printing | **Done** (hardware models untested) |
 | 5 Delivery | Sharp processing, R2 presigned uploads, QR galleries, downloads, export | **Done** (R2 itself pending your bucket) |
-| 6 Offline | Durable queue, restart recovery, idempotent sync, duplicate prevention | Next |
-| 7 Production | Security review, backup/restore test, monitoring, real hardware, pilot event | |
+| 6 Offline | Durable queue, restart recovery, idempotent sync, duplicate prevention | **Done** |
+| 7 Production | Security review, backup/restore test, monitoring, real hardware, pilot event | Next |
 
 ## Hardware risks (carried forward)
 

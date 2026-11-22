@@ -104,6 +104,24 @@ describe.skipIf(!base)("kiosk and sessions", () => {
     expect((await call("/kiosk/agent-ticket", { method: "POST" })).status).toBe(401);
   });
 
+  it("accepts sessions shot offline after the event was completed (late sync)", async () => {
+    const admin = await login();
+    const { booth, kiosk } = await pairedKiosk(admin, "Late Sync Booth");
+    const { body: e } = await call("/events", { method: "POST", body: { ...newEvent, name: "Late Party" }, cookie: admin });
+    const { body: other } = await call("/events", { method: "POST", body: { ...newEvent, name: "Not Ours" }, cookie: admin });
+    await call(`/events/${e.id}/booths`, { method: "POST", body: { boothId: booth.id }, cookie: admin });
+    await call(`/events/${e.id}/activate`, { method: "POST", cookie: admin });
+    await call(`/events/${e.id}/complete`, { method: "POST", cookie: admin }); // ended while the booth was offline
+
+    const id = randomUUID();
+    const late = await call("/sessions", { method: "POST", cookie: kiosk, body: { id, eventId: e.id, startedAt: new Date(Date.now() - 3600_000).toISOString() } });
+    expect(late.status).toBe(201);
+    expect(late.body.eventId).toBe(e.id);
+    // not for an event this booth wasn't booked for, and not without saying which event
+    expect((await call("/sessions", { method: "POST", cookie: kiosk, body: { id: randomUUID(), eventId: other.id } })).status).toBe(409);
+    expect((await call("/sessions", { method: "POST", cookie: kiosk, body: { id: randomUUID() } })).status).toBe(409);
+  });
+
   it("never lets a kiosk cookie into admin endpoints", async () => {
     const { kiosk } = await pairedKiosk(await login(), "Nosy Kiosk");
     expect((await call("/booths", { cookie: kiosk })).status).toBe(401);

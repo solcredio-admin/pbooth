@@ -30,6 +30,8 @@ const config: NextConfig = {
     ];
     return [
       { source: "/:path*", headers: security },
+      // The offline helper must always be re-checked, or kiosks would keep an old version.
+      { source: "/kiosk-sw.js", headers: [{ key: "Cache-Control", value: "no-cache" }] },
       // Logos/icons change only with a release; ?v= in their URLs busts the cache.
       { source: "/:file(logo-.*|favicon.*|apple-touch-icon.png)", headers: [{ key: "Cache-Control", value: "public, max-age=86400" }] },
     ];

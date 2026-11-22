@@ -13,6 +13,8 @@ export const kioskHeartbeatSchema = z.object({
     resolution: z.string().max(20).optional(), // what the camera actually delivers, e.g. "1920x1080"
   }).optional(),
   cameras: z.array(z.object({ id: z.string().max(200), name: z.string().max(160) })).max(20).optional(),
+  // The kiosk's offline queue (IndexedDB): what's still waiting to reach the cloud.
+  queue: z.object({ pending: z.number().int().min(0), failed: z.number().int().min(0), lastSyncAt: z.string().datetime().nullable() }).optional(),
 });
 
 export type Pair = z.infer<typeof pairSchema>;

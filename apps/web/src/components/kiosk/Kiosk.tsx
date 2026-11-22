@@ -2,10 +2,12 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useWebcam } from "@/lib/kiosk/camera";
 import { useAgent, type AgentJob } from "@/lib/kiosk/agent";
-import { kioskFetch, sendInBackground, type KioskConfig } from "@/lib/kiosk/api";
+import { kioskFetch, type KioskConfig } from "@/lib/kiosk/api";
+import { cachedConfig, enqueuePhoto, kioskQueue, saveConfig } from "@/lib/offline/kiosk-sync";
+import type { QueueStatus } from "@/lib/offline/queue";
 import { composeTemplate, toJpeg } from "@/lib/template/compose";
 import { plan } from "@/lib/template/layout";
-import { newGalleryToken, uploadPhoto } from "@/lib/kiosk/upload";
+import { newGalleryToken } from "@/lib/kiosk/upload";
 import QRCode from "qrcode";
 
 type Screen =
@@ -39,7 +41,8 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   // ---------- one guest's session ----------
   const session = useRef<{ id: string; retakes: number; finished: boolean; galleryToken: string } | null>(null);
   const [qr, setQr] = useState<string | null>(null);
-  const [saving, setSaving] = useState<{ done: number; total: number; failed: number } | null>(null);
+  const [saving, setSaving] = useState<{ total: number; pending: number } | null>(null);
+  const [queueStatus, setQueueStatus] = useState<QueueStatus | null>(null);
   const [shots, setShots] = useState<Shot[]>([]);
   const [design, setDesign] = useState<Shot | null>(null); // the photos inside the event template
   const [redo, setRedo] = useState<number | null>(null);   // retaking just this photo
@@ -52,10 +55,16 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   // ---------- config + heartbeat ----------
   const loadConfig = useCallback(async () => {
     const r = await kioskFetch<KioskConfig>("GET", `/kiosk/config?booth=${encodeURIComponent(boothCode)}`);
-    if (r.ok) { setConfig(r.data); setOnline(true); return r.data; }
+    if (r.ok) { setConfig(r.data); setOnline(true); void saveConfig(boothCode, r.data); return r.data; }
     if (r.status === 401) setScreen("unpaired");
     else if (r.status === 409 && r.code === "WRONG_BOOTH") { setPairedWith((r.details as { pairedWith?: string })?.pairedWith ?? null); setScreen("wrong-booth"); }
-    else if (r.status === 0 || r.status >= 500) setOnline(false); // keep running on the last config
+    else if (r.status === 0 || r.status >= 500) {
+      // Offline: keep running on the last config this kiosk saw (in memory, or saved from before a reload).
+      setOnline(false);
+      const saved = await cachedConfig(boothCode);
+      setConfig((current) => current ?? saved);
+      return saved;
+    }
     return null;
   }, [boothCode]);
 
@@ -65,6 +74,8 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   camRef.current = cam;
   const agentRef = useRef(agent);
   agentRef.current = agent;
+  const queueRef = useRef<QueueStatus | null>(null);
+  queueRef.current = queueStatus && { pending: queueStatus.pending, failed: queueStatus.failed, lastSyncAt: queueStatus.lastSyncAt, online: queueStatus.online };
   const beatRef = useRef<() => void>(() => undefined);
   useEffect(() => {
     if (!config) return;
@@ -79,6 +90,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
         camera: config.camera.provider === "gphoto2" ? undefined : c.state.status === "idle" || c.state.status === "starting" ? undefined
           : { status: c.state.status === "insecure" ? "error" : c.state.status, name: c.state.name, resolution: c.state.resolution },
         cameras: c.cameras.slice(0, 20),
+        queue: queueRef.current ?? undefined,
       });
       if (r.ok) { setOnline(true); if (r.data.configVersion !== config.version) loadConfig(); }
       else if (r.status === 401) setScreen("unpaired");
@@ -127,6 +139,32 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     el.style.setProperty("--k-ink", isLight(guest?.primaryColor ?? "#0b0c0a") ? "#0b0c0a" : "#f6f5f0");
   }, [guest?.primaryColor, guest?.accentColor]);
 
+  // The outbox: show what's waiting, and follow this guest's photos on the thank-you screen.
+  useEffect(() => {
+    const q = kioskQueue();
+    const refresh = async () => {
+      const st = await q.status();
+      setQueueStatus(st);
+      const s = session.current;
+      if (s) { const pending = await q.pendingPhotos(s.id); setSaving((v) => (v ? { ...v, pending } : v)); }
+    };
+    void refresh();
+    const off = q.onChange(() => void refresh());
+    const t = setInterval(refresh, 5000);
+    return () => { off(); clearInterval(t); };
+  }, []);
+
+  // Offline helper: keeps a copy of this kiosk so it still opens if it's reloaded without internet.
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("/kiosk-sw.js", { scope: "/kiosk/" }).then(async () => {
+      const reg = await navigator.serviceWorker.ready;
+      const urls = [location.pathname, ...performance.getEntriesByType("resource").map((e) => e.name)]
+        .filter((u) => u.startsWith("/") || u.startsWith(location.origin));
+      reg.active?.postMessage({ type: "warm", urls, page: location.pathname });
+    }).catch(() => undefined);
+  }, []);
+
   // Keep the screen awake while the kiosk is open (where the browser supports it).
   useEffect(() => {
     let lock: { release(): Promise<void> } | null = null;
@@ -148,7 +186,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     const s = session.current;
     if (s && !s.finished) {
       s.finished = true;
-      sendInBackground("PATCH", `/sessions/${s.id}/status`, { status, photoCount: shotsRef.current.length, retakeCount: s.retakes });
+      void kioskQueue().add("session-finish", s.id, { status, photoCount: shotsRef.current.length, retakeCount: s.retakes });
     }
     // Nothing of this guest stays on screen or in memory for the next one.
     shotsRef.current.forEach((x) => URL.revokeObjectURL(x.url));
@@ -164,7 +202,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     const id = crypto.randomUUID();
     const galleryToken = newGalleryToken();
     session.current = { id, retakes: 0, finished: false, galleryToken };
-    sendInBackground("POST", "/sessions", { id, startedAt: new Date().toISOString(), galleryToken });
+    void kioskQueue().add("session-start", id, { id, startedAt: new Date().toISOString(), galleryToken, eventId: config?.event?.id });
     history.replaceState(null, "", `/kiosk/${boothCode}/session/${id}`);
     setScreen("ready");
   };
@@ -251,13 +289,9 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
         ...(main ? [[main, "DESIGN", 0] as [Blob, "DESIGN", number]] : []),
         ...(guest?.saveOriginals ? shots.map((x, i) => [x.blob, "ORIGINAL", i + 1] as [Blob, "ORIGINAL", number]) : []),
       ];
-      setSaving({ done: 0, total: files.length, failed: 0 });
-      void (async () => {
-        for (const [blob, kind, index] of files) {
-          const ok = await uploadPhoto(s.id, blob, kind, index);
-          if (session.current?.id === s.id) setSaving((v) => v && { ...v, done: v.done + (ok ? 1 : 0), failed: v.failed + (ok ? 0 : 1) });
-        }
-      })();
+      // Into the durable outbox: delivered whenever the cloud is reachable, even after a reload.
+      setSaving({ total: files.length, pending: files.length });
+      void (async () => { for (const [blob, kind, index] of files) await enqueuePhoto(s.id, blob, kind, index); })();
       if (sharing) {
         QRCode.toDataURL(`${location.origin}/g/${s.galleryToken}`, { margin: 1, width: 360, errorCorrectionLevel: "M", color: { dark: "#0b0c0a", light: "#ffffff" } })
           .then(setQr).catch(() => setQr(null));
@@ -334,7 +368,12 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
         </div>
       )}
       {flash && <div className="k-flash" aria-hidden="true" />}
-      {!online && <div className="k-offline" role="status">Offline: guests can keep going</div>}
+      {(!online || (queueStatus && (queueStatus.pending > 0 || queueStatus.failed > 0))) && !GUEST.has(screen) && (
+        <div className="k-offline" role="status">
+          {!online ? "Offline · guests can keep going" : "Syncing"}
+          {queueStatus?.pending ? ` · ${queueStatus.pending} waiting` : ""}{queueStatus?.failed ? ` · ${queueStatus.failed} failed` : ""}
+        </div>
+      )}
 
       {screen === "loading" && <Center><p className="k-cap">Starting…</p></Center>}
 
@@ -376,6 +415,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
           <h1 className="k-title">Ready when you are.</h1>
           <p className="k-text">No event is live on this booth. It starts automatically when one goes live.</p>
           <p className="k-cap">Camera: {dslr ? (agent.status?.camera ? camLabel(agent.status.camera) : "waiting for the agent") : camLabel(cam.state)}</p>
+          {queueStatus && <p className="k-cap">Uploads: {queueStatus.pending} waiting{queueStatus.failed ? `, ${queueStatus.failed} failed` : ""} · last sync {queueStatus.lastSyncAt ? new Date(queueStatus.lastSyncAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "never"}</p>}
         </Center>
       )}
 
@@ -473,7 +513,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
               <img src={qr} alt="QR code to your photos" />
               <div>
                 <p className="k-qr-title">Scan for your photos</p>
-                <p className="k-cap">{!saving ? "" : saving.failed ? "Some photos are still trying to save. The link fills in as they arrive." : saving.done < saving.total ? `Saving ${saving.done} of ${saving.total}…` : "Saved. They'll be ready in a moment."}</p>
+                <p className="k-cap">{!saving ? "" : saving.pending === 0 ? "Saved. They'll be ready in a moment." : !online || queueStatus?.online === false ? "No internet right now. Your photos are safe here and upload automatically; the link fills in once they arrive." : `Saving ${saving.total - saving.pending} of ${saving.total}…`}</p>
               </div>
             </div>
           )}

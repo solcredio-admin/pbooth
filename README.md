@@ -3,7 +3,9 @@
 A photobooth management platform run by one administrator: create events, (later) assign booths,
 run a browser kiosk at the venue, and deliver photos by print and QR gallery.
 
-**Status: Phase 5 (photo delivery).** Photos upload to a private Cloudflare R2 bucket, guests get
+**Status: Phase 6 (offline operation).** Booths keep working through internet outages: sessions and
+photos wait on the kiosk (IndexedDB) and sync, exactly once, when the network returns; a kiosk
+reloaded offline still opens. Before that, Phase 5 (photo delivery): Photos upload to a private Cloudflare R2 bucket, guests get
 a QR code to their own gallery, and you can share an event gallery, export ZIPs and set retention.
 Before that, Phase 4 (hardware agent): Admin sign-in, events, booths (enrollment, heartbeats, config
 sync, live view), a guest kiosk (1–4 photos, retakes, built-in event design), and the booth agent:
@@ -118,6 +120,26 @@ Each event has a built-in design, set on the event page under **Photo design**, 
 The design uses the event's brand and accent colours, the footer text (or the event name) and the
 date. It's drawn at 300 dpi, so it's print-sized. A template library with uploaded artwork needs
 image storage and comes with R2 (Phase 5).
+
+## When the internet drops
+
+- **Guests keep going.** Each session and photo is written to the kiosk's own storage (IndexedDB)
+  first. Photos leave the kiosk only after the cloud confirms they arrived intact. Everything is
+  delivered in order once the network is back, and retries reuse the same IDs, so nothing is duplicated.
+- **The QR still works.** The link is made on the kiosk before anything is sent. The gallery shows
+  the photos once they've synced, and the done screen tells guests their photos will follow.
+- **A kiosk reloaded offline still opens.** An offline helper (service worker) keeps a copy of the
+  kiosk app, and the last booth config is saved locally.
+- **Late sync:** a session shot offline still lands if you complete the event before the booth reconnects.
+- **What you see:** the kiosk shows a small "Offline · N waiting" badge between guests, and the idle
+  screen shows "Uploads: N waiting · last sync". The admin booth card shows the same ("Queue" and
+  "Synced"). DSLR originals also stay on the booth computer, and print jobs live in the agent's
+  queue (SQLite).
+- **Proof:** `apps/web/e2e/offline.spec.ts` (Playwright, real Chromium with a fake camera) cuts the
+  network mid-event, shoots, reloads the kiosk offline, shoots again, restores the network, and
+  checks that exactly 3 sessions and 3 photos arrive. Run it against any pbooth:
+  `cd apps/web && E2E_BASE_URL=http://localhost:3399 npx playwright test`
+  (needs `npx playwright install chromium` once, and an admin login via `E2E_EMAIL` / `E2E_PASSWORD`).
 
 ## Photo storage (Cloudflare R2)
 

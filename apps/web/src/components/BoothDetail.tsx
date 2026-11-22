@@ -46,6 +46,7 @@ export function BoothDetail({ initial, events, origin }: { initial: BoothDto; ev
                   <dt>Kiosk</dt><dd>{b.kiosk!.online ? "On screen" : "Not open right now"} · {browserName(b.kiosk!.userAgent)}</dd>
                   <dt>Camera</dt><dd>{kioskCamera(b)}</dd>
                   <dt>Agent</dt><dd>Not installed (webcam booths don't need it)</dd>
+                  {b.kiosk!.telemetry.queue && <><dt>Uploads</dt><dd>{b.kiosk!.telemetry.queue.pending} waiting on the booth{b.kiosk!.telemetry.queue.failed ? ` · ${b.kiosk!.telemetry.queue.failed} failed` : ""} · last sync {b.kiosk!.telemetry.queue.lastSyncAt ? <Ago iso={b.kiosk!.telemetry.queue.lastSyncAt} /> : "never"}</dd></>}
                 </dl>
               </>
             ) : (

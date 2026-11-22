@@ -47,7 +47,10 @@ export interface BoothDto {
   lastError: string | null;
   kiosk: null | {
     pairedAt: string; lastSeenAt: string | null; userAgent: string | null; lastError: string | null; online: boolean;
-    telemetry: { camera?: { status: string; name?: string; resolution?: string }; cameras?: { id: string; name: string; provider: string }[] };
+    telemetry: {
+      camera?: { status: string; name?: string; resolution?: string }; cameras?: { id: string; name: string; provider: string }[];
+      queue?: { pending: number; failed: number; lastSyncAt: string | null }; // the kiosk's offline outbox
+    };
   };
   kioskCodeExpiresAt: string | null;
   liveEvent: { id: string; name: string } | null;

@@ -61,7 +61,8 @@ const faces = new Map();  // painted labels, reused: re-uploading a texture per 
 // The key's face, painted from the DOM key itself so theme, .local and labels match.
 function paintFace(el, w, h) {
   const cs = getComputedStyle(el), root = getComputedStyle(document.documentElement);
-  const edgeVar = el.classList.contains("local") ? "--cap-edge" : el.classList.contains("sched") ? "--sched-edge" : "--key-edge";
+  const edgeVar = el.classList.contains("local") ? "--cap-edge" : el.classList.contains("sched") ? "--sched-edge"
+    : el.classList.contains("done") ? "--done-edge" : el.classList.contains("err") ? "--err-edge" : "--key-edge";
   const edge = root.getPropertyValue(edgeVar).trim();
   // Lifted, popped and seen in perspective, the cap shows ~1.3x its size: paint well above screen density.
   const s = Math.min(4, Math.ceil(devicePixelRatio * 2)), c = document.createElement("canvas");

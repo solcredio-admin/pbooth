@@ -53,7 +53,7 @@ export class KioskService {
   async heartbeat(kioskId: string, boothId: string, hb: KioskHeartbeat, userAgent?: string) {
     await this.db.kiosk.update({
       where: { id: kioskId },
-      data: { lastSeenAt: new Date(), lastError: hb.lastError ?? null, userAgent, telemetry: { camera: hb.camera, cameras: hb.cameras?.map((c) => ({ ...c, provider: "webcam" })) } },
+      data: { lastSeenAt: new Date(), lastError: hb.lastError ?? null, userAgent, telemetry: { camera: hb.camera, cameras: hb.cameras?.map((c) => ({ ...c, provider: "webcam" })), queue: hb.queue } },
     });
     this.booths.push([boothId]);
     return { configVersion: this.booths.deviceConfig(await this.booths.row(boothId)).version };
