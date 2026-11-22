@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState, type FormEvent } from "react";
 import { send } from "@/lib/client-api";
 import { useLiveBooths } from "@/lib/live";
+import { DeleteZone } from "./DeleteZone";
 import { BOOTH_LABEL, bytes, STATUS_LABEL } from "@/lib/format";
 import type { BoothDto, CameraConfig, EventDto, HwStatus, PrinterConfig } from "@/lib/types";
 
@@ -75,6 +76,9 @@ export function BoothDetail({ initial, events, origin }: { initial: BoothDto; ev
         <Hardware booth={b} />
         <Assignments booth={b} events={events} />
         <Revoke booth={b} />
+        <DeleteZone what="booth" name={b.name} path={`/booths/${b.id}/delete`} back="/booths"
+          lost="Removes the booth, disconnects its computer and kiosk, and takes it off every event. Photos it already took stay with their events."
+          blocked={b.liveEvent ? `This booth is serving “${b.liveEvent.name}” right now. Wrap up the event or take the booth off it first.` : undefined} />
       </main>
     </>
   );

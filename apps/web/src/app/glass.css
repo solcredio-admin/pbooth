@@ -167,7 +167,7 @@ main { display: grid; gap: 40px; padding: 0 16px 140px; max-width: 1240px; margi
 }
 .key .n { font: 500 17px/1 var(--mono); letter-spacing: -0.02em; }
 .key .l { font: 400 10px/1.2 var(--mono); opacity: .7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.key .p { position: absolute; top: 9px; right: 9px; font: 500 8.5px/1 var(--mono); text-transform: uppercase; opacity: .5; }
+.key .p { font: 500 8.5px/1 var(--mono); text-transform: uppercase; opacity: .55; } /* first line, in flow: long dates never run into it */
 .key.local { background: var(--cap); color: var(--cap-ink); box-shadow: inset 0 -4px 0 var(--cap-edge); }
 .key.local:hover, .key.local:focus-visible { box-shadow: inset 0 -2px 0 var(--cap-edge), 0 0 0 2px var(--ring); }
 .key.dim { opacity: .18; }

@@ -208,6 +208,22 @@ export class BoothsService implements OnModuleInit, OnModuleDestroy {
     return this.get(id);
   }
 
+  /**
+   * Deletes the booth, its device and kiosk pairing, and its event bookings. Sessions and photos it
+   * shot stay with their events. The caller must type the booth's exact name; a booth booked on a
+   * live event can't be deleted.
+   */
+  async remove(id: string, confirmName: string, actor: string, ip?: string) {
+    const b = await this.row(id);
+    if (confirmName.trim() !== b.name.trim()) throw new ApiError(HttpStatus.BAD_REQUEST, "CONFIRM_MISMATCH", "Type the booth's name exactly to delete it");
+    const live = await this.db.eventBooth.findFirst({ where: { boothId: id, event: { status: "ACTIVE" } }, select: { event: { select: { name: true } } } });
+    if (live) throw new ApiError(HttpStatus.CONFLICT, "BOOTH_LIVE", `This booth is serving "${live.event.name}" right now. Wrap up the event or take the booth off it first`);
+    await this.db.booth.delete({ where: { id } });
+    await this.audit.record({ actor, action: "booth.delete", entityType: "booth", entityId: id, ip, metadata: { name: b.name, code: b.code } });
+    this.realtime.boothsChanged({ booths: [], removed: [id] });
+    return { deleted: true };
+  }
+
   // ---------- event assignment ----------
 
   async boothsForEvent(eventId: string) {

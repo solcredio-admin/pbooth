@@ -7,6 +7,7 @@ import type { CreateEvent, ListEvents, UpdateEvent } from "./events.schemas.js";
 import { allowedTransitions, TRANSITIONS, type Transition } from "./transitions.js";
 import { eventWindow, utcToWallTime } from "./tz.js";
 import { BoothsService } from "../booths/booths.service.js";
+import { PhotosService } from "../photos/photos.service.js";
 
 const withConfig = { config: true } as const;
 type EventRow = Prisma.EventGetPayload<{ include: typeof withConfig }>;
@@ -28,7 +29,7 @@ export function toDto(e: EventRow) {
 
 @Injectable()
 export class EventsService {
-  constructor(private readonly db: PrismaService, private readonly audit: AuditService, private readonly booths: BoothsService) {}
+  constructor(private readonly db: PrismaService, private readonly audit: AuditService, private readonly booths: BoothsService, private readonly photos: PhotosService) {}
 
   async list(q: ListEvents) {
     const where: Prisma.EventWhereInput = {
@@ -102,5 +103,27 @@ export class EventsService {
     await this.audit.record({ actor, action: `event.${t}`, entityType: "event", entityId: id, ip });
     await this.booths.pushForEvent(id); // their status and config just changed
     return this.get(id);
+  }
+
+  /**
+   * Deletes a draft or scheduled event and everything under it: photo files in storage first (if
+   * any), then the event row (config, sessions, photos, galleries and booth bookings cascade).
+   * The caller must type the event's exact name.
+   */
+  async remove(id: string, confirmName: string, actor: string, ip?: string) {
+    const e = await this.db.event.findUnique({ where: { id }, select: { name: true, status: true, booths: { select: { boothId: true } } } });
+    if (!e) throw notFound("Event");
+    if (confirmName.trim() !== e.name.trim()) throw new ApiError(HttpStatus.BAD_REQUEST, "CONFIRM_MISMATCH", "Type the event's name exactly to delete it");
+    // Only events that never ran (a wrong draft, a cancelled booking). Events that happened stay on
+    // record; retention still removes their photos.
+    if (e.status !== EventStatus.DRAFT && e.status !== EventStatus.SCHEDULED) {
+      throw new ApiError(HttpStatus.CONFLICT, "EVENT_HAPPENED", "Only draft or scheduled events can be deleted. Events that have run are kept for your records");
+    }
+    // Files first: if storage fails, nothing is deleted and the admin can retry.
+    const { deleted } = await this.photos.deletePhotos({ eventId: id }, actor, "event deleted");
+    await this.db.event.delete({ where: { id } });
+    await this.audit.record({ actor, action: "event.delete", entityType: "event", entityId: id, ip, metadata: { name: e.name, photos: deleted } });
+    this.booths.push(e.booths.map((b) => b.boothId)); // their next/live event changed
+    return { deleted: true };
   }
 }

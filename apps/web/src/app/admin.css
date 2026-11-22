@@ -125,8 +125,18 @@ fieldset[disabled] { opacity: .6; }
 .confirm { width: 460px; }
 .confirm p { margin: 8px 0 22px; color: var(--muted); font: 400 12.5px/1.55 var(--mono); }
 .confirm .actions { justify-content: flex-end; }
+.confirm form { display: grid; gap: 14px; }
+.confirm form b { color: var(--ink); font-weight: 500; user-select: text; }
 .skeleton { height: 120px; border-radius: 14px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 6%, transparent), transparent); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; }
 @keyframes shimmer { to { background-position: -200% 0; } }
+/* route loading skeleton: same blocks as a real page, ink-tinted so it reads in both themes */
+.sk { display: block; justify-self: center; border-radius: 8px; background: color-mix(in srgb, var(--ink) 7%, transparent) linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 7%, transparent), transparent); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; }
+.sk-cap { width: 160px; height: 12px; }
+.sk-title { width: min(340px, 70vw); height: clamp(40px, 6vw, 72px); border-radius: 14px; }
+.sk-h2 { width: min(220px, 50vw); height: clamp(32px, 4.4vw, 52px); border-radius: 12px; }
+.sk-panel { display: grid; gap: 14px; }
+.sk-row { justify-self: stretch; height: 18px; }
+.sk-row:last-child { width: 60%; justify-self: start; }
 .kv { display: grid; grid-template-columns: max-content 1fr; gap: 10px 22px; margin: 0; }
 .kv dt { color: var(--muted); font: 500 10.5px/1.6 var(--mono); text-transform: uppercase; }
 .kv dd { margin: 0; font: 400 13px/1.5 var(--mono); }

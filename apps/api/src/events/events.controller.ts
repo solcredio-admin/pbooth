@@ -7,6 +7,8 @@ import type { Req as Request } from "../common/request.js";
 
 const id = { schema: z.string().uuid("Not a valid event id") };
 const actor = (r: Request) => `admin:${r.admin!.id}`;
+// Deleting needs the name typed back, so a stray click or replayed request can't do it.
+const deleteSchema = z.object({ confirmName: z.string().min(1).max(200) });
 
 @Controller("events")
 export class EventsController {
@@ -51,5 +53,10 @@ export class EventsController {
 
   private move(eventId: string, t: Transition, r: Request) {
     return this.events.transition(eventId, t, actor(r), r.ip);
+  }
+
+  @Post(":id/delete") @HttpCode(200)
+  remove(@Param("id", id) eventId: string, @Body({ schema: deleteSchema }) body: z.infer<typeof deleteSchema>, @Req() r: Request) {
+    return this.events.remove(eventId, body.confirmName, actor(r), r.ip);
   }
 }

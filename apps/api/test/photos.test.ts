@@ -5,7 +5,9 @@ import { base, call as rawCall, login as rawLogin, newEvent, type CallInit } fro
 
 const IP = "10.0.5.1";
 const call = (path: string, init: CallInit = {}) => rawCall(path, { ip: IP, ...init });
-const login = () => rawLogin(IP);
+// one admin sign-in for the file: every test logging in again trips the per-IP sign-in limit
+let admin: Promise<string> | undefined;
+const login = () => (admin ??= rawLogin(IP));
 const s3 = inject("s3");
 const sha = (b: Buffer) => createHash("sha256").update(b).digest("hex");
 const jpeg = (w = 1200, h = 1800, color = "#1b1730") => sharp({ create: { width: w, height: h, channels: 3, background: color } }).jpeg().toBuffer();
@@ -152,6 +154,49 @@ describe.skipIf(!base || !s3)("photos, processing and galleries (real S3-compati
     expect((await call(`/events/${event.id}/photos`, { method: "DELETE", cookie: admin })).body.deleted).toBe(1);
     expect((await call(`/photos/${photoId}`, { cookie: admin })).status).toBe(404);
     expect((await call(`/galleries/${galleryToken}/photos`)).body.items).toHaveLength(0);
+  });
+
+  it("deletes only events that never ran, and only on purpose", async () => {
+    const admin = await login();
+    const make = async (name: string) => (await call("/events", { method: "POST", body: { ...newEvent, name }, cookie: admin })).body;
+    const del = (id: string, confirmName?: string) => call(`/events/${id}/delete`, { method: "POST", cookie: admin, body: confirmName === undefined ? undefined : { confirmName } });
+
+    const draft = await make("Wrong Draft");
+    expect((await del(draft.id)).status).toBe(400); // no name
+    expect((await del(draft.id, "Wrong")).body.error.code).toBe("CONFIRM_MISMATCH");
+    expect((await del(draft.id, "Wrong Draft")).status).toBe(200);
+    expect((await call(`/events/${draft.id}`, { cookie: admin })).status).toBe(404);
+
+    const cancelled = await make("Cancelled Booking");
+    await call(`/events/${cancelled.id}/schedule`, { method: "POST", cookie: admin });
+    expect((await del(cancelled.id, "Cancelled Booking")).status).toBe(200);
+
+    const held = await make("Held Event"); // ran, so it stays on record
+    await call(`/events/${held.id}/activate`, { method: "POST", cookie: admin });
+    expect((await del(held.id, "Held Event")).body.error.code).toBe("EVENT_HAPPENED");
+    await call(`/events/${held.id}/complete`, { method: "POST", cookie: admin });
+    expect((await del(held.id, "Held Event")).body.error.code).toBe("EVENT_HAPPENED");
+    expect((await call(`/events/${held.id}`, { cookie: admin })).status).toBe(200);
+  });
+
+  it("deletes a booth only on purpose and keeps the photos it took", async () => {
+    const { admin, kiosk, booth, event, sessionId, galleryToken } = await liveSession("Retired Booth");
+    const { photoId } = await upload(kiosk, sessionId, await jpeg(400, 600));
+    await call("/photos/upload-complete", { method: "POST", cookie: kiosk, body: { photoId } });
+    await waitFor(admin, photoId, "PROCESSED");
+
+    const del = (confirmName: string) => call(`/booths/${booth.id}/delete`, { method: "POST", cookie: admin, body: { confirmName } });
+    expect((await del("Retired")).body.error.code).toBe("CONFIRM_MISMATCH");
+    expect((await del(booth.name)).body.error.code).toBe("BOOTH_LIVE");
+    await call(`/events/${event.id}/complete`, { method: "POST", cookie: admin });
+    expect((await del(booth.name)).status).toBe(200);
+
+    expect((await call(`/booths/${booth.id}`, { cookie: admin })).status).toBe(404);
+    expect((await call(`/kiosk/config?booth=${booth.code}`, { cookie: kiosk })).status).toBe(401); // its kiosk is signed out
+    const listed = await call(`/events/${event.id}/photos`, { cookie: admin });
+    expect(listed.body.sessions[0].booth).toBeNull();
+    expect(listed.body.sessions[0].photos).toHaveLength(1);
+    expect((await call(`/galleries/${galleryToken}/photos`)).body.items).toHaveLength(1);
   });
 
   it("checks the storage setup end to end", async () => {

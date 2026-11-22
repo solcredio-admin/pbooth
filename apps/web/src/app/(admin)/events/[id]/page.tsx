@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { EventForm } from "@/components/EventForm";
 import { Lifecycle } from "@/components/Lifecycle";
+import { DeleteZone } from "@/components/DeleteZone";
 import { apiGet } from "@/lib/server-api";
 import { longDate, STATUS_LABEL, timeRange } from "@/lib/format";
 import type { BoothDto, EventDto } from "@/lib/types";
@@ -42,6 +43,11 @@ export default async function EventPage({ params }: Props) {
           <div className="host-head"><span className="cap">Everything about this event</span><h2 id="det">Details</h2></div>
           <div className="panel"><EventForm key={e.updatedAt} event={e} /></div>
         </section>
+        {(e.status === "DRAFT" || e.status === "SCHEDULED") && (
+          // events that ran are kept for the record (retention still clears their photos)
+          <DeleteZone what="event" name={e.name} path={`/events/${e.id}/delete`} back="/events"
+            lost="For a wrong draft or a cancelled booking: removes the event, its settings and its booth bookings." />
+        )}
       </main>
     </>
   );

@@ -170,8 +170,8 @@ enum SessionStatus {
 // so retries after a network blip can't create duplicates.
 model Session {
   id          String        @id @db.Uuid
-  boothId     String        @db.Uuid
-  booth       Booth         @relation(fields: [boothId], references: [id], onDelete: Cascade)
+  boothId     String?       @db.Uuid // null once the booth itself is deleted; the guest's photos stay with the event
+  booth       Booth?        @relation(fields: [boothId], references: [id], onDelete: SetNull)
   eventId     String        @db.Uuid
   event       Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
   status      SessionStatus @default(STARTED)

@@ -60,8 +60,9 @@ export class SessionsService {
     const byBooth: Record<string, SessionStats> = {};
     const total: SessionStats = { sessions: 0, completed: 0, photos: 0 };
     for (const r of rows) {
-      const b = (byBooth[r.boothId] ??= { sessions: 0, completed: 0, photos: 0 });
-      for (const t of [b, total]) {
+      // sessions of a deleted booth (boothId null) still count toward the event total
+      const targets = r.boothId ? [(byBooth[r.boothId] ??= { sessions: 0, completed: 0, photos: 0 }), total] : [total];
+      for (const t of targets) {
         t.sessions += r._count._all;
         if (r.status === "COMPLETED") { t.completed += r._count._all; t.photos += r._sum.photoCount ?? 0; }
       }

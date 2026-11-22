@@ -100,7 +100,7 @@ export function EventGallery({ event, data, origin }: { event: EventDto; data: E
                         : <span key={p.id} className={`thumb-status s-${p.status}`} title={p.error ?? undefined}>{p.status.toLowerCase()}</span>)}
                     </div>
                     <div className="session-meta">
-                      <span className="cap">{time(s.startedAt, event.timeZone)} · {s.booth.name}</span>
+                      <span className="cap">{time(s.startedAt, event.timeZone)} · {s.booth?.name ?? "Deleted booth"}</span>
                       <span className="session-actions">
                         {s.galleryToken && <a className="plain cap" href={`/g/${s.galleryToken}`} target="_blank" rel="noreferrer">Guest link</a>}
                         <button className="plain cap danger" type="button" disabled={busy} onClick={() => { if (confirm("Delete this guest's photos? This can't be undone.")) run("DELETE", `/events/${event.id}/sessions/${s.id}/photos`); }}>Delete</button>

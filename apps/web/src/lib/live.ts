@@ -25,10 +25,11 @@ export function useLiveBooths(initial: BoothDto[], keep: (b: BoothDto) => boolea
     if (sessionsFor) {
       socket.on("sessions", (msg: { eventId: string; stats: EventSessions }) => { if (msg.eventId === sessionsFor.eventId) setSessions(msg.stats); });
     }
-    socket.on("booths", ({ booths: changed }: { booths: BoothDto[] }) => {
+    socket.on("booths", ({ booths: changed, removed = [] }: { booths: BoothDto[]; removed?: string[] }) => {
       setBooths((list) => {
         const byId = new Map(list.map((b) => [b.id, b]));
         for (const b of changed) keep(b) ? byId.set(b.id, b) : byId.delete(b.id);
+        for (const id of removed) byId.delete(id);
         return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
       });
     });
