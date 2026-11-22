@@ -20,6 +20,7 @@ export const configSchema = z.object({
   printCopies: z.number().int().min(1).max(5),
   galleryEnabled: z.boolean(),
   galleryRetentionDays: z.number().int().min(1).max(365),
+  saveOriginals: z.boolean(),
 }).partial();
 
 const when = {

@@ -12,6 +12,5 @@ export default async function DashboardPage() {
     apiGet<Summary>("/events/summary"),
     apiGet<{ items: BoothDto[] }>("/booths"),
   ]);
-  const boothsOnline = { online: booths.items.filter((b) => b.online).length, total: booths.items.length };
-  return <Dashboard events={list.items.filter((e) => e.status !== "ARCHIVED")} summary={summary} booths={boothsOnline} />;
+  return <Dashboard events={list.items.filter((e) => e.status !== "ARCHIVED")} summary={summary} booths={booths.items} />;
 }

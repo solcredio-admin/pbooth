@@ -2,19 +2,16 @@
 import Link from "next/link";
 import { Ago } from "./Ago";
 import { useRouter } from "next/navigation";
-import { useRef, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { send } from "@/lib/client-api";
 import { useLiveBooths } from "@/lib/live";
-import { BOOTH_LABEL, BOOTH_SHORT, boothTile } from "@/lib/format";
+import { BOOTH_LABEL } from "@/lib/format";
 import type { BoothDto } from "@/lib/types";
 
-// All booths as keycaps (lime = online, blue = enrolled, grey = offline/new, red = error/revoked),
-// updating live, with a one-field form to register a new booth.
+// All booths as a list that updates live, with a one-field form to register a new booth.
 export function BoothsBoard({ initial }: { initial: BoothDto[] }) {
   const router = useRouter();
   const { booths, connected } = useLiveBooths(initial);
-  const [hover, setHover] = useState<{ b: BoothDto; top: boolean } | null>(null);
-  const closing = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const online = booths.filter((b) => b.online).length;
@@ -30,11 +27,6 @@ export function BoothsBoard({ initial }: { initial: BoothDto[] }) {
     router.push(`/booths/${res.data.id}`);
   }
 
-  const open = (b: BoothDto, el: HTMLElement) => {
-    clearTimeout(closing.current);
-    setHover({ b, top: el.getBoundingClientRect().bottom > innerHeight - 190 });
-  };
-  const close = () => { closing.current = setTimeout(() => setHover(null), 220); };
 
   return (
     <>
@@ -46,17 +38,23 @@ export function BoothsBoard({ initial }: { initial: BoothDto[] }) {
         {booths.length > 0 && (
           <section className="host" aria-label="All booths">
             <div className="panel">
-              <div className="keys">
-                {booths.map((b) => (
-                  <Link key={b.id} href={`/booths/${b.id}`} className={boothTile(b)}
-                    onMouseEnter={(ev) => open(b, ev.currentTarget)} onMouseLeave={close}
-                    onFocus={(ev) => open(b, ev.currentTarget)} onBlur={close}
-                    aria-label={`${b.name}, ${BOOTH_LABEL[b.status]}${b.simulated ? ", simulated" : ""}`}>
-                    <span className="p">{b.simulated ? "Sim" : BOOTH_SHORT[b.status]}</span>
-                    <span className="n">{b.code}</span>
-                    <span className="l">{b.name}</span>
-                  </Link>
-                ))}
+              <div className="table-wrap">
+                <table className="table">
+                  <thead><tr><th>Booth</th><th>Status</th><th className="hide-sm">Last seen</th><th className="hide-sm">Event</th></tr></thead>
+                  <tbody>
+                    {booths.map((b) => (
+                      <tr key={b.id}>
+                        <td>
+                          <Link className="row-link name" href={`/booths/${b.id}`}>{b.name}</Link>
+                          <div className="sub">{b.code}{b.simulated && <span className="sim-badge">Simulated</span>}</div>
+                        </td>
+                        <td><span className={`pill b-${b.status}`}>{BOOTH_LABEL[b.status]}</span>{b.lastError && <div className="sub err-text">{b.lastError}</div>}</td>
+                        <td className="hide-sm"><Ago iso={b.lastSeenAt} /></td>
+                        <td className="hide-sm">{b.liveEvent ? <>Live at {b.liveEvent.name}</> : b.nextEvent ? <>Next: {b.nextEvent.name}</> : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           </section>
@@ -74,26 +72,7 @@ export function BoothsBoard({ initial }: { initial: BoothDto[] }) {
             {error && <p className="cap err" role="alert">{error}</p>}
           </div>
         </section>
-        {booths.length > 0 && (
-          <div className="legend-row cap" aria-hidden="true">
-            <span><i className="lg-live" />Online</span><span><i className="lg-sched" />Enrolled, not seen yet</span>
-            <span><i className="lg-cap" />Offline / not enrolled</span><span><i className="lg-err" />Error / revoked</span>
-          </div>
-        )}
       </main>
-      <div className={"ticket" + (hover?.top ? " top" : "")} hidden={!hover} role="tooltip">
-        {hover && (
-          <>
-            <span className="cap">{BOOTH_LABEL[hover.b.status]}{hover.b.simulated ? " · Simulated" : ""} · {hover.b.code}</span>
-            <h3>{hover.b.name}</h3>
-            <dl>
-              <dt>Last seen</dt><dd><Ago iso={hover.b.lastSeenAt} /></dd>
-              <dt>Event</dt><dd>{hover.b.liveEvent?.name ?? hover.b.nextEvent?.name ?? "—"}</dd>
-              <dt>Device</dt><dd>{hover.b.device?.hostname ?? "—"}</dd>
-            </dl>
-          </>
-        )}
-      </div>
     </>
   );
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { apiGet } from "@/lib/server-api";
+import { QuickEvent } from "@/components/QuickEvent";
 import { longDate, STATUS_LABEL, timeRange } from "@/lib/format";
 import type { EventDto, EventStatus, Page } from "@/lib/types";
 
@@ -26,6 +27,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
         <h1>Events.</h1>
       </section>
       <main>
+        <QuickEvent />
         <section className="host">
           <div className="panel">
             {/* A plain GET form: filters live in the URL, so they survive reloads and can be bookmarked. */}

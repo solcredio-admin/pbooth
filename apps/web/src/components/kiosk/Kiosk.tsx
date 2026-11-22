@@ -4,6 +4,7 @@ import { useWebcam } from "@/lib/kiosk/camera";
 import { useAgent, type AgentJob } from "@/lib/kiosk/agent";
 import { kioskFetch, sendInBackground, type KioskConfig } from "@/lib/kiosk/api";
 import { composeTemplate, toJpeg } from "@/lib/template/compose";
+import { plan } from "@/lib/template/layout";
 import { newGalleryToken, uploadPhoto } from "@/lib/kiosk/upload";
 import QRCode from "qrcode";
 
@@ -32,6 +33,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   const printWanted = !!(config?.printer.enabled && guest?.printEnabled);
   const agent = useAgent(config?.booth.code, !!config && (dslr || !!config.printer.enabled));
   const camReady = dslr ? agent.available && agent.status?.camera?.status === "connected" : cam.state.status === "connected";
+  const [liveSize, setLiveSize] = useState<string | null>(null); // DSLR live-view frame size
   const [print, setPrint] = useState<null | { state: "sending" | "queued" | "printing" | "done" | "failed" | "unavailable"; message?: string }>(null);
 
   // ---------- one guest's session ----------
@@ -101,6 +103,20 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     else if (!camReady) setScreen("camera");
     else setScreen("welcome");
   }, [config, live, camReady, dslr, agent.available, screen]);
+
+  // What guests see is what ends up in the design: the preview box takes the shape of the template
+  // slot this shot will fill, and the camera image is centre-cropped into it exactly like
+  // composeTemplate does. Without a template slot, it's the camera's own frame (never cropped).
+  // Set through the CSSOM, since inline style attributes are blocked by the CSP.
+  const frameSize = dslr ? liveSize : cam.state.resolution;
+  const shotIndex = Math.min(redo ?? shots.length, Math.max(0, needed - 1));
+  const layout = (guest?.template?.layout ?? "strip") as "strip" | "grid";
+  useEffect(() => {
+    const slot = live ? plan(layout, needed, config?.camera.orientation ?? "landscape").slots[shotIndex] : null;
+    const [w, h] = (frameSize ?? "16x9").split("x").map(Number);
+    const aspect = slot ? slot.w / slot.h : w / h;
+    root.current?.style.setProperty("--k-aspect", aspect.toFixed(4));
+  }, [frameSize, live, layout, needed, shotIndex, config?.camera.orientation]);
 
   // Event colours, set through the CSSOM (inline style attributes are blocked by the CSP).
   useEffect(() => {
@@ -226,11 +242,14 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     setScreen("done");
     const s = session.current;
     if (s && config?.storage) {
-      // Save the design and every original in the background; uploads keep going after the screen
-      // resets (the next guest never sees them), retrying through network blips.
+      // Save in the background: the design always, each individual shot only if the event keeps
+      // originals (otherwise storage holds just the finished photo). Uploads keep going after the
+      // screen resets (the next guest never sees them), retrying through network blips.
+      // (If the design couldn't be drawn, the first shot stands in for it so the guest still gets a photo.)
+      const main = design?.blob ?? shots[0]?.blob;
       const files: [Blob, "DESIGN" | "ORIGINAL", number][] = [
-        ...(design ? [[design.blob, "DESIGN", 0] as [Blob, "DESIGN", number]] : []),
-        ...shots.map((x, i) => [x.blob, "ORIGINAL", i + 1] as [Blob, "ORIGINAL", number]),
+        ...(main ? [[main, "DESIGN", 0] as [Blob, "DESIGN", number]] : []),
+        ...(guest?.saveOriginals ? shots.map((x, i) => [x.blob, "ORIGINAL", i + 1] as [Blob, "ORIGINAL", number]) : []),
       ];
       setSaving({ done: 0, total: files.length, failed: 0 });
       void (async () => {
@@ -294,6 +313,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   }
 
   const previewing = ["welcome", "ready", "countdown", "camera"].includes(screen) && camReady;
+  const soft = screen === "welcome"; // the welcome screen uses the camera as a blurred backdrop
   const showVideo = !dslr && previewing;
   const showLive = dslr && previewing && !!agent.liveUrl;
   const portrait = config?.camera.orientation === "portrait";
@@ -301,13 +321,16 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   return (
     <div ref={root} className={`kiosk ks-${screen}`} onContextMenu={(e) => e.preventDefault()}>
       {showVideo && (
-        <div className={"k-frame" + (portrait ? " portrait" : "") + (screen === "welcome" ? " soft" : "")}>
-          <video ref={cam.attach} className={config?.camera.mirrorPreview ? "mirror" : undefined} muted playsInline autoPlay />
+        <div className={"k-frame" + (soft ? " soft" : "")}>
+          <div className="k-view"><video ref={cam.attach} className={config?.camera.mirrorPreview ? "mirror" : undefined} muted playsInline autoPlay /></div>
         </div>
       )}
       {showLive && (
-        <div className={"k-frame" + (portrait ? " portrait" : "") + (screen === "welcome" ? " soft" : "")}>
-          <img className={"k-live" + (config?.camera.mirrorPreview ? " mirror" : "")} src={agent.liveUrl!} alt="" />
+        <div className={"k-frame" + (soft ? " soft" : "")}>
+          <div className="k-view">
+            <img className={"k-live" + (config?.camera.mirrorPreview ? " mirror" : "")} src={agent.liveUrl!} alt=""
+              onLoad={(e) => { const i = e.currentTarget; if (i.naturalWidth) setLiveSize(`${i.naturalWidth}x${i.naturalHeight}`); }} />
+          </div>
         </div>
       )}
       {flash && <div className="k-flash" aria-hidden="true" />}

@@ -6,7 +6,7 @@ export interface EventConfig {
   welcomeTitle: string; welcomeMessage: string; primaryColor: string; accentColor: string;
   countdownSeconds: number; shotsPerSession: number; captureIntervalSeconds: number;
   layout: "strip" | "grid"; footerText: string; showDate: boolean; printEnabled: boolean; printCopies: number;
-  galleryEnabled: boolean; galleryRetentionDays: number;
+  galleryEnabled: boolean; galleryRetentionDays: number; saveOriginals: boolean;
 }
 
 export interface EventDto {
@@ -59,7 +59,7 @@ export interface BoothDto {
 }
 
 export interface EventPhotos {
-  storageEnabled: boolean; galleryEnabled: boolean; retentionDays: number; eventGalleryToken: string | null;
+  storageEnabled: boolean; galleryEnabled: boolean; saveOriginals: boolean; retentionDays: number; eventGalleryToken: string | null;
   counts: Partial<Record<"PENDING" | "UPLOADED" | "PROCESSING" | "PROCESSED" | "FAILED" | "DELETED", number>>;
   page: number; pageSize: number; total: number;
   sessions: {

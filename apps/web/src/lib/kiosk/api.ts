@@ -9,7 +9,7 @@ export interface KioskConfig {
   heartbeatIntervalSeconds: number;
   event: null | {
     id: string; name: string; timeZone: string; startsAt: string; endsAt: string;
-    guest: null | { welcomeTitle: string; welcomeMessage: string; primaryColor: string; accentColor: string; countdownSeconds: number; shotsPerSession: number; captureIntervalSeconds: number; printEnabled: boolean; printCopies: number; galleryEnabled: boolean;
+    guest: null | { welcomeTitle: string; welcomeMessage: string; primaryColor: string; accentColor: string; countdownSeconds: number; shotsPerSession: number; captureIntervalSeconds: number; printEnabled: boolean; printCopies: number; galleryEnabled: boolean; saveOriginals: boolean;
       template: { layout: "strip" | "grid"; footerText: string; showDate: boolean } };
   };
 }

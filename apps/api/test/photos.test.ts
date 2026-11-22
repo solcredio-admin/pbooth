@@ -11,13 +11,13 @@ const sha = (b: Buffer) => createHash("sha256").update(b).digest("hex");
 const jpeg = (w = 1200, h = 1800, color = "#1b1730") => sharp({ create: { width: w, height: h, channels: 3, background: color } }).jpeg().toBuffer();
 
 /** A live event with a paired kiosk and one started session (with its QR gallery token). */
-async function liveSession(name: string) {
+async function liveSession(name: string, config: Record<string, unknown> = { saveOriginals: true }) {
   const admin = await login();
   const { body: booth } = await call("/booths", { method: "POST", body: { name }, cookie: admin });
   const { body: code } = await call(`/booths/${booth.id}/kiosk-code`, { method: "POST", cookie: admin });
   const paired = await call("/kiosk/pair", { method: "POST", body: { boothCode: booth.code, code: code.code } });
   const kiosk = paired.setCookie!.split(";")[0];
-  const { body: event } = await call("/events", { method: "POST", body: { ...newEvent, name: `${name} Event` }, cookie: admin });
+  const { body: event } = await call("/events", { method: "POST", body: { ...newEvent, name: `${name} Event`, config }, cookie: admin });
   await call(`/events/${event.id}/booths`, { method: "POST", body: { boothId: booth.id }, cookie: admin });
   await call(`/events/${event.id}/activate`, { method: "POST", cookie: admin });
   const sessionId = randomUUID();
@@ -76,6 +76,16 @@ describe.skipIf(!base || !s3)("photos, processing and galleries (real S3-compati
     const other = await jpeg(600, 400, "#ff0000");
     const clash = await call("/photos/upload-authorize", { method: "POST", cookie: kiosk, body: { photoId, sessionId, kind: "DESIGN", index: 0, sha256: sha(other), size: other.length, contentType: "image/jpeg" } });
     expect(clash.status).toBe(409);
+  });
+
+  it("designs-only events refuse individual shots but take the design", async () => {
+    const { kiosk, sessionId } = await liveSession("Designs Only", { saveOriginals: false });
+    const file = await jpeg(300, 300);
+    const body = (kind: string, index: number) => ({ photoId: randomUUID(), sessionId, kind, index, sha256: sha(file), size: file.length, contentType: "image/jpeg" });
+    const shot = await call("/photos/upload-authorize", { method: "POST", cookie: kiosk, body: body("ORIGINAL", 1) });
+    expect(shot.status).toBe(409);
+    expect(shot.body.error.code).toBe("ORIGINALS_OFF");
+    expect((await call("/photos/upload-authorize", { method: "POST", cookie: kiosk, body: body("DESIGN", 0) })).status).toBe(200);
   });
 
   it("won't confirm a photo that never arrived", async () => {

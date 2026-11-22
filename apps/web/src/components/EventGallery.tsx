@@ -81,8 +81,9 @@ export function EventGallery({ event, data, origin }: { event: EventDto; data: E
           <div className="panel">
             <div className="actions">
               <a className={"btn" + (ready ? "" : " disabled")} href={`/api/v1/events/${event.id}/export?kind=design`} aria-disabled={!ready}>Designs (ZIP)</a>
-              <a className={"btn ghost" + (ready ? "" : " disabled")} href={`/api/v1/events/${event.id}/export?kind=original`} aria-disabled={!ready}>Original photos (ZIP)</a>
+              <a className={"btn ghost" + (ready && data.saveOriginals ? "" : " disabled")} href={`/api/v1/events/${event.id}/export?kind=original`} aria-disabled={!ready || !data.saveOriginals}>Individual photos (ZIP)</a>
             </div>
+            {!data.saveOriginals && <p className="cap center">This event saves only the finished design. Turn on “Also save each individual photo” on the event page to keep every shot (applies to new sessions).</p>}
           </div>
         </section>
 

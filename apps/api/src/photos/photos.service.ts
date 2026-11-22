@@ -39,10 +39,14 @@ export class PhotosService implements OnModuleInit, OnModuleDestroy {
   async authorize(boothId: string, b: { photoId: string; sessionId: string; kind: PhotoKind; index: number; sha256: string; size: number; contentType: string }) {
     this.requireStorage();
     if (b.size > this.cfg.MAX_PHOTO_MB * 1024 * 1024) throw new ApiError(HttpStatus.PAYLOAD_TOO_LARGE, "TOO_LARGE", `Photos are limited to ${this.cfg.MAX_PHOTO_MB} MB`);
-    const session = await this.db.session.findUnique({ where: { id: b.sessionId }, select: { boothId: true, eventId: true } });
+    const session = await this.db.session.findUnique({ where: { id: b.sessionId }, select: { boothId: true, eventId: true, event: { select: { config: { select: { saveOriginals: true } } } } } });
     // The session start may still be on its way (the kiosk sends both in the background): retry later.
     if (!session) throw new ApiError(HttpStatus.CONFLICT, "SESSION_UNKNOWN", "Session not recorded yet; retry shortly");
     if (session.boothId !== boothId) throw new ApiError(HttpStatus.FORBIDDEN, "WRONG_BOOTH", "This session belongs to another booth");
+    // Designs-only events keep storage small: individual shots are refused, whatever the kiosk sends.
+    if (b.kind === "ORIGINAL" && !session.event.config?.saveOriginals) {
+      throw new ApiError(HttpStatus.CONFLICT, "ORIGINALS_OFF", "This event saves only the finished design");
+    }
 
     const existing = await this.db.photo.findUnique({ where: { id: b.photoId } });
     if (existing) {
@@ -149,6 +153,7 @@ export class PhotosService implements OnModuleInit, OnModuleDestroy {
     return {
       storageEnabled: this.storage.enabled,
       galleryEnabled: event.config?.galleryEnabled ?? true,
+      saveOriginals: event.config?.saveOriginals ?? false,
       retentionDays: event.config?.galleryRetentionDays ?? 30,
       eventGalleryToken: eventGallery?.token ?? null,
       counts: byStatus,

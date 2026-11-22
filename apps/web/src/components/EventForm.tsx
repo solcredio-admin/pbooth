@@ -7,7 +7,7 @@ import { TemplatePreview } from "./TemplatePreview";
 
 const DEFAULTS: EventConfig = {
   welcomeTitle: "Strike a pose", welcomeMessage: "Tap anywhere to start", primaryColor: "#0b0c0a", accentColor: "#c6f36b",
-  countdownSeconds: 3, shotsPerSession: 3, captureIntervalSeconds: 3, layout: "strip", footerText: "", showDate: true, printEnabled: false, printCopies: 1, galleryEnabled: true, galleryRetentionDays: 30,
+  countdownSeconds: 3, shotsPerSession: 3, captureIntervalSeconds: 3, layout: "strip", footerText: "", showDate: true, printEnabled: false, printCopies: 1, galleryEnabled: true, galleryRetentionDays: 30, saveOriginals: false,
 };
 
 function Field({ name, label, error, hint, wide, children }: { name: string; label: string; error?: string; hint?: string; wide?: boolean; children: ReactNode }) {
@@ -61,6 +61,7 @@ export function EventForm({ event }: { event?: EventDto }) {
         captureIntervalSeconds: num("captureIntervalSeconds"), layout: str("layout"), footerText: str("footerText"), showDate: f.get("showDate") === "on",
         printEnabled: f.get("printEnabled") === "on", printCopies: num("printCopies"),
         galleryEnabled: f.get("galleryEnabled") === "on", galleryRetentionDays: num("galleryRetentionDays"),
+        saveOriginals: f.get("saveOriginals") === "on",
       },
     };
     setBusy(true);
@@ -166,6 +167,7 @@ export function EventForm({ event }: { event?: EventDto }) {
           <Field name="galleryRetentionDays" label="Keep gallery photos (days)" error={errors.galleryRetentionDays}>
             <input {...attrs("galleryRetentionDays")} type="number" min={1} max={365} defaultValue={cfg.galleryRetentionDays} />
           </Field>
+          <label className="check wide"><input type="checkbox" name="saveOriginals" defaultChecked={cfg.saveOriginals} /><span>Also save each individual photo (not just the finished design). Uses more storage; lets guests and you download every shot separately.</span></label>
           <p className="hint wide cap">These settings are saved with the event and used by the kiosk once booths are connected.</p>
         </div>
       </fieldset>

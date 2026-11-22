@@ -161,7 +161,10 @@ Then open **Settings → Storage → Run storage check**. All four steps should 
 as a file instead of opening in the browser.
 
 **Where things are:** `events/<event>/sessions/<session>/<photo>.jpg`, with `-thumb.jpg` (480 px) and
-`-preview.jpg` (1600 px) beside each. Designs and originals are both kept.
+`-preview.jpg` (1600 px) beside each. By default only the finished **design** is saved. Turn on
+"Also save each individual photo" on an event to keep every shot too (more storage; enables the
+individual-photos ZIP and per-shot downloads in galleries). The server refuses individual shots for
+events that don't keep them.
 
 **Galleries:**
 - Each guest's QR opens `/g/<token>` (256-bit random, no account).

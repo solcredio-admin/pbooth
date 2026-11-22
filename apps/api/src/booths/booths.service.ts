@@ -65,7 +65,7 @@ export class BoothsService implements OnModuleInit, OnModuleDestroy {
         guest: c ? {
           welcomeTitle: c.welcomeTitle, welcomeMessage: c.welcomeMessage, primaryColor: c.primaryColor, accentColor: c.accentColor,
           countdownSeconds: c.countdownSeconds, shotsPerSession: c.shotsPerSession, captureIntervalSeconds: c.captureIntervalSeconds,
-          printEnabled: c.printEnabled, printCopies: c.printCopies, galleryEnabled: c.galleryEnabled,
+          printEnabled: c.printEnabled, printCopies: c.printCopies, galleryEnabled: c.galleryEnabled, saveOriginals: c.saveOriginals,
           template: { layout: c.layout, footerText: c.footerText || live.name, showDate: c.showDate },
         } : null,
       } : null,

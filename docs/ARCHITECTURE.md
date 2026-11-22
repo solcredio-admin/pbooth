@@ -98,7 +98,10 @@ discovery, job-level sync lists (only counts today), uptime history.
   *ideal* (never required). The real settings are read back. Unplugging is detected (track
   `ended`, `devicechange`) and retried every 3 s. Permission denial stops retrying and shows a guide.
   Capture uses `ImageCapture.takePhoto()` when available (full sensor resolution), otherwise a
-  canvas frame. The preview may be mirrored; photos never are.
+  canvas frame. The preview may be mirrored; photos never are. Originals keep the camera's
+  whole frame. The **preview box takes the shape of the template slot the next shot fills** (centre
+  crop, the same rule `composeTemplate` uses), so what guests frame is exactly what lands in the
+  design. "Best available" requests only a width, so 4:3 webcams aren't pushed into a cropped 16:9 mode.
 - **Sessions:** the kiosk makes a UUID first and sends start/finish in the background with retries.
   Both calls are idempotent, and a session can only start for a booth with a live event.
   shortcut: retries are in memory; a durable queue is Phase 6.

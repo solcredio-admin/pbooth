@@ -13,7 +13,9 @@ export type CamStatus = "idle" | "starting" | "connected" | "disconnected" | "pe
 export interface CamState { status: CamStatus; name?: string; resolution?: string; error?: string }
 
 // Resolutions are requests ("ideal"), never demands: browsers pick the closest the camera has.
-const SIZES = { "720p": [1280, 720], "1080p": [1920, 1080], "4k": [3840, 2160], auto: [3840, 2160] } as const;
+// "auto" asks only for a width, so the camera keeps its own shape: forcing 16:9 on a 4:3 webcam
+// makes many of them crop the sensor, which looks zoomed in.
+const SIZES = { "720p": [1280, 720], "1080p": [1920, 1080], "4k": [3840, 2160], auto: [1920, null] } as const;
 const RETRY_MS = 3000;
 
 type ImageCaptureCtor = new (track: MediaStreamTrack) => { takePhoto(): Promise<Blob> };
@@ -57,7 +59,7 @@ export function useWebcam(cfg: CameraSettings | null, enabled: boolean) {
     const pick = cfg.deviceName ? (await listCameras()).find((c) => c.name === cfg.deviceName) : undefined;
     const attempt = (deviceId?: string) => navigator.mediaDevices.getUserMedia({
       audio: false,
-      video: { ...(deviceId ? { deviceId: { exact: deviceId } } : {}), width: { ideal: width }, height: { ideal: height } },
+      video: { ...(deviceId ? { deviceId: { exact: deviceId } } : {}), width: { ideal: width }, ...(height ? { height: { ideal: height } } : {}) },
     });
     try {
       let stream: MediaStream;
@@ -108,7 +110,10 @@ export function useWebcam(cfg: CameraSettings | null, enabled: boolean) {
     }
   }, []);
 
-  /** A full-resolution still as JPEG, cropped to the booth's orientation. Never mirrored. */
+  /**
+   * A full-resolution still as JPEG: the camera's whole frame, never cropped or mirrored. The original
+   * is kept as shot; the event design crops each photo to its slot (and the preview shows that crop).
+   */
   const capture = useCallback(async (): Promise<Blob> => {
     const track = streamRef.current?.getVideoTracks()[0];
     const video = videoRef.current;
@@ -123,15 +128,11 @@ export function useWebcam(cfg: CameraSettings | null, enabled: boolean) {
         source = bmp; sw = bmp.width; sh = bmp.height;
       } catch { /* some cameras refuse takePhoto(): use the video frame */ }
     }
-    let cw = sw, ch = sh, sx = 0, sy = 0;
-    const portrait = cfg?.orientation === "portrait";
-    if (portrait && sw > sh) { cw = Math.round(sh * 2 / 3); sx = Math.round((sw - cw) / 2); }
-    if (!portrait && sh > sw) { ch = Math.round(sw * 2 / 3); sy = Math.round((sh - ch) / 2); }
     const canvas = document.createElement("canvas");
-    canvas.width = cw; canvas.height = ch;
-    canvas.getContext("2d")!.drawImage(source, sx, sy, cw, ch, 0, 0, cw, ch);
+    canvas.width = sw; canvas.height = sh;
+    canvas.getContext("2d")!.drawImage(source, 0, 0, sw, sh);
     return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Capture failed"))), "image/jpeg", 0.92));
-  }, [cfg?.orientation]);
+  }, []);
 
   return { attach, state, cameras, capture, retry: start };
 }

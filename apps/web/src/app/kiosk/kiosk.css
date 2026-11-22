@@ -35,11 +35,13 @@
 
 /* live camera */
 .k-frame { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; background: #000; }
-.k-frame video { width: 100%; height: 100%; object-fit: cover; }
-.k-frame.portrait video { height: 100%; width: auto; aspect-ratio: 2 / 3; }
-.k-frame video.mirror { transform: scaleX(-1); }
-.k-frame.soft video { filter: blur(18px) saturate(1.2) brightness(.55); transform: scale(1.08); }
-.k-frame.soft video.mirror { transform: scaleX(-1) scale(1.08); }
+/* Exactly the photo's shape, as large as fits: no hidden cropping, so the preview matches the shot. */
+.k-view { position: relative; overflow: hidden; aspect-ratio: var(--k-aspect, 1.7778); width: min(100vw, calc(100vh * var(--k-aspect, 1.7778))); max-height: 100vh; }
+.k-view video, .k-view img.k-live { display: block; width: 100%; height: 100%; object-fit: cover; }
+.k-view .mirror { transform: scaleX(-1); }
+/* Welcome backdrop: full-bleed and blurred, purely decorative. */
+.k-frame.soft .k-view { width: 100vw; height: 100vh; aspect-ratio: auto; max-height: none; }
+.k-frame.soft video, .k-frame.soft .mirror { transform: scaleX(-1) scale(1.08); }
 .ks-ready .k-frame::after, .ks-camera .k-frame::after { content: ""; position: absolute; inset: 0; background: linear-gradient(transparent 40%, rgba(0, 0, 0, .65)); }
 .ks-ready .k-panel { align-self: end; margin-bottom: 6vh; }
 
@@ -84,10 +86,6 @@
 }
 
 /* DSLR live view (MJPEG from the agent) and print status */
-.k-frame img.k-live { width: 100%; height: 100%; object-fit: cover; }
-.k-frame.portrait img.k-live { height: 100%; width: auto; aspect-ratio: 2 / 3; }
-.k-frame img.k-live.mirror { transform: scaleX(-1); }
-.k-frame.soft img.k-live { filter: blur(18px) saturate(1.2) brightness(.55); transform: scale(1.08); }
 .k-print { margin: 0; font: 600 20px/1.4 var(--mono); }
 .k-print.done { color: var(--k-accent); }
 .k-print.failed, .k-print.unavailable { color: #ff8a70; }
