@@ -41,22 +41,24 @@ admin and no default password.
 
 | Piece | Where |
 |---|---|
-| App + Postgres | Stravex, `~/compose/pbooth`, published on `100.86.234.119:3310` (Tailscale only) |
+| App + Postgres | Stravex, `~/compose/pbooth` (a git checkout of `main`), published on `100.86.234.119:3310` (Tailscale only) |
+| Image | `ghcr.io/solcredio-admin/pbooth:latest`, built and published by CI after the tests pass (public) |
 | Public proxy | Veldora Caddy: `pbooth.solcredio.net` → `100.86.234.119:3310` ([snippet](infra/Caddyfile.veldora), [installer](infra/veldora-add-route.sh)) |
 | DNS | `*.solcredio.net` via Cloudflare (proxied) |
 
-Stravex is a staging host for Phase 1. Production should move to a dedicated VPS before real
-events (see "Infrastructure" in the architecture doc).
+Stravex is a staging host. Production should move to a dedicated VPS before real events (see
+"Infrastructure" in the architecture doc).
 
-Update after code changes:
-
-```bash
-rsync -az --delete --exclude node_modules --exclude .next --exclude dist --exclude apps/api/src/generated --exclude .git --exclude .env ./ stravex:~/compose/pbooth/
-```
+Update Stravex after pushing to `main` and seeing CI pass. It pulls the image CI built, so
+Stravex doesn't compile anything:
 
 ```bash
-ssh stravex 'cd ~/compose/pbooth && docker compose up -d --build'
+ssh stravex 'cd ~/compose/pbooth && git pull --ff-only && docker compose pull app && docker compose up -d'
 ```
+
+Each image is also tagged with its commit (`ghcr.io/solcredio-admin/pbooth:<sha>`). To pin a
+version or roll back, set `PBOOTH_IMAGE` to that tag in Stravex's `.env` and run
+`docker compose up -d`.
 
 ## Booths
 
