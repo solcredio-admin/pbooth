@@ -45,7 +45,8 @@ async function waitFor(admin: string, photoId: string, status: string) {
   throw new Error(`photo never reached ${status}`);
 }
 
-describe.skipIf(!base || !s3)("photos, processing and galleries (real S3-compatible store)", () => {
+// 30s: the first write to a freshly started store allocates a volume, which can take several seconds in CI.
+describe.skipIf(!base || !s3)("photos, processing and galleries (real S3-compatible store)", { timeout: 30_000 }, () => {
   it("uploads, verifies, processes and serves a design through the QR gallery", async () => {
     const { admin, kiosk, sessionId, galleryToken } = await liveSession("Photo Booth");
     const file = await jpeg();
