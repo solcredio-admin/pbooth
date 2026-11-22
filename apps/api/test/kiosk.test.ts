@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
+import { verifyTicket } from "../src/devices/ticket.js";
 import { base, call as rawCall, login as rawLogin, newEvent, type CallInit } from "./helpers.js";
 
 const IP = "10.0.4.1";
@@ -85,6 +86,22 @@ describe.skipIf(!base)("kiosk and sessions", () => {
 
     expect((await call(`/sessions/${id}`, { cookie: admin })).body.booth.code).toBe(booth.code);
     expect((await call(`/sessions/${id}`, { cookie: kiosk })).status).toBe(401); // kiosks can't read admin data
+  });
+
+  it("issues agent pairing tickets signed with the agent's secret", async () => {
+    const admin = await login();
+    const { booth, kiosk } = await pairedKiosk(admin, "Agent Ticket Booth");
+    expect((await call("/kiosk/agent-ticket", { method: "POST", cookie: kiosk })).body.error.code).toBe("NO_AGENT");
+
+    const { body: code } = await call(`/booths/${booth.id}/enrollment-code`, { method: "POST", cookie: admin });
+    const enrolled = await call("/devices/enroll", { method: "POST", body: { code: code.code, device: { identifier: "agent-1" } } });
+    expect(enrolled.body.localSecret).toMatch(/^[A-Za-z0-9_-]{43}$/);
+
+    const t = await call("/kiosk/agent-ticket", { method: "POST", cookie: kiosk });
+    expect(t.status).toBe(200);
+    expect(verifyTicket(t.body.ticket, booth.id, enrolled.body.localSecret)).toBe(true);
+    expect(JSON.stringify(t.body)).not.toContain(enrolled.body.localSecret); // the secret itself never reaches the browser
+    expect((await call("/kiosk/agent-ticket", { method: "POST" })).status).toBe(401);
   });
 
   it("never lets a kiosk cookie into admin endpoints", async () => {

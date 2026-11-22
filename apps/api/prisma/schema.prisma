@@ -187,6 +187,10 @@ model Device {
   boothId              String    @unique @db.Uuid
   booth                Booth     @relation(fields: [boothId], references: [id], onDelete: Cascade)
   tokenHash            String    @unique // SHA-256 of the device token; the token itself is never stored
+  // Shared with the agent at enrollment. The cloud signs short-lived kiosk→agent pairing tickets
+  // with it, so the kiosk can pair with the agent on the same computer without typing codes.
+  // Server-side only; never sent to browsers. Null for devices enrolled before Phase 4.
+  localSecret          String?
   identifier           String // machine id reported by the agent
   hostname             String?
   os                   String?

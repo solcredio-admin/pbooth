@@ -22,8 +22,9 @@ export const heartbeatSchema = z.object({
   storage: z.object({ freeBytes: z.number().int().min(0), totalBytes: z.number().int().min(0) }).optional(),
   pendingUploads: z.number().int().min(0).max(1_000_000).default(0),
   pendingPrints: z.number().int().min(0).max(1_000_000).default(0),
-  camera: status.optional(),
+  camera: status.extend({ compatibility: z.enum(["tested", "untested", "unsupported", "simulated"]).optional(), model: z.string().max(160).optional() }).optional(),
   printer: status.optional(),
+  printJobs: z.object({ queued: z.number().int().min(0), failed: z.number().int().min(0), completedToday: z.number().int().min(0) }).optional(),
   // What the booth computer actually found; the admin picks from these.
   cameras: z.array(z.object({ id: z.string().max(200), name: z.string().max(160), provider: z.enum(["webcam", "gphoto2"]) })).max(20).optional(),
   printers: z.array(z.object({ name: z.string().max(160), isDefault: z.boolean().optional() })).max(20).optional(),

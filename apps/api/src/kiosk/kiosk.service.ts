@@ -6,6 +6,7 @@ import { ApiError } from "../common/errors.js";
 import { hashToken, newToken } from "../auth/tokens.js";
 import { normalizeEnrollmentCode } from "../booths/codes.js";
 import type { KioskHeartbeat, Pair } from "./kiosk.schemas.js";
+import { signTicket } from "../devices/ticket.js";
 
 @Injectable()
 export class KioskService {
@@ -32,6 +33,14 @@ export class KioskService {
     await this.audit.record({ actor: `kiosk:${kiosk.id}`, action: "kiosk.pair", entityType: "booth", entityId: booth.id, ip: meta.ip });
     this.booths.push([booth.id]);
     return { token, booth };
+  }
+
+  /** A 5-minute ticket the kiosk hands to the agent on this computer to pair with it. */
+  async agentTicket(boothId: string) {
+    const device = await this.db.device.findUnique({ where: { boothId }, select: { localSecret: true } });
+    if (!device) throw new ApiError(HttpStatus.NOT_FOUND, "NO_AGENT", "No agent is enrolled for this booth");
+    if (!device.localSecret) throw new ApiError(HttpStatus.CONFLICT, "AGENT_TOO_OLD", "Re-enroll this booth's agent to enable kiosk pairing");
+    return { ...signTicket(boothId, device.localSecret), boothId };
   }
 
   async config(boothId: string) {

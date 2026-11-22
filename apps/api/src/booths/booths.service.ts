@@ -30,8 +30,9 @@ export interface Telemetry {
   storage?: { freeBytes: number; totalBytes: number };
   pendingUploads?: number;
   pendingPrints?: number;
-  camera?: { status: string; name?: string };
+  camera?: { status: string; name?: string; compatibility?: string; model?: string };
   printer?: { status: string; name?: string };
+  printJobs?: { queued: number; failed: number; completedToday: number };
   cameras?: { id: string; name: string; provider: string }[];
   printers?: { name: string; isDefault?: boolean }[];
 }

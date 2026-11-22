@@ -38,7 +38,8 @@ export interface BoothDto {
     lastHeartbeatAt: string | null; lastError: string | null; appliedConfigVersion: string | null;
     telemetry: {
       storage?: { freeBytes: number; totalBytes: number }; pendingUploads?: number; pendingPrints?: number;
-      camera?: HwStatus; printer?: HwStatus;
+      camera?: HwStatus & { compatibility?: "tested" | "untested" | "unsupported" | "simulated"; model?: string }; printer?: HwStatus;
+      printJobs?: { queued: number; failed: number; completedToday: number };
       cameras?: { id: string; name: string; provider: "webcam" | "gphoto2" }[]; printers?: { name: string; isDefault?: boolean }[];
     };
   };

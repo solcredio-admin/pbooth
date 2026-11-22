@@ -13,9 +13,11 @@ POST /devices/enroll
 { "code": "7K3M-Q9TX",
   "device": { "identifier": "machine-id", "hostname": "booth-pc", "os": "Ubuntu 24.04", "agentVersion": "0.4.0" },
   "simulated": false }
-→ 200 { "token": "pbd_…", "booth": { "id", "name", "code" }, "heartbeatIntervalSeconds": 20 }
+→ 200 { "token": "pbd_…", "localSecret": "…", "booth": { "id", "name", "code" }, "heartbeatIntervalSeconds": 20 }
 ```
 
+- `localSecret` lets the agent verify kiosk pairing tickets (`POST /kiosk/agent-ticket` on the cloud,
+  `POST /pair` on the agent). Keep it as private as the token.
 - The token is returned **once**. Store it with owner-only file permissions. The server keeps
   only its SHA-256.
 - Case, dashes and look-alike letters in the code don't matter (`o`→`0`, `i`/`l`→`1`).

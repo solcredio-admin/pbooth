@@ -1,0 +1,29 @@
+# systemd unit for the pbooth agent on a Linux booth computer.
+#   sudo cp deploy/pbooth-agent.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now pbooth-agent
+#   journalctl -u pbooth-agent -f
+[Unit]
+Description=pbooth hardware agent (camera, printer, local API)
+After=network-online.target cups.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pbooth
+Group=pbooth
+# plugdev: USB cameras; lp/lpadmin: printing
+SupplementaryGroups=plugdev lp
+Environment=PBOOTH_AGENT_DIR=/var/lib/pbooth-agent
+WorkingDirectory=/opt/pbooth/apps/agent
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning /opt/pbooth/apps/agent/dist/main.js run
+Restart=always
+RestartSec=3
+# Hardening: the agent only needs its own state dir, USB and the local network.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/pbooth-agent
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

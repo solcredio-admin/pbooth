@@ -7,6 +7,7 @@ import { ApiError } from "../common/errors.js";
 import { hashToken } from "../auth/tokens.js";
 import { newDeviceToken, normalizeEnrollmentCode } from "../booths/codes.js";
 import type { Enroll, Heartbeat } from "./devices.schemas.js";
+import { newLocalSecret } from "./ticket.js";
 
 @Injectable()
 export class DevicesService {
@@ -35,17 +36,18 @@ export class DevicesService {
     }
 
     const token = newDeviceToken();
+    const localSecret = newLocalSecret();
     const d = body.device;
     // One device per booth: enrolling a new computer replaces the old one (its token dies with it).
     const [, device] = await this.db.$transaction([
       this.db.device.deleteMany({ where: { boothId: booth.id } }),
       this.db.device.create({
-        data: { boothId: booth.id, tokenHash: hashToken(token), identifier: d.identifier, hostname: d.hostname, os: d.os, agentVersion: d.agentVersion, simulated: body.simulated, lastIp: ip },
+        data: { boothId: booth.id, tokenHash: hashToken(token), localSecret, identifier: d.identifier, hostname: d.hostname, os: d.os, agentVersion: d.agentVersion, simulated: body.simulated, lastIp: ip },
       }),
     ]);
     await this.audit.record({ actor: `device:${device.id}`, action: "device.enroll", entityType: "booth", entityId: booth.id, ip, metadata: { simulated: body.simulated, hostname: d.hostname ?? null } });
     this.booths.push([booth.id]);
-    return { token, booth, heartbeatIntervalSeconds: this.cfg.HEARTBEAT_INTERVAL_SECONDS };
+    return { token, localSecret, booth, heartbeatIntervalSeconds: this.cfg.HEARTBEAT_INTERVAL_SECONDS };
   }
 
   async heartbeat(deviceId: string, boothId: string, hb: Heartbeat, ip?: string) {
@@ -61,7 +63,7 @@ export class DevicesService {
         ...(hb.configVersion ? { appliedConfigVersion: hb.configVersion } : {}),
         telemetry: {
           storage: hb.storage, pendingUploads: hb.pendingUploads, pendingPrints: hb.pendingPrints,
-          camera: hb.camera, printer: hb.printer, cameras: hb.cameras, printers: hb.printers,
+          camera: hb.camera, printer: hb.printer, cameras: hb.cameras, printers: hb.printers, printJobs: hb.printJobs,
         },
       },
     });

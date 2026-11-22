@@ -1,11 +1,12 @@
 "use client";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useWebcam } from "@/lib/kiosk/camera";
+import { useAgent, type AgentJob } from "@/lib/kiosk/agent";
 import { kioskFetch, sendInBackground, type KioskConfig } from "@/lib/kiosk/api";
 import { composeTemplate, toJpeg } from "@/lib/template/compose";
 
 type Screen =
-  | "loading" | "unpaired" | "wrong-booth" | "idle" | "unsupported" | "camera"
+  | "loading" | "unpaired" | "wrong-booth" | "idle" | "agent" | "camera"
   | "welcome" | "ready" | "countdown" | "composing" | "review" | "done";
 
 const INACTIVITY_MS = 60_000; // a guest who walks away mid-session
@@ -23,6 +24,12 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   const live = !!config?.event;
   const guest = config?.event?.guest;
   const cam = useWebcam(config?.camera ?? null, !!config && config.camera.provider === "webcam");
+  // DSLR booths and printing go through the pbooth agent on this computer.
+  const dslr = config?.camera.provider === "gphoto2";
+  const printWanted = !!(config?.printer.enabled && guest?.printEnabled);
+  const agent = useAgent(config?.booth.code, !!config && (dslr || !!config.printer.enabled));
+  const camReady = dslr ? agent.available && agent.status?.camera?.status === "connected" : cam.state.status === "connected";
+  const [print, setPrint] = useState<null | { state: "sending" | "queued" | "printing" | "done" | "failed" | "unavailable"; message?: string }>(null);
 
   // ---------- one guest's session ----------
   const session = useRef<{ id: string; retakes: number; finished: boolean } | null>(null);
@@ -49,14 +56,20 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
 
   const camRef = useRef(cam);
   camRef.current = cam;
+  const agentRef = useRef(agent);
+  agentRef.current = agent;
   const beatRef = useRef<() => void>(() => undefined);
   useEffect(() => {
     if (!config) return;
     const beat = async () => {
       const c = camRef.current;
+      const a = agentRef.current;
+      const needsAgent = config.camera.provider === "gphoto2" || config.printer.enabled;
       const r = await kioskFetch<{ configVersion: string }>("POST", "/kiosk/heartbeat", {
-        lastError: c.state.status === "connected" || c.state.status === "idle" ? null : c.state.error ?? c.state.status,
-        camera: config.camera.provider === "gphoto2" ? { status: "unsupported" } : c.state.status === "idle" || c.state.status === "starting" ? undefined
+        lastError: needsAgent && !a.available ? a.problem ?? "The pbooth agent isn't running on this computer"
+          : config.camera.provider === "gphoto2" || c.state.status === "connected" || c.state.status === "idle" ? null : c.state.error ?? c.state.status,
+        // a DSLR is reported by the agent itself; the kiosk reports only its webcam
+        camera: config.camera.provider === "gphoto2" ? undefined : c.state.status === "idle" || c.state.status === "starting" ? undefined
           : { status: c.state.status === "insecure" ? "error" : c.state.status, name: c.state.name, resolution: c.state.resolution },
         cameras: c.cameras.slice(0, 20),
       });
@@ -73,16 +86,16 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   // A camera problem shows up in the admin right away, not at the next scheduled check-in.
   useEffect(() => {
     if (cam.state.status !== "starting") beatRef.current();
-  }, [cam.state.status]);
+  }, [cam.state.status, agent.available]);
 
   // Which "resting" screen to show, given config and camera. Guests in the middle of a turn are never interrupted.
   useEffect(() => {
     if (!config || GUEST.has(screen) || screen === "unpaired" || screen === "wrong-booth") return;
-    if (config.camera.provider !== "webcam") setScreen("unsupported");
+    if (dslr && !agent.available) setScreen("agent");
     else if (!live) setScreen("idle");
-    else if (cam.state.status !== "connected") setScreen("camera");
+    else if (!camReady) setScreen("camera");
     else setScreen("welcome");
-  }, [config, live, cam.state.status, screen]);
+  }, [config, live, camReady, dslr, agent.available, screen]);
 
   // Event colours, set through the CSSOM (inline style attributes are blocked by the CSP).
   useEffect(() => {
@@ -120,7 +133,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     shotsRef.current.forEach((x) => URL.revokeObjectURL(x.url));
     if (designRef.current) URL.revokeObjectURL(designRef.current.url);
     session.current = null;
-    setShots([]); setDesign(null); setRedo(null); setCaptureError("");
+    setShots([]); setDesign(null); setRedo(null); setCaptureError(""); setPrint(null);
     history.replaceState(null, "", `/kiosk/${boothCode}`);
     setScreen("loading"); // the resting-screen effect picks welcome / idle / camera
   }, [boothCode]);
@@ -175,7 +188,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     let cancelled = false;
     setFlash(true);
     setTimeout(() => setFlash(false), 450);
-    cam.capture()
+    (dslr ? agent.capture() : cam.capture())
       .then((blob) => {
         if (cancelled) return;
         const shot = { blob, url: URL.createObjectURL(blob) };
@@ -201,7 +214,27 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     if (session.current) session.current.retakes++;
     shoot();
   };
-  const approve = () => { setDoneLeft(DONE_RESET_S); setScreen("done"); };
+  const approve = () => {
+    setDoneLeft(DONE_RESET_S);
+    setScreen("done");
+    if (!printWanted) return;
+    // Printing never holds up the guest: the done screen just reports how it's going.
+    const id = session.current?.id;
+    const image = design?.blob ?? shots[0]?.blob;
+    if (!agent.available || !id || !image) { setPrint({ state: "unavailable" }); return; }
+    setPrint({ state: "sending" });
+    agent.print(id, image, guest?.printCopies ?? 1).then((j) => setPrint(printState(j))).catch((e) => setPrint({ state: "failed", message: (e as Error).message }));
+  };
+
+  // Follow the print while the thank-you screen is up. Depends only on the print's state, not on
+  // every render (the screen re-renders each second for its countdown, which would reset the timer).
+  const printing = screen === "done" && !!print && ["sending", "queued", "printing"].includes(print.state);
+  useEffect(() => {
+    const id = session.current?.id;
+    if (!printing || !id) return;
+    const t = setInterval(async () => { const j = await agentRef.current.job(id).catch(() => null); if (j) setPrint(printState(j)); }, 2000);
+    return () => clearInterval(t);
+  }, [printing]);
 
   // Walked away? Abandon the session after a minute of no touches (never during the countdown).
   useEffect(() => {
@@ -233,7 +266,9 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     loadConfig();
   }
 
-  const showVideo = config?.camera.provider === "webcam" && ["welcome", "ready", "countdown", "camera"].includes(screen) && cam.state.status === "connected";
+  const previewing = ["welcome", "ready", "countdown", "camera"].includes(screen) && camReady;
+  const showVideo = !dslr && previewing;
+  const showLive = dslr && previewing && !!agent.liveUrl;
   const portrait = config?.camera.orientation === "portrait";
 
   return (
@@ -241,6 +276,11 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
       {showVideo && (
         <div className={"k-frame" + (portrait ? " portrait" : "") + (screen === "welcome" ? " soft" : "")}>
           <video ref={cam.attach} className={config?.camera.mirrorPreview ? "mirror" : undefined} muted playsInline autoPlay />
+        </div>
+      )}
+      {showLive && (
+        <div className={"k-frame" + (portrait ? " portrait" : "") + (screen === "welcome" ? " soft" : "")}>
+          <img className={"k-live" + (config?.camera.mirrorPreview ? " mirror" : "")} src={agent.liveUrl!} alt="" />
         </div>
       )}
       {flash && <div className="k-flash" aria-hidden="true" />}
@@ -272,11 +312,11 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
         </Center>
       )}
 
-      {screen === "unsupported" && (
+      {screen === "agent" && (
         <Center>
           <p className="k-cap">{config?.booth.name}</p>
-          <h1 className="k-title">DSLR booth.</h1>
-          <p className="k-text">This booth is set to use a DSLR/mirrorless camera, which needs the pbooth agent on this computer. The agent isn't available yet, so this screen can't take photos. Switch the booth to a USB webcam in the admin to use it now.</p>
+          <h1 className="k-title">Waiting for the agent.</h1>
+          <p className="k-text">This booth uses a DSLR camera through the pbooth agent on this computer. {agent.problem ?? "Start it with: pbooth-agent run"}. This screen connects by itself once it's running.</p>
         </Center>
       )}
 
@@ -285,15 +325,17 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
           <p className="k-cap">{config?.booth.name} · {config?.booth.code}</p>
           <h1 className="k-title">Ready when you are.</h1>
           <p className="k-text">No event is live on this booth. It starts automatically when one goes live.</p>
-          <p className="k-cap">Camera: {camLabel(cam.state)}</p>
+          <p className="k-cap">Camera: {dslr ? (agent.status?.camera ? camLabel(agent.status.camera) : "waiting for the agent") : camLabel(cam.state)}</p>
         </Center>
       )}
 
       {screen === "camera" && (
         <Center>
           <p className="k-cap">{config?.booth.name}</p>
-          <h1 className="k-title">{cam.state.status === "permission-denied" ? "Allow the camera." : cam.state.status === "insecure" ? "Camera blocked." : "Finding the camera…"}</h1>
-          {cam.state.status === "permission-denied" ? (
+          <h1 className="k-title">{!dslr && cam.state.status === "permission-denied" ? "Allow the camera." : !dslr && cam.state.status === "insecure" ? "Camera blocked." : "Finding the camera…"}</h1>
+          {dslr ? (
+            <p className="k-text">{agent.status?.camera?.error ?? "Turn the camera on and connect it by USB. The agent reconnects by itself."}</p>
+          ) : cam.state.status === "permission-denied" ? (
             <ol className="k-steps">
               <li>Click the camera icon in the address bar (or the site settings icon next to the address).</li>
               <li>Set <b>Camera</b> to <b>Allow</b> for this site.</li>
@@ -302,7 +344,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
           ) : (
             <p className="k-text">{cam.state.error ?? "Plug in a USB webcam. This screen reconnects by itself."}</p>
           )}
-          <button className="k-btn" type="button" onClick={() => cam.retry()}>Try again</button>
+          {!dslr && <button className="k-btn" type="button" onClick={() => cam.retry()}>Try again</button>}
         </Center>
       )}
 
@@ -372,6 +414,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
           {design
             ? <img className="k-design final" src={design.url} alt="Your photos in the event design" />
             : <div className={`k-thumbs n${shots.length}`}>{shots.map((x, i) => <img key={x.url} src={x.url} alt={`Photo ${i + 1}`} />)}</div>}
+          {print && <p className={`k-print ${print.state}`} role="status">{PRINT_TEXT[print.state]}</p>}
           <p className="k-preview">Preview build: photos aren't saved yet.</p>
           <div className="k-actions">
             <button className="k-btn big" type="button" onClick={() => reset("COMPLETED")}>Done</button>
@@ -381,6 +424,21 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
       )}
     </div>
   );
+}
+
+const PRINT_TEXT = {
+  sending: "Sending to the printer…",
+  queued: "Your print is in line…",
+  printing: "Printing your photos…",
+  done: "Printed! Pick them up from the tray.",
+  failed: "Printing didn't work. Please ask the attendant.",
+  unavailable: "The printer isn't connected. Please ask the attendant.",
+} as const;
+
+function printState(j: AgentJob): { state: "queued" | "printing" | "done" | "failed"; message?: string } {
+  if (j.status === "completed") return { state: "done" };
+  if (j.status === "failed" || j.status === "cancelled") return { state: "failed", message: j.error ?? undefined };
+  return { state: j.status === "printing" ? "printing" : "queued" };
 }
 
 function Center({ children }: { children: React.ReactNode }) {

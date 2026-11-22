@@ -27,7 +27,7 @@ export function BoothCard({ b, action, stats }: { b: BoothDto; action?: ReactNod
         <dt>Kiosk</dt><dd>{!b.kiosk ? "Not paired" : b.kiosk.online ? "On screen" : <>Last seen <Ago iso={b.kiosk.lastSeenAt} /></>}</dd>
         <dt>Camera</dt><dd>{kioskCam && b.camera.provider === "webcam" ? `${kioskCam.name ?? "Webcam"} · ${kioskCam.status}${kioskCam.resolution ? ` · ${kioskCam.resolution}` : ""}` : hw(t.camera)}</dd>
         <dt>Printer</dt><dd>{b.printer.enabled ? hw(t.printer) : "Printing off"}</dd>
-        <dt>Queue</dt><dd>{t.pendingUploads ?? 0} uploads · {t.pendingPrints ?? 0} prints pending</dd>
+        <dt>Queue</dt><dd>{t.pendingUploads ?? 0} uploads · {t.pendingPrints ?? 0} prints pending{t.printJobs?.failed ? ` · ${t.printJobs.failed} failed` : ""}</dd>
         <dt>Storage</dt><dd>{t.storage ? `${bytes(t.storage.freeBytes)} free` : "—"}</dd>
         <dt>Config</dt><dd>{!b.device ? (b.kiosk ? "Kiosk reads it live" : "No device") : b.configApplied ? "Up to date" : "Waiting for the booth to apply changes"}</dd>
       </dl>

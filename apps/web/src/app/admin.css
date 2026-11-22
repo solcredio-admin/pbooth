@@ -217,3 +217,7 @@ main.narrow { max-width: 900px; }
 .template-preview img { max-width: 100%; max-height: 420px; border-radius: 4px; box-shadow: 0 18px 40px -18px rgba(0, 0, 0, .5); -webkit-user-drag: none; }
 .template-preview .skeleton { width: 100%; height: 320px; }
 @media (max-width: 640px) { .design-row { grid-template-columns: 1fr; } }
+.compat { margin-left: 8px; padding: 1px 7px; border-radius: 999px; border: 1px solid currentColor; font: 500 9.5px/1.5 var(--mono); text-transform: uppercase; }
+.compat.c-tested { color: var(--free); }
+.compat.c-untested { color: color-mix(in srgb, var(--sched-edge) 55%, var(--ink)); }
+.compat.c-unsupported, .compat.c-simulated { color: var(--warn); }

@@ -56,11 +56,12 @@ export function BoothDetail({ initial, events, origin }: { initial: BoothDto; ev
                   <dt>Computer</dt><dd>{b.device.hostname ?? "—"} · {b.device.os ?? "unknown OS"}</dd>
                   <dt>Agent</dt><dd>{b.device.agentVersion ?? "—"}</dd>
                   <dt>Enrolled</dt><dd><Ago iso={b.device.enrolledAt} /></dd>
-                  <dt>Camera</dt><dd>{b.kiosk && b.camera.provider === "webcam" ? kioskCamera(b) : hw(t.camera)}</dd>
+                  <dt>Camera</dt><dd>{b.kiosk && b.camera.provider === "webcam" ? kioskCamera(b) : <>{hw(t.camera)}{t.camera?.compatibility && <span className={`compat c-${t.camera.compatibility}`}>{t.camera.compatibility}</span>}</>}</dd>
                   <dt>Printer</dt><dd>{hw(t.printer)}</dd>
                   <dt>Kiosk</dt><dd>{!b.kiosk ? "Not paired" : b.kiosk.online ? "On screen" : "Not open right now"}</dd>
                   <dt>Storage</dt><dd>{t.storage ? `${bytes(t.storage.freeBytes)} free of ${bytes(t.storage.totalBytes)}` : "—"}</dd>
                   <dt>Pending</dt><dd>{t.pendingUploads ?? 0} uploads · {t.pendingPrints ?? 0} prints</dd>
+                  {t.printJobs && <><dt>Prints</dt><dd>{t.printJobs.completedToday} printed today{t.printJobs.failed ? ` · ${t.printJobs.failed} failed` : ""}</dd></>}
                   <dt>Config</dt><dd>{b.configApplied ? `Up to date (${b.configVersion})` : `Waiting for the booth to apply ${b.configVersion}`}</dd>
                 </dl>
               </>

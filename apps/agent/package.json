@@ -1,0 +1,23 @@
+{
+  "name": "@pbooth/agent",
+  "private": true,
+  "type": "module",
+  "description": "pbooth hardware agent: DSLR (gPhoto2), printing (CUPS / Windows spooler), local API for the kiosk",
+  "bin": {
+    "pbooth-agent": "dist/main.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "start": "node --disable-warning=ExperimentalWarning dist/main.js run"
+  },
+  "dependencies": {
+    "sharp": "0.35.5"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "typescript": "6.0.3",
+    "vitest": "5.1.1"
+  }
+}

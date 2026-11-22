@@ -29,6 +29,12 @@ jobs:
         run: pnpm --filter @pbooth/api test
         env: { TEST_DATABASE_URL: "postgresql://postgres:test@localhost:5432/test" }
       - run: pnpm --filter @pbooth/web build
+      - name: Agent unit tests
+        run: pnpm --filter @pbooth/agent test
+      - name: Agent with real gPhoto2 + CUPS (virtual PDF printer)
+        run: |
+          docker build -t pbooth-agent-hwtest -f apps/agent/test/hardware.Dockerfile apps/agent/test
+          docker run --rm -v "$PWD":/src:ro pbooth-agent-hwtest sh /src/apps/agent/test/hardware.sh
 
   image:
     # Publishes ghcr.io/<owner>/pbooth on every push to main, after the tests pass.

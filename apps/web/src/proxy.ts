@@ -22,9 +22,10 @@ export function proxy(req: NextRequest) {
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
     `style-src 'self' 'nonce-${nonce}' ${EMPTY_STYLE}${dev ? " 'unsafe-inline'" : ""}`,
-    "img-src 'self' blob: data:",
+    // The booth agent on this computer (DSLR live view, capture, printing). Loopback only.
+    "img-src 'self' blob: data: http://127.0.0.1:47800",
     "font-src 'self' data:",
-    "connect-src 'self'",
+    "connect-src 'self' http://127.0.0.1:47800",
     "media-src 'self' blob: mediastream:",
     "worker-src 'self' blob:",
     "object-src 'none'",

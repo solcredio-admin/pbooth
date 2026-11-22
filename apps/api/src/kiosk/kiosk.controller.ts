@@ -38,6 +38,12 @@ export class KioskController {
   }
 
   @UseGuards(KioskGuard)
+  @Post("agent-ticket") @HttpCode(200)
+  agentTicket(@Req() r: KioskReq) {
+    return this.kiosk.agentTicket(r.kiosk!.boothId);
+  }
+
+  @UseGuards(KioskGuard)
   @Post("heartbeat") @HttpCode(200)
   heartbeat(@Body({ schema: kioskHeartbeatSchema }) body: KioskHeartbeat, @Req() r: KioskReq) {
     return this.kiosk.heartbeat(r.kiosk!.id, r.kiosk!.boothId, body, r.headers["user-agent"]?.slice(0, 300));

@@ -82,3 +82,13 @@
   .k-review { grid-template-columns: 1fr; }
   .k-design { max-width: 86vw; max-height: 56vh; }
 }
+
+/* DSLR live view (MJPEG from the agent) and print status */
+.k-frame img.k-live { width: 100%; height: 100%; object-fit: cover; }
+.k-frame.portrait img.k-live { height: 100%; width: auto; aspect-ratio: 2 / 3; }
+.k-frame img.k-live.mirror { transform: scaleX(-1); }
+.k-frame.soft img.k-live { filter: blur(18px) saturate(1.2) brightness(.55); transform: scale(1.08); }
+.k-print { margin: 0; font: 600 20px/1.4 var(--mono); }
+.k-print.done { color: var(--k-accent); }
+.k-print.failed, .k-print.unavailable { color: #ff8a70; }
+.k-print.sending, .k-print.queued, .k-print.printing { animation: k-breathe 1.6s ease-in-out infinite; }

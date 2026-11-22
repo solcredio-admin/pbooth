@@ -3,16 +3,18 @@
 A photobooth management platform run by one administrator: create events, (later) assign booths,
 run a browser kiosk at the venue, and deliver photos by print and QR gallery.
 
-**Status: Phase 3 (browser kiosk).** Admin sign-in, events, booths (enrollment, heartbeats, config
-sync, live view), and a guest kiosk for USB webcams: 1–4 photos per session, retakes, and a
-built-in event photo design (strip or grid). Saving/uploading photos, printing, DSLR and QR
-galleries come in later phases
+**Status: Phase 4 (hardware agent).** Admin sign-in, events, booths (enrollment, heartbeats, config
+sync, live view), a guest kiosk (1–4 photos, retakes, built-in event design), and the booth agent:
+DSLR via gPhoto2 on Linux, printing via CUPS / the Windows spooler. Real camera and printer models
+are **untested** until tried on hardware ([docs/HARDWARE.md](docs/HARDWARE.md)). Saving/uploading photos,
+QR galleries and the offline upload queue come in later phases
 (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); booth computers talk to the
 [device API](docs/DEVICE_API.md)).
 
 ```
 apps/api   NestJS 12 + Fastify REST API (/api/v1), Prisma 7 + PostgreSQL, admin CLI
-apps/web   Next.js 16 admin app, shader-glass design (WebGL gradient, liquid-metal intro)
+apps/web   Next.js 16 admin app, shader-glass design (WebGL gradient, liquid-metal intro), kiosk
+apps/agent Booth computer agent: gPhoto2 DSLR, CUPS/Windows printing, local API (see its README)
 infra/     container entrypoint, dev database, Veldora Caddy snippet
 tools/     simulate-booth.mjs: a SIMULATED booth for development and staging
 ```
@@ -96,9 +98,11 @@ Guest flow: welcome → get ready → countdown → 1–4 photos in a row (a sho
 without a touch abandons the session. Nothing from one guest stays on screen for the next. Each
 session is counted on the event's live view.
 
-**Photos are not saved yet.** They live only in the kiosk's memory until upload arrives
-(Phase 5), and the kiosk says so on its last screen. A booth set to DSLR shows that it needs the
-agent (Phase 4) instead of pretending to work.
+**DSLR and printing** need the booth agent on the booth computer. See
+[apps/agent/README.md](apps/agent/README.md). The kiosk finds and pairs with it automatically.
+
+**Photos are not saved yet.** They live only in the kiosk's memory (DSLR originals also stay on
+the booth computer) until upload arrives (Phase 5). The kiosk says so on its last screen.
 
 ### Event photo design
 

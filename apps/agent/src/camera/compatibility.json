@@ -1,0 +1,12 @@
+{
+  "note": "Nothing here is 'tested' until it has been run on real hardware with this agent. 'untested' means gPhoto2 lists the model, not that pbooth has verified it.",
+  "entries": [
+    { "manufacturer": "Canon", "model": "EOS R50", "match": "Canon EOS R50", "os": "linux", "connection": "USB", "driver": "gPhoto2 (libgphoto2 ptp2)", "operations": ["capture", "liveView", "settings"], "agentVersion": "0.4.0", "tested": "untested", "limitations": "Set auto power off to Disable. Live view drains the battery: use a dummy battery." },
+    { "manufacturer": "Canon", "model": "EOS R100", "match": "Canon EOS R100", "os": "linux", "connection": "USB", "driver": "gPhoto2 (libgphoto2 ptp2)", "operations": ["capture", "liveView", "settings"], "agentVersion": "0.4.0", "tested": "untested", "limitations": "As EOS R50." },
+    { "manufacturer": "Canon", "model": "EOS 2000D / Rebel T7", "match": "Canon EOS (2000D|Rebel T7|Kiss X90)", "os": "linux", "connection": "USB", "driver": "gPhoto2 (libgphoto2 ptp2)", "operations": ["capture", "liveView", "settings"], "agentVersion": "0.4.0", "tested": "untested", "limitations": "Mirror flips for each capture; live view pauses briefly." },
+    { "manufacturer": "Nikon", "model": "D3500", "match": "Nikon DSC D3500", "os": "linux", "connection": "USB", "driver": "gPhoto2 (libgphoto2 ptp2)", "operations": ["capture", "liveView"], "agentVersion": "0.4.0", "tested": "untested", "limitations": "Settings control is limited on entry Nikons." },
+    { "manufacturer": "Nikon", "model": "Z50", "match": "Nikon (DSC )?Z ?50", "os": "linux", "connection": "USB", "driver": "gPhoto2 (libgphoto2 ptp2)", "operations": ["capture", "liveView", "settings"], "agentVersion": "0.4.0", "tested": "untested", "limitations": "Verify the camera's USB mode is set to MTP/PTP." },
+    { "manufacturer": "Sony", "model": "Alpha a6000 series", "match": "Sony (Alpha-A6\\d00|ILCE-6\\d00)", "os": "linux", "connection": "USB", "driver": "gPhoto2 (libgphoto2 ptp2)", "operations": ["capture"], "agentVersion": "0.4.0", "tested": "untested", "limitations": "Needs 'PC Remote' USB mode. Older bodies may not support remote capture or live view at all." },
+    { "manufacturer": "Any", "model": "DSLR / mirrorless on Windows", "match": "", "os": "windows", "connection": "USB", "driver": "Vendor SDK (Canon EDSDK, Nikon SDK, Sony Camera Remote SDK)", "operations": [], "agentVersion": "0.4.0", "tested": "unsupported", "limitations": "Not implemented in v1. Use a USB webcam on Windows booths, or a Linux booth for DSLR." }
+  ]
+}

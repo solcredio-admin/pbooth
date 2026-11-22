@@ -108,6 +108,35 @@ discovery, job-level sync lists (only counts today), uptime history.
 - Reloading mid-session (`/kiosk/<code>/session/<id>`) starts fresh: unsaved photos are gone, and the
   stale session stays STARTED.
 
+## Hardware agent (Phase 4)
+
+- `apps/agent`: Node 24, no framework. It uses `node:http` for the local API and `node:sqlite` for
+  durable state (no native database build), plus Sharp for print files. It runs on Linux and Windows.
+- **Providers** behind small interfaces (`camera/types.ts`, `printer/types.ts`):
+  - gPhoto2 (CLI, Linux) for cameras.
+  - CUPS (`lp`/`lpstat`) and the Windows spooler (PowerShell + `System.Drawing.Printing`) for printers.
+  - Clearly labelled simulated camera and printer for development.
+
+  Programs run without a shell, with timeouts.
+- **Local API security:**
+  - Bound to 127.0.0.1 only.
+  - The Host header must be a loopback name (DNS rebinding).
+  - The Origin must be the enrolled pbooth site, and CORS headers never name any other origin.
+  - Chrome's private-network preflight is answered.
+  - Every hardware endpoint needs a local token. Tokens come only from `/pair` with a
+    cloud-signed, booth-bound, 5-minute ticket (HMAC with the device's `localSecret`, shared only at
+    enrollment), live 12 h, and are kept in memory. The live-view `<img>` passes its token in the URL;
+    no other endpoint accepts that.
+- **Print jobs:** id = kiosk session id (idempotent). They're kept in SQLite, retried up to 3 times when
+  the hand-off fails, and polled every 3 s. A job caught mid-hand-off by a restart is failed rather than
+  resent (no double prints). Print files are made at 300 dpi; 2×6 goes two-up on 4×6.
+- **Kiosk:** probes the agent only on booths that need it (DSLR or printing on), so webcam-only booths
+  never trigger Chrome's local-network prompt. DSLR live view is the agent's MJPEG stream. Printing
+  starts on "Looks great" and is reported on the done screen; it never blocks the guest.
+- **Honesty:** the compatibility registry starts every model as *untested*; Windows DSLR is
+  *unsupported*; ink/paper levels aren't claimed. The Docker hardware test proves the real gPhoto2
+  and CUPS paths (to a virtual PDF printer), not specific models.
+
 ## Data model
 
 `Admin`, `AdminSession`, `Event`, `EventConfig` (1:1, guest-experience settings), `AuditLog`,
@@ -126,8 +155,8 @@ create/update/each status change, with IP. Never passwords, tokens or cookies.
 | 1 Foundation | Repo, auth, DB, dashboard, event CRUD, Docker | **Done** |
 | 2 Booths | Registration, enrollment codes, heartbeats, assignment, config sync, live view, simulated booth | **Done** |
 | 3 Kiosk | Browser kiosk, USB webcam, countdown, 1–4 shot sequence, retakes, event template, guest flow | **Done** |
-| 4 Agent | Local agent, authenticated local API, gPhoto2 DSLR (Linux), CUPS/Windows printing | Next |
-| 5 Delivery | Sharp processing, R2 presigned uploads, QR galleries, downloads, export | |
+| 4 Agent | Local agent, authenticated local API, gPhoto2 DSLR (Linux), CUPS/Windows printing | **Done** (hardware models untested) |
+| 5 Delivery | Sharp processing, R2 presigned uploads, QR galleries, downloads, export | Next |
 | 6 Offline | Durable queue, restart recovery, idempotent sync, duplicate prevention | |
 | 7 Production | Security review, backup/restore test, monitoring, real hardware, pilot event | |
 
