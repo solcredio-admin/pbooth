@@ -5,9 +5,29 @@ import { send } from "@/lib/client-api";
 import type { EventConfig, EventDto } from "@/lib/types";
 import { TemplatePreview } from "./TemplatePreview";
 
+// One-click colour pairs for the design (page colour, accent).
+const PALETTES = [
+  { name: "Midnight lime", primaryColor: "#0b0c0a", accentColor: "#c6f36b" },
+  { name: "Classic white", primaryColor: "#f7f4ec", accentColor: "#1b1b1b" },
+  { name: "Blush", primaryColor: "#f6dfe0", accentColor: "#b4475a" },
+  { name: "Navy & gold", primaryColor: "#14213d", accentColor: "#e9c46a" },
+  { name: "Sage", primaryColor: "#dfe7d6", accentColor: "#3f5f45" },
+  { name: "Terracotta", primaryColor: "#f3e3d3", accentColor: "#c0593b" },
+  { name: "Lavender", primaryColor: "#e7e1f5", accentColor: "#5b4b9a" },
+  { name: "Black & white", primaryColor: "#111111", accentColor: "#f5f5f5" },
+];
+const STYLE_OPTIONS = {
+  pattern: [["none", "Plain"], ["gradient", "Gradient"], ["dots", "Dots"], ["stripes", "Stripes"], ["grid", "Grid"], ["waves", "Waves"], ["confetti", "Confetti"]],
+  frameStyle: [["line", "Thin line"], ["double", "Double line"], ["corners", "Corner marks"], ["none", "No frame"]],
+  photoStyle: [["rounded", "Rounded"], ["square", "Square"], ["white", "White border"]],
+  fontStyle: [["serif", "Elegant serif"], ["sans", "Bold sans"], ["mono", "Typewriter"]],
+} as const;
+type StyleKey = keyof typeof STYLE_OPTIONS;
+const STYLE_LABEL: Record<StyleKey, string> = { pattern: "Background", frameStyle: "Frame", photoStyle: "Photo edges", fontStyle: "Footer type" };
+
 const DEFAULTS: EventConfig = {
   welcomeTitle: "Strike a pose", welcomeMessage: "Tap anywhere to start", primaryColor: "#0b0c0a", accentColor: "#c6f36b",
-  countdownSeconds: 3, shotsPerSession: 3, captureIntervalSeconds: 3, layout: "strip", footerText: "", showDate: true, printEnabled: false, printCopies: 1, galleryEnabled: true, galleryRetentionDays: 30, saveOriginals: false,
+  countdownSeconds: 3, shotsPerSession: 3, captureIntervalSeconds: 3, layout: "landscape", pattern: "none", frameStyle: "line", photoStyle: "rounded", fontStyle: "serif", footerText: "", showDate: true, printEnabled: false, printCopies: 1, galleryEnabled: true, galleryRetentionDays: 30, saveOriginals: false,
 };
 
 function Field({ name, label, error, hint, wide, children }: { name: string; label: string; error?: string; hint?: string; wide?: boolean; children: ReactNode }) {
@@ -31,12 +51,15 @@ export function EventForm({ event }: { event?: EventDto }) {
   const cfg = { ...DEFAULTS, ...(event?.config ?? {}) };
   const [colors, setColors] = useState({ primaryColor: cfg.primaryColor, accentColor: cfg.accentColor });
   // What the live design preview shows; follows the form as it's edited.
-  const [look, setLook] = useState({ name: event?.name ?? "", date: event?.local.date ?? "", layout: cfg.layout, shots: cfg.shotsPerSession, footer: cfg.footerText, showDate: cfg.showDate });
+  const [look, setLook] = useState({ name: event?.name ?? "", date: event?.local.date ?? "", layout: cfg.layout, shots: cfg.shotsPerSession, footer: cfg.footerText, showDate: cfg.showDate,
+    pattern: cfg.pattern, frameStyle: cfg.frameStyle, photoStyle: cfg.photoStyle, fontStyle: cfg.fontStyle });
   const onFormChange = (e: React.FormEvent<HTMLFormElement>) => {
     const f = new FormData(e.currentTarget);
     setLook({
-      name: String(f.get("name") ?? ""), date: String(f.get("date") ?? ""), layout: (f.get("layout") as "strip" | "grid") ?? "strip",
+      name: String(f.get("name") ?? ""), date: String(f.get("date") ?? ""), layout: (f.get("layout") as EventConfig["layout"]) ?? "landscape",
       shots: Math.min(4, Math.max(1, Number(f.get("shotsPerSession")) || 1)), footer: String(f.get("footerText") ?? ""), showDate: f.get("showDate") === "on",
+      pattern: f.get("pattern") as EventConfig["pattern"], frameStyle: f.get("frameStyle") as EventConfig["frameStyle"],
+      photoStyle: f.get("photoStyle") as EventConfig["photoStyle"], fontStyle: f.get("fontStyle") as EventConfig["fontStyle"],
     });
   };
   const previewDate = look.date ? new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "long", day: "numeric", year: "numeric" }).format(new Date(`${look.date}T12:00:00Z`)) : "Event date";
@@ -58,7 +81,8 @@ export function EventForm({ event }: { event?: EventDto }) {
         welcomeTitle: str("welcomeTitle"), welcomeMessage: str("welcomeMessage"),
         primaryColor: str("primaryColor"), accentColor: str("accentColor"),
         countdownSeconds: num("countdownSeconds"), shotsPerSession: num("shotsPerSession"),
-        captureIntervalSeconds: num("captureIntervalSeconds"), layout: str("layout"), footerText: str("footerText"), showDate: f.get("showDate") === "on",
+        captureIntervalSeconds: num("captureIntervalSeconds"), layout: str("layout"), footerText: str("footerText"),
+        pattern: str("pattern"), frameStyle: str("frameStyle"), photoStyle: str("photoStyle"), fontStyle: str("fontStyle"), showDate: f.get("showDate") === "on",
         printEnabled: f.get("printEnabled") === "on", printCopies: num("printCopies"),
         galleryEnabled: f.get("galleryEnabled") === "on", galleryRetentionDays: num("galleryRetentionDays"),
         saveOriginals: f.get("saveOriginals") === "on",
@@ -142,20 +166,40 @@ export function EventForm({ event }: { event?: EventDto }) {
           <h3>Photo design</h3>
           <div className="wide design-row">
             <div className="design-fields">
-              <Field name="layout" label="Layout" error={errors.layout} hint="One photo always prints as a framed 4×6">
+              <Field name="layout" label="Layout" error={errors.layout} hint="Everything prints on 4×6 (4R) paper">
                 <select {...attrs("layout")} defaultValue={cfg.layout}>
-                  <option value="strip">Photo strip (2×6)</option>
-                  <option value="grid">Grid (4×6)</option>
+                  <option value="landscape">4R landscape (main print)</option>
+                  <option value="strip">Photo strip 2×6, two per sheet to cut</option>
+                  <option value="grid">4R portrait grid</option>
                 </select>
               </Field>
+              <div className="field">
+                <span>Colours</span>
+                <div className="palettes" role="group" aria-label="Colour palettes">
+                  {PALETTES.map((pal) => (
+                    <button key={pal.name} type="button" className={"palette" + (colors.primaryColor === pal.primaryColor && colors.accentColor === pal.accentColor ? " on" : "")}
+                      title={pal.name} aria-label={pal.name} disabled={readOnly}
+                      onClick={() => setColors({ primaryColor: pal.primaryColor, accentColor: pal.accentColor })}
+                      style={{ background: `linear-gradient(135deg, ${pal.primaryColor} 50%, ${pal.accentColor} 50%)` }} />
+                  ))}
+                </div>
+                <span className="hint">Or pick any brand and accent colour above</span>
+              </div>
+              {(Object.keys(STYLE_OPTIONS) as StyleKey[]).map((k) => (
+                <Field key={k} name={k} label={STYLE_LABEL[k]} error={errors[k]}>
+                  <select {...attrs(k)} defaultValue={cfg[k]}>
+                    {STYLE_OPTIONS[k].map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+                  </select>
+                </Field>
+              ))}
               <Field name="footerText" label="Footer text" error={errors.footerText} hint="Leave empty to use the event name">
                 <input {...attrs("footerText")} defaultValue={cfg.footerText} maxLength={60} placeholder={look.name || "Event name"} />
               </Field>
               <label className="check"><input type="checkbox" name="showDate" defaultChecked={cfg.showDate} /><span>Show the date</span></label>
-              <p className="hint cap">Uses the brand and accent colours above.</p>
             </div>
             <TemplatePreview layout={look.layout} shots={look.shots} primaryColor={colors.primaryColor} accentColor={colors.accentColor}
-              footer={look.footer || look.name || "Event name"} dateText={look.showDate ? previewDate : null} />
+              footer={look.footer || look.name || "Event name"} dateText={look.showDate ? previewDate : null}
+              pattern={look.pattern} frameStyle={look.frameStyle} photoStyle={look.photoStyle} fontStyle={look.fontStyle} />
           </div>
 
           <h3>Prints and gallery</h3>

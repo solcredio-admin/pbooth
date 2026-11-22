@@ -90,7 +90,6 @@ export function Shell({ children }: { children: ReactNode }) {
       <header className="bar">
         <Link className="brand" href="/dashboard" aria-label="pbooth home">
           <Marks className="brand-logo" />
-          <span className="brand-text cap">pbooth</span>
         </Link>
         <nav className="nav" aria-label="Main">
           {NAV.map((n) => (

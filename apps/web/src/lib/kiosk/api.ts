@@ -1,3 +1,4 @@
+import type { FontStyle, FrameStyle, Pattern, PhotoStyle } from "@/lib/template/compose";
 // Kiosk → API. The kiosk's HttpOnly cookie rides along automatically; nothing secret lives here.
 export interface KioskConfig {
   version: string;
@@ -10,7 +11,7 @@ export interface KioskConfig {
   event: null | {
     id: string; name: string; timeZone: string; startsAt: string; endsAt: string;
     guest: null | { welcomeTitle: string; welcomeMessage: string; primaryColor: string; accentColor: string; countdownSeconds: number; shotsPerSession: number; captureIntervalSeconds: number; printEnabled: boolean; printCopies: number; galleryEnabled: boolean; saveOriginals: boolean;
-      template: { layout: "strip" | "grid"; footerText: string; showDate: boolean } };
+      template: { layout: "landscape" | "strip" | "grid"; footerText: string; showDate: boolean; pattern?: Pattern; frameStyle?: FrameStyle; photoStyle?: PhotoStyle; fontStyle?: FontStyle } };
   };
 }
 

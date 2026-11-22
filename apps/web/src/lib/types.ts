@@ -5,7 +5,9 @@ export type Transition = "schedule" | "activate" | "complete" | "archive";
 export interface EventConfig {
   welcomeTitle: string; welcomeMessage: string; primaryColor: string; accentColor: string;
   countdownSeconds: number; shotsPerSession: number; captureIntervalSeconds: number;
-  layout: "strip" | "grid"; footerText: string; showDate: boolean; printEnabled: boolean; printCopies: number;
+  layout: "landscape" | "strip" | "grid"; footerText: string;
+  pattern: "none" | "dots" | "stripes" | "grid" | "confetti" | "waves" | "gradient";
+  frameStyle: "line" | "double" | "corners" | "none"; photoStyle: "rounded" | "square" | "white"; fontStyle: "serif" | "sans" | "mono"; showDate: boolean; printEnabled: boolean; printCopies: number;
   galleryEnabled: boolean; galleryRetentionDays: number; saveOriginals: boolean;
 }
 

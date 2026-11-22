@@ -1,9 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
-import { composeTemplate } from "@/lib/template/compose";
+import { composeTemplate, printCanvas, type FontStyle, type FrameStyle, type Pattern, type PhotoStyle } from "@/lib/template/compose";
 import type { Layout } from "@/lib/template/layout";
 
-export interface PreviewProps { layout: Layout; shots: number; primaryColor: string; accentColor: string; footer: string; dateText: string | null }
+export interface PreviewProps {
+  layout: Layout; shots: number; primaryColor: string; accentColor: string; footer: string; dateText: string | null;
+  pattern: Pattern; frameStyle: FrameStyle; photoStyle: PhotoStyle; fontStyle: FontStyle;
+}
 
 // Stand-in "photos": soft gradients with a figure, so the preview shows the design, not a stock image.
 function placeholder(i: number) {
@@ -28,15 +31,16 @@ export function TemplatePreview(p: PreviewProps) {
   useEffect(() => {
     let alive = true;
     const t = setTimeout(async () => {
-      const canvas = await composeTemplate(Array.from({ length: p.shots }, (_, i) => placeholder(i)), { ...p, orientation: "landscape" });
-      if (alive) setSrc(canvas.toDataURL("image/jpeg", 0.85));
+      const design = await composeTemplate(Array.from({ length: p.shots }, (_, i) => placeholder(i)), { ...p, orientation: "landscape" });
+      // show the sheet as it prints (a strip appears twice, ready to cut)
+      if (alive) setSrc(printCanvas(design, p.layout, p.shots).toDataURL("image/jpeg", 0.85));
     }, 120); // redraw once typing pauses
     return () => { alive = false; clearTimeout(t); };
-  }, [p.layout, p.shots, p.primaryColor, p.accentColor, p.footer, p.dateText]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [p.layout, p.shots, p.primaryColor, p.accentColor, p.footer, p.dateText, p.pattern, p.frameStyle, p.photoStyle, p.fontStyle]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <figure className="template-preview">
       {src ? <img src={src} alt="Preview of the event's photo design" /> : <div className="skeleton" />}
-      <figcaption className="cap">{p.shots === 1 ? "4×6 framed photo" : p.layout === "strip" ? "2×6 photo strip" : "4×6 grid"} · placeholder photos</figcaption>
+      <figcaption className="cap">{p.layout === "landscape" ? "4R landscape" : p.shots === 1 ? "4R framed photo" : p.layout === "strip" ? "Two 2×6 strips on one 4R sheet, cut in half" : "4R portrait grid"} · placeholder photos</figcaption>
     </figure>
   );
 }

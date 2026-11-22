@@ -1,14 +1,16 @@
 // The built-in event template: where photos and the footer sit on the printed page.
-// Sizes are pixels at 300 dpi, so the result is print-ready:
-//   strip  2x6 in  = 600 x 1800   (classic photo-booth strip, 1-4 photos stacked)
-//   grid   4x6 in  = 1200 x 1800  (2x2, or a wide photo over two for 3 shots)
-//   single 4x6 in  = 1200 x 1800 portrait / 1800 x 1200 landscape (one framed photo)
-export type Layout = "strip" | "grid";
+// Sizes are pixels at 300 dpi, so the result is print-ready. Every layout prints on 4R (4x6 in):
+//   landscape 4x6 in  = 1800 x 1200  (the main print: 1 big photo, 2 side by side, 1 big + 2, or 2x2)
+//   strip     2x6 in  = 600 x 1800   (classic strip, 1-4 photos stacked; printed twice side by side
+//                                     on one 4x6 sheet, to cut in half: see printPage)
+//   grid      4x6 in  = 1200 x 1800  (portrait: 2x2, or a wide photo over two for 3 shots)
+export type Layout = "landscape" | "strip" | "grid";
 export interface Rect { x: number; y: number; w: number; h: number }
 export interface Plan { width: number; height: number; slots: Rect[]; footer: Rect; inset: number }
 
-export function plan(layout: Layout, shots: number, orientation: "landscape" | "portrait"): Plan {
+export function plan(layout: Layout, shots: number, orientation: "landscape" | "portrait" = "landscape"): Plan {
   const n = Math.max(1, Math.min(4, Math.round(shots)));
+  if (layout === "landscape") return landscape(n);
   if (n === 1) {
     const [width, height] = orientation === "portrait" ? [1200, 1800] : [1800, 1200];
     const m = 70, footerH = 230;
@@ -31,3 +33,21 @@ export function plan(layout: Layout, shots: number, orientation: "landscape" | "
     : [0, 1, 2, 3].map((i) => ({ x: m + (i % 2) * (colW + gap), y: m + Math.floor(i / 2) * (rowH + gap), w: colW, h: rowH }));
   return { width, height, inset: 24, slots, footer: { x: m, y: height - footerH, w: full, h: footerH - m / 2 } };
 }
+
+// 4R landscape: photos on top, a footer band along the bottom.
+function landscape(n: number): Plan {
+  const width = 1800, height = 1200, m = 60, gap = 26, footerH = 190;
+  const areaW = width - 2 * m, areaH = height - m - footerH;
+  const halfW = Math.floor((areaW - gap) / 2), halfH = Math.floor((areaH - gap) / 2);
+  const bigW = Math.floor((areaW - gap) * 0.62), sideW = areaW - gap - bigW;
+  const slots: Rect[] =
+    n === 1 ? [{ x: m, y: m, w: areaW, h: areaH }]
+    : n === 2 ? [{ x: m, y: m, w: halfW, h: areaH }, { x: m + halfW + gap, y: m, w: halfW, h: areaH }]
+    : n === 3 ? [{ x: m, y: m, w: bigW, h: areaH }, { x: m + bigW + gap, y: m, w: sideW, h: halfH }, { x: m + bigW + gap, y: m + halfH + gap, w: sideW, h: halfH }]
+    : [0, 1, 2, 3].map((i) => ({ x: m + (i % 2) * (halfW + gap), y: m + Math.floor(i / 2) * (halfH + gap), w: halfW, h: halfH }));
+  return { width, height, inset: 22, slots, footer: { x: m, y: height - footerH, w: areaW, h: footerH - m / 2 } };
+}
+
+/** What the printer gets, always one 4x6 sheet: a strip is placed twice side by side, to cut in half. */
+export const printSheet = (layout: Layout, shots: number) =>
+  layout === "strip" && shots > 1 ? { width: 1200, height: 1800, copies: 2 } : null;

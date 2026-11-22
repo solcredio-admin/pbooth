@@ -11,6 +11,7 @@
 
 .k-center, .k-panel, .k-done { position: relative; z-index: 2; display: grid; gap: 22px; justify-items: center; text-align: center; padding: 32px; max-width: 900px; }
 .k-cap { margin: 0; font: 500 13px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .06em; opacity: .7; }
+.k-ready-count { margin: 0; font: 500 clamp(18px, 2.4vw, 26px)/1 var(--mono); letter-spacing: .04em; }
 .k-title { margin: 0; font: 300 clamp(48px, 8vw, 110px)/1 var(--serif); letter-spacing: -0.02em; }
 .k-text { margin: 0; font: 400 clamp(17px, 2vw, 22px)/1.5 var(--mono); max-width: 46ch; opacity: .85; }
 .k-text b, .k-steps b { color: var(--k-accent); font-weight: 600; }

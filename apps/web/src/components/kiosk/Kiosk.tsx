@@ -5,8 +5,8 @@ import { useAgent, type AgentJob } from "@/lib/kiosk/agent";
 import { kioskFetch, type KioskConfig } from "@/lib/kiosk/api";
 import { cachedConfig, enqueuePhoto, kioskQueue, saveConfig } from "@/lib/offline/kiosk-sync";
 import type { QueueStatus } from "@/lib/offline/queue";
-import { composeTemplate, toJpeg } from "@/lib/template/compose";
-import { plan } from "@/lib/template/layout";
+import { composeTemplate, printCanvas, toJpeg } from "@/lib/template/compose";
+import { plan, type Layout } from "@/lib/template/layout";
 import { newGalleryToken } from "@/lib/kiosk/upload";
 import QRCode from "qrcode";
 
@@ -17,9 +17,11 @@ type Screen =
 const INACTIVITY_MS = 60_000; // a guest who walks away mid-session
 const DONE_RESET_S = 20;      // the thank-you screen clears itself
 const DONE_RESET_QR_S = 35;   // longer when there's a QR code to scan
+// One tap on the welcome screen is enough: instructions show this long, then the countdown starts.
+const READY_SECONDS = 10;
 const GUEST = new Set<Screen>(["ready", "countdown", "composing", "review", "done"]);
 
-interface Shot { blob: Blob; url: string }
+interface Shot { blob: Blob; url: string; printBlob?: Blob } // printBlob: the 4R sheet when it differs from the design
 
 export function Kiosk({ boothCode }: { boothCode: string }) {
   const root = useRef<HTMLDivElement>(null);
@@ -47,6 +49,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   const [design, setDesign] = useState<Shot | null>(null); // the photos inside the event template
   const [redo, setRedo] = useState<number | null>(null);   // retaking just this photo
   const [count, setCount] = useState(0);
+  const [readyLeft, setReadyLeft] = useState(READY_SECONDS); // instructions screen, then shooting starts by itself
   const [flash, setFlash] = useState(false);
   const [doneLeft, setDoneLeft] = useState(DONE_RESET_S);
   const [captureError, setCaptureError] = useState("");
@@ -122,7 +125,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   // Set through the CSSOM, since inline style attributes are blocked by the CSP.
   const frameSize = dslr ? liveSize : cam.state.resolution;
   const shotIndex = Math.min(redo ?? shots.length, Math.max(0, needed - 1));
-  const layout = (guest?.template?.layout ?? "strip") as "strip" | "grid";
+  const layout = (guest?.template?.layout ?? "landscape") as Layout;
   useEffect(() => {
     const slot = live ? plan(layout, needed, config?.camera.orientation ?? "landscape").slots[shotIndex] : null;
     const [w, h] = (frameSize ?? "16x9").split("x").map(Number);
@@ -220,7 +223,9 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
       const bitmaps = await Promise.all(list.map((x) => createImageBitmap(x.blob)));
       const ev = config!.event!;
       const canvas = await composeTemplate(bitmaps, {
-        layout: (guest?.template?.layout ?? "strip") as "strip" | "grid",
+        layout,
+        pattern: guest?.template?.pattern, frameStyle: guest?.template?.frameStyle,
+        photoStyle: guest?.template?.photoStyle, fontStyle: guest?.template?.fontStyle,
         orientation: config!.camera.orientation,
         primaryColor: guest?.primaryColor ?? "#0b0c0a",
         accentColor: guest?.accentColor ?? "#c6f36b",
@@ -230,12 +235,15 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
       });
       bitmaps.forEach((b) => b.close());
       const blob = await toJpeg(canvas);
-      setDesign((old) => { if (old) URL.revokeObjectURL(old.url); return { blob, url: URL.createObjectURL(blob) }; });
+      // the gallery gets the design; the printer gets the 4R sheet (a strip twice, to cut)
+      const sheet = printCanvas(canvas, layout, list.length);
+      const printBlob = sheet === canvas ? blob : await toJpeg(sheet);
+      setDesign((old) => { if (old) URL.revokeObjectURL(old.url); return { blob, url: URL.createObjectURL(blob), printBlob }; });
     } catch {
       setDesign(null); // the plain photos still show; the design is a bonus, never a blocker
     }
     setScreen("review");
-  }, [config, guest]);
+  }, [config, guest, layout]);
 
   // The countdown ticks once a second, then the shutter fires. In a multi-shot sequence the next
   // shorter countdown starts by itself; after the last photo the design is composed.
@@ -300,7 +308,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     if (!printWanted) return;
     // Printing never holds up the guest: the done screen just reports how it's going.
     const id = session.current?.id;
-    const image = design?.blob ?? shots[0]?.blob;
+    const image = design?.printBlob ?? design?.blob ?? shots[0]?.blob;
     if (!agent.available || !id || !image) { setPrint({ state: "unavailable" }); return; }
     setPrint({ state: "sending" });
     agent.print(id, image, guest?.printCopies ?? 1).then((j) => setPrint(printState(j))).catch((e) => setPrint({ state: "failed", message: (e as Error).message }));
@@ -315,6 +323,15 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     const t = setInterval(async () => { const j = await agentRef.current.job(id).catch(() => null); if (j) setPrint(printState(j)); }, 2000);
     return () => clearInterval(t);
   }, [printing]);
+
+  // The instructions screen counts down and starts the photos itself (also after a failed capture).
+  useEffect(() => {
+    if (screen !== "ready") return;
+    setReadyLeft(READY_SECONDS);
+    const t = setInterval(() => setReadyLeft((n) => n - 1), 1000);
+    return () => clearInterval(t);
+  }, [screen]);
+  useEffect(() => { if (screen === "ready" && readyLeft <= 0) shoot(); }, [screen, readyLeft, shoot]);
 
   // Walked away? Abandon the session after a minute of no touches (never during the countdown).
   useEffect(() => {
@@ -450,6 +467,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
         <div className="k-panel">
           <p className="k-cap">{needed > 1 ? `${needed} photos in a row` : "One photo"}</p>
           <h1 className="k-title">Get ready.</h1>
+          <p className="k-ready-count" aria-live="polite">Starting in {Math.max(0, readyLeft)}</p>
           <p className="k-text">
             {(guest?.countdownSeconds ?? 3) > 0 ? `We count down from ${guest?.countdownSeconds ?? 3}, then snap` : "We snap right away"}
             {needed > 1 ? `, then ${needed - 1} more, ${guest?.captureIntervalSeconds ?? 3} seconds apart. Change poses between shots!` : ". Look at the camera."}
@@ -459,7 +477,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
           )}
           {captureError && <p className="k-error" role="alert">{captureError}</p>}
           <div className="k-actions">
-            <button className="k-btn big" type="button" onClick={shoot}>Start</button>
+            <button className="k-btn big" type="button" onClick={shoot}>Start now</button>
             <button className="k-btn ghost" type="button" onClick={() => reset("ABANDONED")}>Cancel</button>
           </div>
         </div>

@@ -83,9 +83,14 @@ model EventConfig {
   shotsPerSession      Int      @default(3)
   // Seconds between shots in a multi-shot sequence.
   captureIntervalSeconds Int    @default(3)
-  // The built-in event template: how photos are framed. "strip" = 2x6 strip, "grid" = 2x2 on 4x6.
-  // One shot always uses a framed 4x6.
-  layout               String   @default("strip")
+  // The built-in event template, always printed on 4x6 (4R): "landscape" = 4R landscape,
+  // "strip" = 2x6 strip printed twice on the sheet (cut in half), "grid" = 4x6 portrait.
+  layout               String   @default("landscape")
+  // Design styling: background pattern, frame around the page, photo edges, footer type.
+  pattern              String   @default("none")
+  frameStyle           String   @default("line")
+  photoStyle           String   @default("rounded")
+  fontStyle            String   @default("serif")
   // Footer line on the design; empty means the event name.
   footerText           String   @default("")
   showDate             Boolean  @default(true)

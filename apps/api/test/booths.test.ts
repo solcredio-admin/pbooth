@@ -87,7 +87,7 @@ describe.skipIf(!base)("booths and devices", () => {
     const cfg = (await call("/devices/config", { token })).body;
     expect(cfg.event.name).toBe("Party One");
     expect(cfg.event.guest.countdownSeconds).toBe(3);
-    expect(cfg.event.guest.template).toEqual({ layout: "strip", footerText: "Party One", showDate: true });
+    expect(cfg.event.guest.template).toEqual({ layout: "landscape", footerText: "Party One", showDate: true, pattern: "none", frameStyle: "line", photoStyle: "rounded", fontStyle: "serif" });
 
     const clash = await call(`/events/${e2.id}/activate`, { method: "POST", cookie });
     expect(clash.status).toBe(409);

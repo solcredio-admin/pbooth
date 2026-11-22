@@ -7,9 +7,8 @@ const ADMIN = { email: process.env.E2E_EMAIL ?? "admin@test.local", password: pr
 const origin = new URL(BASE).origin;
 
 async function guest(page: Page) {
-  await page.locator(".k-tap").click();
-  await page.getByRole("button", { name: "Start", exact: true }).click();
-  await expect(page.locator(".kiosk.ks-review")).toBeVisible({ timeout: 20_000 });
+  await page.locator(".k-tap").click(); // one tap: the instructions count down and shooting starts by itself
+  await expect(page.locator(".kiosk.ks-review")).toBeVisible({ timeout: 35_000 });
   await page.getByRole("button", { name: "Looks great" }).click();
   await expect(page.locator(".kiosk.ks-done")).toBeVisible();
 }

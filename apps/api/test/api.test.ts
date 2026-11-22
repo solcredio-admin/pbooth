@@ -51,7 +51,7 @@ describe.skipIf(!base)("API against a real database", () => {
     expect(e.local).toEqual({ date: "2026-12-05", startTime: "18:00", endTime: "01:00" });
     expect(e.config.countdownSeconds).toBe(3);
     expect(e.config.shotsPerSession).toBe(3);
-    expect(e.config.layout).toBe("strip");
+    expect(e.config.layout).toBe("landscape"); // 4R landscape is the default print
     expect(e.config.saveOriginals).toBe(false); // designs only unless switched on
 
     const patched = await call(`/events/${e.id}`, { method: "PATCH", body: { name: "Reyes–Cruz Wedding", config: { printEnabled: true } }, cookie });
