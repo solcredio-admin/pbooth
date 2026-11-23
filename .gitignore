@@ -11,3 +11,6 @@ test-results/
 .DS_Store
 .sim-booth*.json
 *.tsbuildinfo
+
+# built into the image (Dockerfile)
+apps/web/public/agent.zip

@@ -15,11 +15,19 @@ FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc* ./
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
+COPY apps/agent/package.json apps/agent/
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
 FROM deps AS build
 COPY apps ./apps
 RUN pnpm --filter @pbooth/api build && pnpm --filter @pbooth/web build
+# The booth agent, ready to run, served at /agent.zip: unzip, `npm install --omit=dev` (fetches sharp
+# for the booth's own OS), enroll. Nothing secret in it; booths still need a one-time enrollment code.
+RUN apt-get update && apt-get install -y --no-install-recommends zip && rm -rf /var/lib/apt/lists/* \
+ && pnpm --filter @pbooth/agent build \
+ && mkdir -p /agent/tools && cp -r apps/agent/dist apps/agent/deploy apps/agent/README.md /agent/ && cp tools/simulate-booth.mjs /agent/tools/ \
+ && node -e "const p=require('./apps/agent/package.json'); require('fs').writeFileSync('/agent/package.json', JSON.stringify({name:'pbooth-agent', private:true, type:p.type, description:p.description, dependencies:p.dependencies, scripts:{start:p.scripts.start}}, null, 2))" \
+ && (cd /agent && zip -qr /src/apps/web/public/agent.zip .)
 # A self-contained API folder with production dependencies only.
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm --filter @pbooth/api deploy --prod --legacy /out/api \

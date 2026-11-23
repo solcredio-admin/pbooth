@@ -18,59 +18,25 @@ USB-webcam booths don't need it. Install it when a booth has a DSLR or a printer
 No camera or printer model counts as compatible until it has been tested with this agent. See
 [docs/HARDWARE.md](../../docs/HARDWARE.md) for the compatibility registry and how to add a tested model.
 
-## Install (Linux booth)
+## Install
 
-```bash
-sudo apt install -y nodejs gphoto2 cups git
-```
+On the booth's admin page, open **Connect → Booth agent**, generate an enrollment code, pick the
+computer's OS and copy the one command shown. It installs Node.js 24 if needed, downloads the agent
+from your pbooth server (`/agent.zip`, built with each release), enrolls the booth, starts it with
+the computer and lists the printers it sees. Running it again later updates the agent.
 
-Node.js 24 is required. If Ubuntu's package is older, install Node 24 from nodesource or nvm.
+| | Command | Agent folder | Starts via |
+|---|---|---|---|
+| Windows (PowerShell as Administrator) | `install-agent.ps1` | `C:\pbooth-agent` | Task Scheduler, as SYSTEM, at startup |
+| macOS (Terminal) | `install-agent.sh` | `/Users/Shared/pbooth-agent` | LaunchAgent at login (`deploy/net.pbooth.agent.plist`) |
+| Ubuntu 24.04 (Terminal) | `install-agent.sh` | `/opt/pbooth-agent` | systemd (`deploy/pbooth-agent.service`), user `pbooth` |
 
-```bash
-sudo useradd --system --create-home --groups plugdev,lp pbooth
-```
+The scripts live in `apps/web/public/`. Add the printer in the OS first (and print a test page).
+On Linux the script also stops the desktop from grabbing the camera (`gio mount -s gphoto2`).
 
-```bash
-sudo git clone <your pbooth repo> /opt/pbooth && cd /opt/pbooth && sudo corepack enable && sudo pnpm install --filter @pbooth/agent && sudo pnpm --filter @pbooth/agent build
-```
-
-Stop Ubuntu's desktop from grabbing the camera (otherwise gPhoto2 can't claim it):
-
-```bash
-gio mount -s gphoto2
-```
-
-Enroll: on the booth's admin page click **Generate enrollment code** (under *Booth agent*), then:
-
-```bash
-sudo -u pbooth PBOOTH_AGENT_DIR=/var/lib/pbooth-agent node /opt/pbooth/apps/agent/dist/main.js enroll --server https://pbooth.solcredio.net --code XXXX-XXXX
-```
-
-Run it as a service:
-
-```bash
-sudo cp /opt/pbooth/apps/agent/deploy/pbooth-agent.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now pbooth-agent
-```
-
-```bash
-journalctl -u pbooth-agent -f
-```
-
-Check the hardware at any time:
-
-```bash
-sudo -u pbooth PBOOTH_AGENT_DIR=/var/lib/pbooth-agent node /opt/pbooth/apps/agent/dist/main.js doctor
-```
-
-## Install (Windows booth, printing only)
-
-1. Install Node.js 24 (LTS) from nodejs.org and the printer's own driver, then print a test page from Windows.
-2. Copy the repository to `C:\pbooth`, then in an Administrator PowerShell: `corepack enable; pnpm install --filter @pbooth/agent; pnpm --filter @pbooth/agent build`.
-3. Enroll: `node C:\pbooth\apps\agent\dist\main.js enroll --server https://pbooth.solcredio.net --code XXXX-XXXX`
-4. Run at startup: Task Scheduler → *Create Task* → "Run whether user is logged on or not", trigger
-   *At startup*, action `node.exe` with arguments `--disable-warning=ExperimentalWarning C:\pbooth\apps\agent\dist\main.js run`,
-   and "Restart every 1 minute" on failure.
-5. `node C:\pbooth\apps\agent\dist\main.js doctor` lists the printers Windows sees.
+Logs: `journalctl -u pbooth-agent -f` (Linux), `/tmp/pbooth-agent.log` (macOS), Task Scheduler history (Windows).
+Check the hardware any time with `node <agent folder>/dist/main.js doctor` (on Linux prefix
+`sudo -u pbooth PBOOTH_AGENT_DIR=/var/lib/pbooth-agent`).
 
 State (database, print files) lives in `%ProgramData%\pbooth-agent` (Windows),
 `/var/lib/pbooth-agent` (Linux service) or `~/.local/share/pbooth-agent`. Override with `PBOOTH_AGENT_DIR`.

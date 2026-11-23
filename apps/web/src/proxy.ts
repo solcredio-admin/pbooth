@@ -48,7 +48,7 @@ export function proxy(req: NextRequest) {
 
 export const config = {
   matcher: [{
-    source: "/((?!api|socket\\.io|_next/static|_next/image|favicon|apple-touch-icon|logo|theme\\.js|kiosk-sw\\.js).*)",
+    source: "/((?!api|socket\\.io|_next/static|_next/image|favicon|apple-touch-icon|logo|theme\\.js|kiosk-sw\\.js|agent\\.zip|install-agent\\.(?:ps1|sh)).*)",
     missing: [{ type: "header", key: "next-router-prefetch" }, { type: "header", key: "purpose", value: "prefetch" }],
   }],
 };

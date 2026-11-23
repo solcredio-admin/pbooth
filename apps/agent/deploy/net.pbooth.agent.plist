@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- macOS: starts the pbooth agent at login and restarts it if it stops.
      cp deploy/net.pbooth.agent.plist ~/Library/LaunchAgents/ && launchctl load -w ~/Library/LaunchAgents/net.pbooth.agent.plist
-     Assumes the repository is in /Users/Shared/pbooth and Node from the nodejs.org installer (/usr/local/bin/node). -->
+     Assumes the agent is unzipped to /Users/Shared/pbooth-agent and Node from the nodejs.org installer (/usr/local/bin/node). -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -10,7 +10,7 @@
   <array>
     <string>/usr/local/bin/node</string>
     <string>--disable-warning=ExperimentalWarning</string>
-    <string>/Users/Shared/pbooth/apps/agent/dist/main.js</string>
+    <string>/Users/Shared/pbooth-agent/dist/main.js</string>
     <string>run</string>
   </array>
   <key>EnvironmentVariables</key>
