@@ -11,6 +11,8 @@ booth page shows each camera's status (tested / untested / unsupported / simulat
 | Any | USB webcam (UVC) | any | USB | Browser camera API | preview, capture | works in Chrome; per-model untested | Resolution is a request; the camera decides |
 | Canon | EOS R50 / R100 | Linux | USB | gPhoto2 | capture, live view, settings | **untested** | Disable auto power off; use a dummy battery for live view |
 | Canon | EOS 2000D / Rebel T7 | Linux | USB | gPhoto2 | capture, live view, settings | **untested** | Mirror flips each capture |
+| Nikon | D3400 | macOS | USB | gPhoto2 2.5.32 | capture, live view, settings | **tested** (2026-11-24, macOS 27.2, firmware 1.12) | Live view ~12 fps at 640×424; capture ~1.8 s. Use an EP-5A + EH-5 power kit and disable auto power off. macOS asks once to allow the camera |
+| Nikon | D3400 | Linux | USB | gPhoto2 | capture, live view, settings | **untested** | Same driver as the macOS test; expected to match |
 | Nikon | D3500 | Linux | USB | gPhoto2 | capture, live view | **untested** | Limited settings control |
 | Nikon | Z50 | Linux | USB | gPhoto2 | capture, live view, settings | **untested** | USB mode must be MTP/PTP |
 | Sony | a6000 series | Linux | USB | gPhoto2 | capture | **untested** | Needs "PC Remote"; older bodies may lack remote capture/live view |

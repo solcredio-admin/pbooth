@@ -24,7 +24,7 @@ describe("gphoto2 output parsing", () => {
   });
 
   it("explains common failures in plain words", () => {
-    expect(explain("*** Error (-53: 'Could not claim the USB device') ***")).toMatch(/gio mount -s gphoto2/);
+    expect(explain("*** Error (-53: 'Could not claim the USB device') ***")).toMatch(process.platform === "darwin" ? /Photos or Image Capture/ : /gio mount -s gphoto2/);
     expect(explain("*** Error: No camera found. ***")).toMatch(/No camera found/);
   });
 

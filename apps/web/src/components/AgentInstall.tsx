@@ -51,7 +51,7 @@ export function AgentInstall({ origin, code }: { origin: string; code: string | 
       </div>
 
       <div hidden={os !== "mac"}>
-        <p className="cap">Printing through macOS printing; DSLR via gPhoto2 is untested on Mac.</p>
+        <p className="cap">Printing through macOS printing. DSLR via gPhoto2: Nikon D3400 tested; other cameras untested on Mac.</p>
         <ol className="steps-text">
           {printer("System Settings → Printers & Scanners → add it.")}
           <Step title="Run this in Terminal.">

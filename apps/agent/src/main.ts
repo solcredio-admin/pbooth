@@ -37,7 +37,7 @@ async function main() {
     } else {
       const g = await available("gphoto2");
       console.log(`gPhoto2: ${g ? "installed" : "missing (sudo apt install gphoto2)"}`);
-      if (g) for (const c of await new GPhoto2Camera().discover()) console.log(`  camera: ${c.name} at ${c.id} — compatibility: ${compatibilityFor(c.name, "linux").tested}`);
+      if (g) for (const c of await new GPhoto2Camera().discover()) console.log(`  camera: ${c.name} at ${c.id} — compatibility: ${compatibilityFor(c.name, platform() === "darwin" ? "darwin" : "linux").tested}`);
       const l = await available("lpstat", "-r");
       console.log(`CUPS: ${l ? "installed" : "missing (sudo apt install cups)"}`);
       if (l) for (const p of await new CupsPrinter().discover().catch(() => [])) console.log(`  printer: ${p.name}${p.isDefault ? " (default)" : ""} — ${p.status}${p.message ? `: ${p.message}` : ""}`);
