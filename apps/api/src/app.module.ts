@@ -32,6 +32,8 @@ import { BackupsController } from "./backups/backups.controller.js";
 import { UsersController } from "./users/users.controller.js";
 import { SelfServiceController } from "./selfservice/selfservice.controller.js";
 import { SelfServiceService } from "./selfservice/selfservice.service.js";
+import { PaymentsController } from "./selfservice/payments.controller.js";
+import { PaymongoService } from "./selfservice/paymongo.service.js";
 import { UsersService } from "./users/users.service.js";
 import { BackupsService } from "./backups/backups.service.js";
 
@@ -41,10 +43,10 @@ export class AppModule {
   static forRoot(cfg: Config): DynamicModule {
     return {
       module: AppModule,
-      controllers: [HealthController, AuthController, EventsController, BoothsController, EventBoothsController, DevicesController, KioskController, SessionsController, PhotosController, EventPhotosController, StorageController, GalleriesController, BackupsController, UsersController, SelfServiceController],
+      controllers: [HealthController, AuthController, EventsController, BoothsController, EventBoothsController, DevicesController, KioskController, SessionsController, PhotosController, EventPhotosController, StorageController, GalleriesController, BackupsController, UsersController, SelfServiceController, PaymentsController],
       providers: [
         { provide: CONFIG, useValue: cfg },
-        PrismaService, AuditService, AuthService, EventsService, BoothsService, DevicesService, DeviceGuard, RealtimeGateway, KioskService, KioskGuard, SessionsService, StorageService, PhotosService, BoothAuthGuard, GalleriesService, BackupsService, UsersService, SelfServiceService,
+        PrismaService, AuditService, AuthService, EventsService, BoothsService, DevicesService, DeviceGuard, RealtimeGateway, KioskService, KioskGuard, SessionsService, StorageService, PhotosService, BoothAuthGuard, GalleriesService, BackupsService, UsersService, SelfServiceService, PaymongoService,
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_FILTER, useClass: ErrorFilter },
       ],

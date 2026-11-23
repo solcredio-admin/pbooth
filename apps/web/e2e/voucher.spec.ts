@@ -27,11 +27,11 @@ test("a guest enters a voucher at a self-service booth", async ({ browser }) => 
   await expect(page.locator(".kiosk.ks-pay")).toBeVisible();
   await expect(page.locator(".k-pay .k-title")).toHaveText("₱150");
   await page.locator(".k-voucher input").fill("ZZZZ-ZZZZ");
-  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Use voucher" }).click();
   await expect(page.locator(".k-pay .k-error")).toContainText("isn't valid");
 
   await page.locator(".k-voucher input").fill(codes[0]);
-  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Use voucher" }).click();
   await expect(page.locator(".kiosk.ks-ready")).toBeVisible(); // paid: on to "Get ready"
   await page.getByRole("button", { name: "Start now" }).click();
   await expect(page.locator(".kiosk.ks-review")).toBeVisible({ timeout: 30_000 });
@@ -42,7 +42,7 @@ test("a guest enters a voucher at a self-service booth", async ({ browser }) => 
   await page.getByRole("button", { name: "Done" }).click();
   await page.locator(".k-tap").click();
   await page.locator(".k-voucher input").fill(codes[0]);
-  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Use voucher" }).click();
   await expect(page.locator(".k-pay .k-error")).toContainText("already been used");
 
   const rev = await (await admin.get(`/api/v1/events/${event.id}/revenue`)).json();

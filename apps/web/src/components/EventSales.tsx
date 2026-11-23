@@ -7,7 +7,7 @@ import type { EventDto } from "@/lib/types";
 import type { UserRow } from "./UsersAdmin";
 
 interface Totals { sessions: number; complimentary: number; amountCentavos: number; partnerShareCentavos: number; byMethod: Record<string, { sessions: number; amountCentavos: number }> }
-export interface Revenue { currency: string; priceCentavos: number; all: Totals; today: Totals; partner: { name: string | null; percent: number } | null; unusedOneTimeVouchers: number }
+export interface Revenue { currency: string; priceCentavos: number; all: Totals; today: Totals; partner: { name: string | null; percent: number } | null; unusedOneTimeVouchers: number; qrEnabled?: boolean }
 
 // Sidebar: sessions and money for a self-service event, today and since it opened.
 export function EventRevenue({ revenue: r }: { revenue: Revenue }) {
@@ -19,6 +19,7 @@ export function EventRevenue({ revenue: r }: { revenue: Revenue }) {
         <dt>Today</dt><dd><b>{peso(r.today.amountCentavos, r.currency)}</b><br /><span className="cap">{line(r.today)}</span></dd>
         <dt>All time</dt><dd><b>{peso(r.all.amountCentavos, r.currency)}</b><br /><span className="cap">{line(r.all)}</span></dd>
         {r.partner && <><dt>{r.partner.name ?? "Venue"}</dt><dd>{r.partner.percent}% · {peso(r.all.partnerShareCentavos, r.currency)}<br /><span className="cap">today {peso(r.today.partnerShareCentavos, r.currency)}</span></dd></>}
+        <dt>By method</dt><dd>QR {peso(r.all.byMethod.QR?.amountCentavos ?? 0, r.currency)} · vouchers {peso(r.all.byMethod.VOUCHER?.amountCentavos ?? 0, r.currency)}<br /><span className="cap">{r.qrEnabled ? "Scan to pay is on" : "Scan to pay is off (no PayMongo key on the server)"}</span></dd>
         <dt>Vouchers</dt><dd>{r.unusedOneTimeVouchers} one-time unused</dd>
       </dl>
     </section>

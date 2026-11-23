@@ -32,6 +32,11 @@ const schema = z.object({
   S3_ACCESS_KEY_ID: blank(z.string().min(1)),
   S3_SECRET_ACCESS_KEY: blank(z.string().min(1)),
   MAX_PHOTO_MB: z.coerce.number().int().min(1).max(100).default(30),
+  // QR payments for self-service booths (PayMongo, QR Ph). Unset = QR payment off, vouchers still work.
+  PAYMONGO_SECRET_KEY: blank(z.string().regex(/^sk_(test|live)_/, "Use your PayMongo secret key (sk_test_… or sk_live_…)")),
+  PAYMONGO_API_BASE: z.string().url().default("https://api.paymongo.com/v1"), // overridden only by tests
+  // How long a payment QR stays valid at the booth (PayMongo allows 60–9000 s).
+  PAYMONGO_QR_SECONDS: z.coerce.number().int().min(60).max(9000).default(600),
 });
 
 export type Config = z.infer<typeof schema> & { cookieSecure: boolean };

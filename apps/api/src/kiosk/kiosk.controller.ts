@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
+import { Body, Param, Controller, Get, HttpCode, HttpStatus, Inject, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
 import { RouteConfig } from "@nestjs/platform-fastify";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
@@ -50,6 +50,21 @@ export class KioskController {
   @RouteConfig({ rateLimit: { max: 30, timeWindow: "15 minutes" } })
   redeem(@Body({ schema: redeemSchema }) body: z.infer<typeof redeemSchema>, @Req() r: KioskReq) {
     return this.ss.redeem(r.kiosk!.boothId, body.code, r.ip);
+  }
+
+  /** Scan to pay: a PayMongo QR for this booth's price. */
+  @UseGuards(KioskGuard)
+  @Post("payments/qr") @HttpCode(200)
+  @RouteConfig({ rateLimit: { max: 30, timeWindow: "15 minutes" } })
+  startQr(@Req() r: KioskReq) {
+    return this.ss.startQr(r.kiosk!.boothId, r.ip);
+  }
+
+  /** Polled while the QR is on screen. */
+  @UseGuards(KioskGuard)
+  @Get("payments/:paymentId")
+  qrStatus(@Param("paymentId", { schema: z.string().uuid() }) paymentId: string, @Req() r: KioskReq) {
+    return this.ss.qrStatus(r.kiosk!.boothId, paymentId);
   }
 
   @UseGuards(KioskGuard)

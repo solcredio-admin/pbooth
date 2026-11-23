@@ -9,6 +9,7 @@ import { newEnrollmentCode, normalizeEnrollmentCode } from "../booths/codes.js";
 import type { AuthedAdmin } from "../common/request.js";
 import type { EventScope } from "../events/events.service.js";
 import { startOfDayIn } from "../events/tz.js";
+import { PaymongoService } from "./paymongo.service.js";
 
 export const createVouchersSchema = z.object({
   kind: z.enum(["ONE_TIME", "UNLIMITED"]),
@@ -28,7 +29,7 @@ const voucherSelect = {
  */
 @Injectable()
 export class SelfServiceService {
-  constructor(private readonly db: PrismaService, private readonly audit: AuditService) {}
+  constructor(private readonly db: PrismaService, private readonly audit: AuditService, private readonly paymongo: PaymongoService) {}
 
   /** The event, if this user may manage its vouchers (cashiers: only their assigned events). */
   private async event(eventId: string, scope?: EventScope) {
@@ -99,7 +100,7 @@ export class SelfServiceService {
     ]);
     const share = (c: number) => (e.partnerSharePercent ? Math.round((c * e.partnerSharePercent) / 100) : 0);
     return {
-      currency: e.currency, priceCentavos: e.priceCentavos,
+      currency: e.currency, priceCentavos: e.priceCentavos, qrEnabled: this.paymongo.enabled,
       all: { ...all, partnerShareCentavos: share(all.amountCentavos) },
       today: { ...today, partnerShareCentavos: share(today.amountCentavos) },
       partner: e.partnerName || e.partnerSharePercent ? { name: e.partnerName, percent: e.partnerSharePercent ?? 0 } : null,
@@ -154,5 +155,61 @@ export class SelfServiceService {
     if (!paymentId) throw required();
     const { count } = await this.db.payment.updateMany({ where: { id: paymentId, eventId, status: "PAID", sessionId: null }, data: { sessionId } });
     if (!count) throw required();
+  }
+
+  // ---------- QR payments (PayMongo) ----------
+
+  /** At the booth: a QR for this booth's live self-service event, for exactly its price. */
+  async startQr(boothId: string, ip?: string) {
+    const live = await this.db.eventBooth.findFirst({ where: { boothId, event: { status: "ACTIVE" } }, include: { event: true } });
+    if (!live) throw new ApiError(HttpStatus.CONFLICT, "NO_LIVE_EVENT", "This booth isn't serving a live event");
+    const e = live.event;
+    if (e.kind !== "SELF_SERVICE" || e.freeSessions) throw new ApiError(HttpStatus.CONFLICT, "NO_PAYMENT_NEEDED", "This booth doesn't need a payment");
+    if (!this.paymongo.enabled) throw new ApiError(HttpStatus.SERVICE_UNAVAILABLE, "QR_NOT_CONFIGURED", "QR payment isn't set up on the server");
+    const qr = await this.paymongo.createQr(e.priceCentavos, `pbooth · ${e.name}`.slice(0, 200));
+    const p = await this.db.payment.create({
+      data: { eventId: e.id, boothId, method: "QR", status: "PENDING", amountCentavos: e.priceCentavos, currency: e.currency, provider: "paymongo", providerRef: qr.intentId, expiresAt: qr.expiresAt },
+    });
+    await this.audit.record({ actor: `booth:${boothId}`, action: "payment.qr.create", entityType: "payment", entityId: p.id, ip, metadata: { amount: e.priceCentavos } });
+    return { paymentId: p.id, qr: qr.qr, expiresAt: qr.expiresAt, amountCentavos: e.priceCentavos, currency: e.currency };
+  }
+
+  /** At the booth: is this booth's QR payment paid yet? (checks with PayMongo while pending) */
+  async qrStatus(boothId: string, paymentId: string) {
+    const p = await this.db.payment.findFirst({ where: { id: paymentId, boothId, method: "QR" } });
+    if (!p) throw notFound("Payment");
+    return { status: await this.confirm(p) };
+  }
+
+  /** PayMongo's webhook: only a hint to re-check that intent with PayMongo; the body is never trusted. */
+  async webhook(body: unknown) {
+    const d = (body as { data?: { attributes?: { type?: string; data?: { id?: string; attributes?: { payment_intent_id?: string } } } } })?.data?.attributes;
+    const intentId = d?.data?.attributes?.payment_intent_id ?? (d?.data?.id?.startsWith("pi_") ? d.data.id : undefined);
+    if (!intentId) return { received: true };
+    const p = await this.db.payment.findUnique({ where: { providerRef: intentId } });
+    if (p) await this.confirm(p).catch(() => undefined); // PayMongo retries webhooks; the booth's polling also confirms
+    return { received: true };
+  }
+
+  /** The one place a QR payment becomes PAID: PayMongo says succeeded, for exactly our amount. */
+  private async confirm(p: { id: string; status: string; providerRef: string | null; amountCentavos: number; currency: string; expiresAt: Date | null }) {
+    if (p.status !== "PENDING" || !p.providerRef) return p.status;
+    const st = await this.paymongo.status(p.providerRef);
+    if (st.status === "succeeded" && st.amount === p.amountCentavos && st.currency === p.currency) {
+      await this.db.payment.updateMany({ where: { id: p.id, status: "PENDING" }, data: { status: "PAID", paidAt: new Date() } });
+      await this.audit.record({ actor: "paymongo", action: "payment.paid", entityType: "payment", entityId: p.id, metadata: { amount: st.amount } });
+      return "PAID";
+    }
+    if (st.status === "succeeded") {
+      // paid, but not the amount we asked for: never unlock a session; flag it for the owner
+      await this.db.payment.updateMany({ where: { id: p.id, status: "PENDING" }, data: { status: "FAILED" } });
+      await this.audit.record({ actor: "paymongo", action: "payment.amount_mismatch", entityType: "payment", entityId: p.id, metadata: { expected: p.amountCentavos, got: st.amount, currency: st.currency } });
+      return "FAILED";
+    }
+    if (p.expiresAt && p.expiresAt < new Date()) {
+      await this.db.payment.updateMany({ where: { id: p.id, status: "PENDING" }, data: { status: "EXPIRED" } });
+      return "EXPIRED";
+    }
+    return "PENDING";
   }
 }

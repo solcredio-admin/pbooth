@@ -403,6 +403,7 @@ model Payment {
   provider       String? // e.g. "paymongo" (phase 9)
   providerRef    String?       @unique
   paidAt         DateTime?     @db.Timestamptz(3)
+  expiresAt      DateTime?     @db.Timestamptz(3) // a QR payment that isn't paid by then is dropped
   createdAt      DateTime      @default(now()) @db.Timestamptz(3)
 
   @@index([eventId, createdAt])

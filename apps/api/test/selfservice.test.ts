@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, inject, it } from "vitest";
 import { call, login, newEvent } from "./helpers.js";
 
 const url = process.env.TEST_DATABASE_URL;
@@ -22,7 +22,7 @@ describe.skipIf(!url)("self-service events: vouchers, payments, cashiers", () =>
     const kiosk = (await call("/kiosk/pair", { method: "POST", ip: IP, body: { boothCode: booth.code, code } })).setCookie!.split(";")[0];
     const K = (path: string, init: Parameters<typeof call>[1] = {}) => call(path, { cookie: kiosk, ip: IP, ...init });
     const cfg = (await K(`/kiosk/config?booth=${booth.code}`)).body;
-    expect(cfg.event.selfService).toEqual({ priceCentavos: 15000, currency: "PHP", freeSessions: false });
+    expect(cfg.event.selfService).toEqual({ priceCentavos: 15000, currency: "PHP", freeSessions: false, qr: true });
 
     const start = (paymentId?: string) => K("/sessions", { method: "POST", body: { id: randomUUID(), galleryToken: randomBytes(32).toString("base64url"), ...(paymentId ? { paymentId } : {}) } });
     expect((await start()).body.error.code).toBe("PAYMENT_REQUIRED"); // no voucher, no session
@@ -106,5 +106,56 @@ describe.skipIf(!url)("self-service events: vouchers, payments, cashiers", () =>
     // managed events have no vouchers
     const managed = (await O("/events", { method: "POST", body: { ...newEvent, name: `Wedding ${stamp}` } })).body;
     expect((await O(`/events/${managed.id}/vouchers`, { method: "POST", body: { kind: "ONE_TIME", count: 1 } })).body.error.code).toBe("NOT_SELF_SERVICE");
+  });
+
+  it("scan to pay: a PayMongo QR unlocks a session only once PayMongo itself says it's paid, for the right amount", async () => {
+    const IP = "10.0.30.9";
+    const owner = await login(IP);
+    const O = async (path: string, init: Parameters<typeof call>[1] = {}) => call(path, { cookie: owner, ip: IP, ...init });
+    const stamp = Date.now();
+    const ev = (await O("/events", { method: "POST", body: { ...newEvent, name: `QR café ${stamp}`, kind: "SELF_SERVICE", priceCentavos: 15000 } })).body;
+    const booth = (await O("/booths", { method: "POST", body: { name: `QR booth ${stamp}` } })).body;
+    await O(`/events/${ev.id}/booths`, { method: "POST", body: { boothId: booth.id } });
+    await O(`/events/${ev.id}/activate`, { method: "POST" });
+    const { code } = (await O(`/booths/${booth.id}/kiosk-code`, { method: "POST" })).body;
+    const kiosk = (await call("/kiosk/pair", { method: "POST", ip: IP, body: { boothCode: booth.code, code } })).setCookie!.split(";")[0];
+    const K = (path: string, init: Parameters<typeof call>[1] = {}) => call(path, { cookie: kiosk, ip: IP, ...init });
+    const start = (paymentId: string) => K("/sessions", { method: "POST", body: { id: randomUUID(), galleryToken: randomBytes(32).toString("base64url"), paymentId } });
+    const pm = inject("paymongo");
+    const pay = (intent: string, amount?: number) => fetch(`${pm}/test/pay/${intent}`, { method: "POST", headers: { authorization: `Basic ${Buffer.from("sk_test_mock:").toString("base64")}` }, body: JSON.stringify(amount ? { amount } : {}) });
+
+    // the booth asks for a QR: an image for exactly the price, pending
+    const qr = (await K("/kiosk/payments/qr", { method: "POST" })).body;
+    expect(qr).toMatchObject({ amountCentavos: 15000, currency: "PHP" });
+    expect(qr.qr).toMatch(/^data:image\/png;base64,/);
+    expect((await K(`/kiosk/payments/${qr.paymentId}`)).body.status).toBe("PENDING");
+    expect((await start(qr.paymentId)).body.error.code).toBe("PAYMENT_REQUIRED"); // not paid yet
+
+    // a forged webhook (no real payment) changes nothing: pbooth re-checks with PayMongo
+    const hook = (intent: string) => call("/payments/paymongo/webhook", { method: "POST", body: { data: { attributes: { type: "payment.paid", data: { id: "pay_x", attributes: { payment_intent_id: intent, amount: 15000 } } } } } });
+    // this test's QR is the newest intent the fake has made
+    const latest = async () => { for (let i = 1; ; i++) { const r = await fetch(`${pm}/v1/payment_intents/pi_${i}`, { headers: { authorization: `Basic ${Buffer.from("sk_test_mock:").toString("base64")}` } }); if (!r.ok) return `pi_${i - 1}`; } };
+    const intent = await latest();
+    expect((await hook(intent)).status).toBe(200);
+    expect((await K(`/kiosk/payments/${qr.paymentId}`)).body.status).toBe("PENDING");
+
+    // the guest pays; PayMongo's webhook arrives; the payment is confirmed and unlocks one session
+    await pay(intent);
+    expect((await hook(intent)).body).toEqual({ received: true });
+    expect((await K(`/kiosk/payments/${qr.paymentId}`)).body.status).toBe("PAID");
+    expect((await start(qr.paymentId)).status).toBe(201);
+    expect((await start(qr.paymentId)).body.error.code).toBe("PAYMENT_REQUIRED"); // one payment, one session
+    const rev = (await O(`/events/${ev.id}/revenue`)).body;
+    expect(rev.qrEnabled).toBe(true);
+    expect(rev.all.byMethod.QR).toEqual({ sessions: 1, amountCentavos: 15000 });
+
+    // paid, but not the price: never unlocks a session (found by the booth's polling, no webhook)
+    const short = (await K("/kiosk/payments/qr", { method: "POST" })).body;
+    await pay(await latest(), 100);
+    expect((await K(`/kiosk/payments/${short.paymentId}`)).body.status).toBe("FAILED");
+    expect((await start(short.paymentId)).body.error.code).toBe("PAYMENT_REQUIRED");
+
+    // another booth can't read this booth's payment
+    expect((await call(`/kiosk/payments/${qr.paymentId}`, { ip: IP })).status).toBe(401);
   });
 });

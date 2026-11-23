@@ -81,7 +81,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   const [design, setDesign] = useState<Shot | null>(null); // the photos inside the event template
   const [redo, setRedo] = useState<number | null>(null);   // retaking just this photo
   const [count, setCount] = useState(0);
-  const [peek, setPeek] = useState<{ url: string; n: number } | null>(null); // the photo just taken, shown before the next countdown
+  const [peek, setPeek] = useState<{ url: string; n: number; last: boolean } | null>(null); // the photo just taken, shown before the next countdown
   const peekCtl = useRef<{ retake: () => void } | null>(null); // "retake this one" while it's showing
   const [readyLeft, setReadyLeft] = useState(READY_SECONDS); // instructions screen, then shooting starts by itself
   const [flash, setFlash] = useState(false);
@@ -173,6 +173,18 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   const layout = (guest?.template?.layout ?? "landscape") as Layout;
   const slot = live ? plan(layout, needed, config?.camera.orientation ?? "landscape").slots[shotIndex] : null;
   const slotAspect = slot ? slot.w / slot.h : aspect;
+  // The preview frame shows a photo the way the print will crop it: its own slot's shape, centre-cropped
+  // (as composeTemplate does), so guests can see if anyone is cut off and retake.
+  const previewSeconds = guest?.previewSeconds ?? 3;
+  const peekSlot = peek && live ? plan(layout, needed, config?.camera.orientation ?? "landscape").slots[peek.n - 1] : null;
+  const peekCrop = peekSlot ? peekSlot.w / peekSlot.h : aspect;
+  const [peekLeft, setPeekLeft] = useState(0); // the visible countdown while a photo is showing
+  useEffect(() => {
+    if (!peek) return;
+    setPeekLeft(previewSeconds);
+    const t = setInterval(() => setPeekLeft((n) => Math.max(0, n - 1)), 1000);
+    return () => clearInterval(t);
+  }, [peek, previewSeconds]);
   const cropGuide = (screen === "ready" || screen === "countdown") && Math.abs(slotAspect / aspect - 1) > 0.03;
   useEffect(() => {
     const el = root.current;
@@ -263,7 +275,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   };
   const begin = () => {
     document.documentElement.requestFullscreen?.().catch(() => undefined);
-    if (mustPay) { setVoucher(""); setPayError(""); setScreen("pay"); return; }
+    if (mustPay) { setVoucher(""); setPayError(""); setPayQr(null); setScreen("pay"); return; }
     startSession();
   };
   const [voucher, setVoucher] = useState("");
@@ -279,6 +291,38 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
       : r.status === 429 ? "Too many tries. Please ask the staff for help."
       : "That code isn't valid here, or it's already been used.");
   };
+
+  // Scan to pay (PayMongo QR Ph): the server makes the QR and confirms with PayMongo; the booth just polls.
+  const [payQr, setPayQr] = useState<{ paymentId: string; img: string; expiresAt: number } | null>(null);
+  const [qrLeft, setQrLeft] = useState(0);
+  const startQr = async () => {
+    if (paying) return;
+    setPaying(true); setPayError("");
+    const r = await kioskFetch<{ paymentId: string; qr: string; expiresAt: string }>("POST", "/kiosk/payments/qr");
+    setPaying(false);
+    if (r.ok) { setPayQr({ paymentId: r.data.paymentId, img: r.data.qr, expiresAt: Date.parse(r.data.expiresAt) }); return; }
+    setPayError(r.status === 0 ? "No internet right now. QR payment needs a connection; please try again in a moment."
+      : "QR payment isn't available right now. Please use a voucher from the counter.");
+  };
+  useEffect(() => {
+    if (screen !== "pay" || !payQr) return;
+    let busy = false;
+    const tick = async () => {
+      const left = Math.max(0, Math.ceil((payQr.expiresAt - Date.now()) / 1000));
+      setQrLeft(left);
+      if (busy) return;
+      busy = true;
+      const r = await kioskFetch<{ status: string }>("GET", `/kiosk/payments/${payQr.paymentId}`);
+      busy = false;
+      const st = r.ok ? r.data.status : left > 0 ? "PENDING" : "EXPIRED";
+      if (st === "PAID") { setPayQr(null); startSession(payQr.paymentId); }
+      else if (st !== "PENDING") { setPayQr(null); setPayError(st === "EXPIRED" ? "That QR code expired. Tap Scan to pay for a new one." : "That payment didn't go through. Please ask the staff for help."); }
+    };
+    void tick();
+    const t = setInterval(() => void tick(), 2000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- startSession is recreated each render; the QR is what matters
+  }, [screen, payQr]);
 
   const shoot = useCallback(() => {
     setCaptureError("");
@@ -332,20 +376,24 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     // photo (once the real photo has arrived), then the sequence carries on.
     const n = redo !== null ? redo + 1 : shotsRef.current.length + 1;
     const more = (redo !== null ? shotsRef.current.length : shotsRef.current.length + 1) < needed;
+    // a retake from the review screen gets the same preview, then goes back to the review
+    const showPeek = more || redo !== null;
     let timerDone = false, captured = false, retake = false;
+    let done: Shot[] = [];
     const next = () => {
       if (cancelled || !captured) return;
       if (retake) { peekCtl.current = null; setPeek(null); setRedo(n - 1); setCount(Math.max(1, guest?.countdownSeconds ?? 3)); return; }
       if (!timerDone) return;
-      peekCtl.current = null; setPeek(null); setCount(guest?.captureIntervalSeconds ?? 3);
+      peekCtl.current = null; setPeek(null);
+      if (more) setCount(guest?.captureIntervalSeconds ?? 3); else compose(done);
     };
     const startPeek = (url: string) => {
-      setPeek({ url, n });
+      setPeek({ url, n, last: !more });
       peekCtl.current = { retake: () => { retake = true; next(); } };
       setTimeout(() => { timerDone = true; next(); }, (guest?.previewSeconds ?? 3) * 1000);
     };
     let instant = false;
-    if (more) {
+    if (showPeek) {
       const media = root.current?.querySelector<HTMLVideoElement | HTMLImageElement>(".k-view .k-media");
       const snap = media ? snapshot(media, rotation, aspect) : null;
       if (snap) { startPeek(snap); instant = true; }
@@ -359,7 +407,8 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
         if (redo !== null) { URL.revokeObjectURL(list[redo].url); list[redo] = shot; } else list.push(shot);
         setShots(list);
         setRedo(null);
-        if (more) {
+        done = list;
+        if (showPeek) {
           if (!instant) startPeek(shot.url); // couldn't copy the live frame: show the photo as it arrives
           captured = true;
           next();
@@ -564,17 +613,25 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
         <form className="k-panel k-ready k-pay" onSubmit={(e) => { e.preventDefault(); void redeem(); }}>
           <p className="k-cap k-eyebrow">{config?.event?.name}</p>
           <h1 className="k-title">{peso(selfService.priceCentavos, selfService.currency)}</h1>
-          <p className="k-text">One session, printed. <b>Enter the voucher code</b> from the counter.</p>
+          {payQr ? (<>
+            <p className="k-text"><b>Scan with GCash, Maya or your bank app.</b> Photos start as soon as it's paid.</p>
+            <img className="k-qr" src={payQr.img} alt="QR code to pay" />
+            <p className="k-cap" aria-live="polite">Waiting for payment · {Math.floor(qrLeft / 60)}:{String(qrLeft % 60).padStart(2, "0")}</p>
+            <div className="k-actions"><button className="k-btn ghost" type="button" onClick={() => reset("ABANDONED")}>Cancel</button></div>
+          </>) : (<>
+          <p className="k-text">One session, printed. {selfService.qr ? <><b>Scan to pay</b>, or enter a voucher code from the counter.</> : <><b>Enter the voucher code</b> from the counter.</>}</p>
+          {selfService.qr && <button className="k-btn big" type="button" onClick={() => void startQr()} disabled={paying}>Scan to pay</button>}
           <label className="k-voucher">
             <span className="k-cap">Voucher code</span>
             <input value={voucher} onChange={(e) => setVoucher(e.target.value.toUpperCase())} autoComplete="off" autoCapitalize="characters"
-              spellCheck={false} inputMode="text" maxLength={12} placeholder="XXXX-XXXX" autoFocus aria-invalid={payError ? true : undefined} />
+              spellCheck={false} inputMode="text" maxLength={12} placeholder="XXXX-XXXX" autoFocus={!selfService.qr} aria-invalid={payError ? true : undefined} />
           </label>
           {payError && <p className="k-error" role="alert">{payError}</p>}
           <div className="k-actions">
-            <button className="k-btn big" type="submit" disabled={paying || voucher.trim().length < 4}>{paying ? "Checking…" : "Continue"}</button>
+            <button className={selfService.qr ? "k-btn" : "k-btn big"} type="submit" disabled={paying || voucher.trim().length < 4}>{paying ? "Checking…" : "Use voucher"}</button>
             <button className="k-btn ghost" type="button" onClick={() => reset("ABANDONED")}>Cancel</button>
           </div>
+          </>)}
         </form>
       )}
       {screen === "ready" && (
@@ -603,12 +660,14 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
           {peek ? (
             <div className="k-peek" aria-live="polite">
               {/* the photo as taken, in a tilted instant-print frame over the live camera */}
-              <button type="button" className="k-polaroid" onClick={() => peekCtl.current?.retake()} aria-label={`Photo ${peek.n} of ${needed}. Tap to retake`}>
+              <button type="button" className="k-polaroid" onClick={() => peekCtl.current?.retake()} aria-label={`Photo ${peek.n} of ${needed}. Tap to retake`}
+                ref={(el) => { el?.style.setProperty("--k-crop", peekCrop.toFixed(4)); el?.style.setProperty("--k-peek-s", `${previewSeconds}s`); }}>
                 <img className={config?.camera.mirrorPreview ? "mirror" : undefined} src={peek.url} alt="" />
+                <span className="k-polaroid-timer" key={peek.url} aria-hidden="true" />
                 <span className="k-polaroid-cap">Photo {peek.n} of {needed}</span>
               </button>
               <div className="k-peek-bar">
-                <p className="k-peek-hint">Next one coming up</p>
+                <p className="k-peek-hint" aria-live="off">{peekLeft > 0 ? <>{peek.last ? "Back to your photos in" : "Next photo in"} <b>{peekLeft}</b></> : peek.last ? "Back to your photos…" : "Next photo…"}</p>
                 <button type="button" className="k-btn ghost" onClick={() => peekCtl.current?.retake()}>Retake</button>
               </div>
             </div>
