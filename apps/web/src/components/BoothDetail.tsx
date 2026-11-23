@@ -195,7 +195,7 @@ function Hardware({ booth }: { booth: BoothDto }) {
     const camera: CameraConfig = {
       provider: s("provider") as CameraConfig["provider"], deviceName: s("deviceName") || null,
       resolution: s("resolution") as CameraConfig["resolution"], orientation: s("orientation") as CameraConfig["orientation"],
-      mirrorPreview: f.get("mirrorPreview") === "on",
+      rotation: Number(s("rotation")) as CameraConfig["rotation"], mirrorPreview: f.get("mirrorPreview") === "on",
     };
     const printer: PrinterConfig = {
       enabled: f.get("printEnabled") === "on", printerName: s("printerName") || null,
@@ -242,8 +242,15 @@ function Hardware({ booth }: { booth: BoothDto }) {
               </select>
               <span className="hint">A request; the camera may not support it.</span>
             </label>
-            <label className="field"><span>Orientation</span>
-              <select name="orientation" defaultValue={booth.camera.orientation}><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select>
+            <label className="field"><span>Booth display</span>
+              <select name="orientation" defaultValue={booth.camera.orientation}><option value="landscape">Landscape screen (16:9)</option><option value="portrait">Portrait screen (9:16)</option></select>
+              <span className="hint">The preview fills this screen and every photo is taken in this shape.</span>
+            </label>
+            <label className="field"><span>Camera rotation</span>
+              <select name="rotation" defaultValue={String(booth.camera.rotation ?? 0)}>
+                <option value="0">None</option><option value="90">90° clockwise</option><option value="180">180° (upside down)</option><option value="270">90° counter-clockwise</option>
+              </select>
+              <span className="hint">For a camera mounted sideways, e.g. turned to match a portrait screen.</span>
             </label>
             <label className="check"><input type="checkbox" name="mirrorPreview" defaultChecked={booth.camera.mirrorPreview} /><span>Mirror the live preview (photos are never mirrored)</span></label>
 

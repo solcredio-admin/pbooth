@@ -83,16 +83,20 @@ function paintFace(el, w, h) {
   rim.addColorStop(0, "rgba(255,255,255,.75)"); rim.addColorStop(1, "rgba(255,255,255,.22)");
   g.strokeStyle = rim; g.lineWidth = 1.2;
   g.beginPath(); g.roundRect(0.6, 0.6, w - 1.2, h - 1.2, 9.5); g.stroke();
-  g.fillStyle = cs.color; g.textBaseline = "alphabetic";
-  const txt = (sel) => el.querySelector(sel)?.textContent || "";
-  g.globalAlpha = 0.5; g.font = "500 8.5px 'Roboto Mono', monospace"; g.textAlign = "right";
-  g.fillText(txt(".p").toUpperCase(), w - 9, 17);
-  g.globalAlpha = 1; g.textAlign = "left"; g.font = "500 17px 'Roboto Mono', monospace";
-  g.fillText(txt(".n"), 10, 27);
-  g.globalAlpha = 0.7; g.font = "400 10px 'Roboto Mono', monospace";
-  let label = txt(".l");
-  while (label.length > 1 && g.measureText(label).width > w - 20) label = label.slice(0, -2) + "…";
-  g.fillText(label, 10, h - 13);
+  // Labels go exactly where the CSS puts them on the flat key (position, font, case, opacity),
+  // so the 3D key never disagrees with the layout.
+  g.fillStyle = cs.color; g.textBaseline = "middle"; g.textAlign = "left";
+  for (const span of el.querySelectorAll(".p, .n, .l")) {
+    const st = getComputedStyle(span);
+    let text = span.textContent || "";
+    if (st.textTransform === "uppercase") text = text.toUpperCase();
+    g.globalAlpha = Number(st.opacity) || 1;
+    g.font = `${st.fontWeight} ${st.fontSize} ${st.fontFamily}`;
+    const maxW = w - span.offsetLeft - 10;
+    while (text.length > 1 && g.measureText(text).width > maxW) text = text.slice(0, -2) + "…";
+    g.fillText(text, span.offsetLeft, span.offsetTop + span.offsetHeight / 2);
+  }
+  g.globalAlpha = 1;
   const tex = new CanvasTexture(c);
   tex.colorSpace = SRGBColorSpace;
   tex.generateMipmaps = false;  // mipmaps soften small text; the cap is never minified much

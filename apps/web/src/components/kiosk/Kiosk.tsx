@@ -7,6 +7,7 @@ import { cachedConfig, enqueuePhoto, kioskQueue, saveConfig } from "@/lib/offlin
 import type { QueueStatus } from "@/lib/offline/queue";
 import { composeTemplate, printCanvas, toJpeg } from "@/lib/template/compose";
 import { plan, type Layout } from "@/lib/template/layout";
+import { boothAspect, frameShot } from "@/lib/kiosk/frame";
 import { newGalleryToken } from "@/lib/kiosk/upload";
 import QRCode from "qrcode";
 
@@ -37,7 +38,6 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   const printWanted = !!(config?.printer.enabled && guest?.printEnabled);
   const agent = useAgent(config?.booth.code, !!config && (dslr || !!config.printer.enabled));
   const camReady = dslr ? agent.available && agent.status?.camera?.status === "connected" : cam.state.status === "connected";
-  const [liveSize, setLiveSize] = useState<string | null>(null); // DSLR live-view frame size
   const [print, setPrint] = useState<null | { state: "sending" | "queued" | "printing" | "done" | "failed" | "unavailable"; message?: string }>(null);
 
   // ---------- one guest's session ----------
@@ -119,19 +119,25 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     else setScreen("welcome");
   }, [config, live, camReady, dslr, agent.available, screen]);
 
-  // What guests see is what ends up in the design: the preview box takes the shape of the template
-  // slot this shot will fill, and the camera image is centre-cropped into it exactly like
-  // composeTemplate does. Without a template slot, it's the camera's own frame (never cropped).
+  // The preview always fills the booth screen in the booth's shape (16:9, or 9:16 for a portrait booth),
+  // and every photo is captured in exactly that shape, so it never changes between screens. A subtle
+  // guide dims what the event design will crop away for the next shot (e.g. near-square strip slots).
   // Set through the CSSOM, since inline style attributes are blocked by the CSP.
-  const frameSize = dslr ? liveSize : cam.state.resolution;
+  const portrait = config?.camera.orientation === "portrait";
+  const aspect = boothAspect(portrait);
+  const rotation = config?.camera.rotation ?? 0;
   const shotIndex = Math.min(redo ?? shots.length, Math.max(0, needed - 1));
   const layout = (guest?.template?.layout ?? "landscape") as Layout;
+  const slot = live ? plan(layout, needed, config?.camera.orientation ?? "landscape").slots[shotIndex] : null;
+  const slotAspect = slot ? slot.w / slot.h : aspect;
+  const cropGuide = (screen === "ready" || screen === "countdown") && Math.abs(slotAspect / aspect - 1) > 0.03;
   useEffect(() => {
-    const slot = live ? plan(layout, needed, config?.camera.orientation ?? "landscape").slots[shotIndex] : null;
-    const [w, h] = (frameSize ?? "16x9").split("x").map(Number);
-    const aspect = slot ? slot.w / slot.h : w / h;
-    root.current?.style.setProperty("--k-aspect", aspect.toFixed(4));
-  }, [frameSize, live, layout, needed, shotIndex, config?.camera.orientation]);
+    const el = root.current;
+    if (!el) return;
+    el.style.setProperty("--k-aspect", aspect.toFixed(4));
+    el.style.setProperty("--k-slot", slotAspect.toFixed(4));
+    el.style.setProperty("--k-rot", `${rotation}deg`);
+  }, [aspect, slotAspect, rotation]);
 
   // Event colours, set through the CSSOM (inline style attributes are blocked by the CSP).
   useEffect(() => {
@@ -257,6 +263,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     setFlash(true);
     setTimeout(() => setFlash(false), 450);
     (dslr ? agent.capture() : cam.capture())
+      .then((raw) => frameShot(raw, rotation, aspect))
       .then((blob) => {
         if (cancelled) return;
         const shot = { blob, url: URL.createObjectURL(blob) };
@@ -364,23 +371,24 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   }
 
   const previewing = ["welcome", "ready", "countdown", "camera"].includes(screen) && camReady;
-  const soft = screen === "welcome"; // the welcome screen uses the camera as a blurred backdrop
   const showVideo = !dslr && previewing;
   const showLive = dslr && previewing && !!agent.liveUrl;
-  const portrait = config?.camera.orientation === "portrait";
 
   return (
     <div ref={root} className={`kiosk ks-${screen}`} onContextMenu={(e) => e.preventDefault()}>
       {showVideo && (
-        <div className={"k-frame" + (soft ? " soft" : "")}>
-          <div className="k-view"><video ref={cam.attach} className={config?.camera.mirrorPreview ? "mirror" : undefined} muted playsInline autoPlay /></div>
+        <div className="k-frame">
+          <div className="k-view">
+            <video ref={cam.attach} className={"k-media" + (config?.camera.mirrorPreview ? " mirror" : "") + (rotation === 90 || rotation === 270 ? " sideways" : "")} muted playsInline autoPlay />
+            {cropGuide && <div className="k-safe" aria-hidden="true" />}
+          </div>
         </div>
       )}
       {showLive && (
-        <div className={"k-frame" + (soft ? " soft" : "")}>
+        <div className="k-frame">
           <div className="k-view">
-            <img className={"k-live" + (config?.camera.mirrorPreview ? " mirror" : "")} src={agent.liveUrl!} alt=""
-              onLoad={(e) => { const i = e.currentTarget; if (i.naturalWidth) setLiveSize(`${i.naturalWidth}x${i.naturalHeight}`); }} />
+            <img className={"k-media k-live" + (config?.camera.mirrorPreview ? " mirror" : "") + (rotation === 90 || rotation === 270 ? " sideways" : "")} src={agent.liveUrl!} alt="" />
+            {cropGuide && <div className="k-safe" aria-hidden="true" />}
           </div>
         </div>
       )}

@@ -6,6 +6,7 @@ export interface CameraSettings {
   deviceName: string | null;
   resolution: "auto" | "720p" | "1080p" | "4k";
   orientation: "landscape" | "portrait";
+  rotation?: 0 | 90 | 180 | 270;
   mirrorPreview: boolean;
 }
 

@@ -36,13 +36,27 @@
 
 /* live camera */
 .k-frame { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; background: #000; }
-/* Exactly the photo's shape, as large as fits: no hidden cropping, so the preview matches the shot. */
-.k-view { position: relative; overflow: hidden; aspect-ratio: var(--k-aspect, 1.7778); width: min(100vw, calc(100vh * var(--k-aspect, 1.7778))); max-height: 100vh; }
-.k-view video, .k-view img.k-live { display: block; width: 100%; height: 100%; object-fit: cover; }
-.k-view .mirror { transform: scaleX(-1); }
-/* Welcome backdrop: full-bleed and blurred, purely decorative. */
-.k-frame.soft .k-view { width: 100vw; height: 100vh; aspect-ratio: auto; max-height: none; }
-.k-frame.soft video, .k-frame.soft .mirror { transform: scaleX(-1) scale(1.08); }
+/* The booth's shape (16:9 or 9:16), as large as fits: on a matching screen it's full screen, and it
+   never changes from the welcome screen to the countdown. Photos are captured in exactly this shape. */
+.k-view {
+  --k-vw: min(100vw, calc(100vh * var(--k-aspect, 1.7778)));
+  --k-vh: min(100vh, calc(100vw / var(--k-aspect, 1.7778)));
+  position: relative; overflow: hidden; width: var(--k-vw); height: var(--k-vh);
+}
+/* The camera image, centred, turned for a sideways camera (--k-rot) and mirrored if asked. */
+.k-view .k-media {
+  position: absolute; top: 50%; left: 50%; width: var(--k-vw); height: var(--k-vh); object-fit: cover; display: block;
+  transform: translate(-50%, -50%) rotate(var(--k-rot, 0deg));
+}
+.k-view .k-media.sideways { width: var(--k-vh); height: var(--k-vw); }
+.k-view .k-media.mirror { transform: translate(-50%, -50%) scaleX(-1) rotate(var(--k-rot, 0deg)); }
+/* Crop guide: what the event design keeps of this shot; the rest is gently dimmed. */
+.k-safe {
+  position: absolute; inset: 0; margin: auto; pointer-events: none;
+  width: min(var(--k-vw), calc(var(--k-vh) * var(--k-slot, 1.7778))); aspect-ratio: var(--k-slot, 1.7778);
+  border: 1.5px dashed rgba(255, 255, 255, .55); border-radius: 6px;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .38);
+}
 .ks-ready .k-frame::after, .ks-camera .k-frame::after { content: ""; position: absolute; inset: 0; background: linear-gradient(transparent 40%, rgba(0, 0, 0, .65)); }
 .ks-ready .k-panel { align-self: end; margin-bottom: 6vh; }
 

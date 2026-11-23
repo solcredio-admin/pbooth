@@ -6,7 +6,10 @@ export const cameraSchema = z.object({
   provider: z.enum(["webcam", "gphoto2"]).default("webcam"),
   deviceName: z.string().trim().max(160).nullable().default(null), // as reported by the booth; null = first available
   resolution: z.enum(["auto", "720p", "1080p", "4k"]).default("auto"),
+  // The booth's screen: landscape = 16:9, portrait = 9:16. Preview and photos always use this shape.
   orientation: z.enum(["landscape", "portrait"]).default("landscape"),
+  // Clockwise turn applied to the camera image, for a camera mounted sideways or upside down.
+  rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]).default(0),
   mirrorPreview: z.boolean().default(true),
 });
 

@@ -25,7 +25,7 @@ export interface ApiErrorBody { error: { code: string; message: string; details?
 
 export type BoothStatus = "UNREGISTERED" | "READY" | "ONLINE" | "OFFLINE" | "ACTIVE" | "ERROR" | "REVOKED";
 export interface HwStatus { status: "connected" | "disconnected" | "error" | "unsupported"; name?: string }
-export interface CameraConfig { provider: "webcam" | "gphoto2"; deviceName: string | null; resolution: "auto" | "720p" | "1080p" | "4k"; orientation: "landscape" | "portrait"; mirrorPreview: boolean }
+export interface CameraConfig { provider: "webcam" | "gphoto2"; deviceName: string | null; resolution: "auto" | "720p" | "1080p" | "4k"; orientation: "landscape" | "portrait"; rotation: 0 | 90 | 180 | 270; mirrorPreview: boolean }
 export interface PrinterConfig { enabled: boolean; printerName: string | null; paperSize: "4x6" | "2x6" | "5x7"; orientation: "portrait" | "landscape" }
 
 export interface SessionStats { sessions: number; completed: number; photos: number }
