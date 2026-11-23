@@ -13,6 +13,7 @@ export const configSchema = z.object({
   countdownSeconds: z.number().int().min(0).max(10),
   shotsPerSession: z.number().int().min(1).max(4),
   captureIntervalSeconds: z.number().int().min(1).max(10),
+  previewSeconds: z.number().int().min(1).max(10),
   layout: z.enum(["landscape", "strip", "grid"]),
   pattern: z.enum(["none", "dots", "stripes", "grid", "confetti", "waves", "gradient"]),
   frameStyle: z.enum(["line", "double", "corners", "none"]),

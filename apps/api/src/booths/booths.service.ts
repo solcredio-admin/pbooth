@@ -66,7 +66,7 @@ export class BoothsService implements OnModuleInit, OnModuleDestroy {
         selfService: live.kind === "SELF_SERVICE" ? { priceCentavos: live.priceCentavos, currency: live.currency, freeSessions: live.freeSessions } : null,
         guest: c ? {
           welcomeTitle: c.welcomeTitle, welcomeMessage: c.welcomeMessage, primaryColor: c.primaryColor, accentColor: c.accentColor,
-          countdownSeconds: c.countdownSeconds, shotsPerSession: c.shotsPerSession, captureIntervalSeconds: c.captureIntervalSeconds,
+          countdownSeconds: c.countdownSeconds, shotsPerSession: c.shotsPerSession, captureIntervalSeconds: c.captureIntervalSeconds, previewSeconds: c.previewSeconds,
           // a free self-service session is QR only: never printed
           printEnabled: c.printEnabled && !(live.kind === "SELF_SERVICE" && live.freeSessions), printCopies: c.printCopies, galleryEnabled: c.galleryEnabled, saveOriginals: c.saveOriginals,
           template: { layout: c.layout, footerText: c.footerText || live.name, showDate: c.showDate, pattern: c.pattern, frameStyle: c.frameStyle, photoStyle: c.photoStyle, fontStyle: c.fontStyle },

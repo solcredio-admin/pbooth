@@ -33,7 +33,7 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 const TAB_OF: Record<string, Tab> = {
   name: "event", organizerName: "event", contactPhone: "event", contactEmail: "event", venueName: "event", venueAddress: "event", date: "event", startTime: "event", endTime: "event", timeZone: "event",
-  welcomeTitle: "guest", welcomeMessage: "guest", primaryColor: "guest", accentColor: "guest", countdownSeconds: "guest", shotsPerSession: "guest", captureIntervalSeconds: "guest",
+  welcomeTitle: "guest", welcomeMessage: "guest", primaryColor: "guest", accentColor: "guest", countdownSeconds: "guest", shotsPerSession: "guest", captureIntervalSeconds: "guest", previewSeconds: "guest",
   layout: "design", pattern: "design", frameStyle: "design", photoStyle: "design", fontStyle: "design", footerText: "design", showDate: "design",
   printEnabled: "prints", printCopies: "prints", galleryEnabled: "prints", galleryRetentionDays: "prints", saveOriginals: "prints",
   kind: "event", priceCentavos: "selfservice", freeSessions: "selfservice", partnerName: "selfservice", partnerSharePercent: "selfservice",
@@ -41,7 +41,7 @@ const TAB_OF: Record<string, Tab> = {
 
 const DEFAULTS: EventConfig = {
   welcomeTitle: "Strike a pose", welcomeMessage: "Tap anywhere to start", primaryColor: "#0b0c0a", accentColor: "#c6f36b",
-  countdownSeconds: 3, shotsPerSession: 3, captureIntervalSeconds: 3, layout: "landscape", pattern: "none", frameStyle: "line", photoStyle: "rounded", fontStyle: "serif", footerText: "", showDate: true, printEnabled: false, printCopies: 1, galleryEnabled: true, galleryRetentionDays: 30, saveOriginals: false,
+  countdownSeconds: 3, shotsPerSession: 3, captureIntervalSeconds: 3, previewSeconds: 3, layout: "landscape", pattern: "none", frameStyle: "line", photoStyle: "rounded", fontStyle: "serif", footerText: "", showDate: true, printEnabled: false, printCopies: 1, galleryEnabled: true, galleryRetentionDays: 30, saveOriginals: false,
 };
 
 function Field({ name, label, error, hint, wide, children }: { name: string; label: string; error?: string; hint?: string; wide?: boolean; children: ReactNode }) {
@@ -100,7 +100,7 @@ export function EventForm({ event, canEdit = true, lockMoney = false }: { event?
         welcomeTitle: str("welcomeTitle"), welcomeMessage: str("welcomeMessage"),
         primaryColor: str("primaryColor"), accentColor: str("accentColor"),
         countdownSeconds: num("countdownSeconds"), shotsPerSession: num("shotsPerSession"),
-        captureIntervalSeconds: num("captureIntervalSeconds"), layout: str("layout"), footerText: str("footerText"),
+        captureIntervalSeconds: num("captureIntervalSeconds"), previewSeconds: num("previewSeconds"), layout: str("layout"), footerText: str("footerText"),
         pattern: str("pattern"), frameStyle: str("frameStyle"), photoStyle: str("photoStyle"), fontStyle: str("fontStyle"), showDate: f.get("showDate") === "on",
         printEnabled: f.get("printEnabled") === "on", printCopies: num("printCopies"),
         galleryEnabled: f.get("galleryEnabled") === "on", galleryRetentionDays: num("galleryRetentionDays"),
@@ -202,6 +202,9 @@ export function EventForm({ event, canEdit = true, lockMoney = false }: { event?
           </Field>
           <Field name="captureIntervalSeconds" label="Seconds between photos" error={errors.captureIntervalSeconds} hint="Time to change poses">
             <input {...attrs("captureIntervalSeconds")} type="number" min={1} max={10} defaultValue={cfg.captureIntervalSeconds} />
+          </Field>
+          <Field name="previewSeconds" label="Photo preview (seconds)" error={errors.previewSeconds} hint="Each photo shows in a frame this long; guests can tap to retake">
+            <input {...attrs("previewSeconds")} type="number" min={1} max={10} defaultValue={cfg.previewSeconds} />
           </Field>
 
         </div>

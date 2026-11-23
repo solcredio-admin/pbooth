@@ -18,13 +18,40 @@ type Screen =
 const INACTIVITY_MS = 60_000; // a guest who walks away mid-session
 const DONE_RESET_S = 20;      // the thank-you screen clears itself
 const DONE_RESET_QR_S = 35;   // longer when there's a QR code to scan
+// How to allow the camera, in the words of the browser the kiosk is running in.
+function CameraHelp() {
+  const ua = typeof navigator === "undefined" ? "" : navigator.userAgent;
+  // iPadOS Safari reports itself as a Mac; the touch points give it away
+  const ios = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && typeof navigator !== "undefined" && navigator.maxTouchPoints > 1);
+  const safari = /Safari/.test(ua) && !/Chrome|Chromium|Edg|OPR|Firefox/.test(ua);
+  if (ios) return (
+    <ol className="k-steps">
+      <li>Tap <b>aA</b> (the page menu) in the address bar, then <b>Website Settings</b>.</li>
+      <li>Set <b>Camera</b> to <b>Allow</b>. Or in the Settings app: <b>Apps → Safari → Camera → Allow</b>.</li>
+      <li>Press <b>Try again</b>.</li>
+    </ol>
+  );
+  if (safari) return (
+    <ol className="k-steps">
+      <li>In the menu bar, choose <b>Safari → Settings for this website</b>.</li>
+      <li>Set <b>Camera</b> to <b>Allow</b>.</li>
+      <li>Press <b>Try again</b>. Safari remembers the choice for next time.</li>
+    </ol>
+  );
+  return (
+    <ol className="k-steps">
+      <li>Click the camera icon in the address bar (or the site settings icon next to the address).</li>
+      <li>Set <b>Camera</b> to <b>Allow</b> for this site.</li>
+      <li>Press <b>Try again</b>. The browser remembers the choice for next time.</li>
+    </ol>
+  );
+}
+
 const peso = (centavos: number, currency: string) =>
   new Intl.NumberFormat("en-PH", { style: "currency", currency, maximumFractionDigits: centavos % 100 ? 2 : 0 }).format(centavos / 100);
 
 // One tap on the welcome screen is enough: instructions show this long, then the countdown starts.
 const READY_SECONDS = 10;
-// In a multi-photo session, each photo is shown this long before the next countdown starts.
-const PEEK_MS = 3000;
 const GUEST = new Set<Screen>(["pay", "ready", "countdown", "composing", "review", "done"]);
 
 interface Shot { blob: Blob; url: string; printBlob?: Blob } // printBlob: the 4R sheet when it differs from the design
@@ -55,6 +82,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   const [redo, setRedo] = useState<number | null>(null);   // retaking just this photo
   const [count, setCount] = useState(0);
   const [peek, setPeek] = useState<{ url: string; n: number } | null>(null); // the photo just taken, shown before the next countdown
+  const peekCtl = useRef<{ retake: () => void } | null>(null); // "retake this one" while it's showing
   const [readyLeft, setReadyLeft] = useState(READY_SECONDS); // instructions screen, then shooting starts by itself
   const [flash, setFlash] = useState(false);
   const [doneLeft, setDoneLeft] = useState(DONE_RESET_S);
@@ -125,12 +153,21 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     else setScreen("welcome");
   }, [config, live, camReady, dslr, agent.available, screen]);
 
-  // The preview always fills the booth screen in the booth's shape (16:9, or 9:16 for a portrait booth),
-  // and every photo is captured in exactly that shape, so it never changes between screens. A subtle
-  // guide dims what the event design will crop away for the next shot (e.g. near-square strip slots).
+  // The preview fills the whole screen in the screen's own shape, and every photo is captured in exactly
+  // that shape, so what guests see is what's taken and it never changes between screens. A subtle guide
+  // dims what the event design will crop away for the next shot (e.g. near-square strip slots).
   // Set through the CSSOM, since inline style attributes are blocked by the CSP.
   const portrait = config?.camera.orientation === "portrait";
-  const aspect = boothAspect(portrait);
+  // The screen's own shape (an iPad is ~4:3, most monitors 16:9), so the preview and the photo fill
+  // the whole screen; re-measured when the device rotates. The booth setting covers the first render.
+  const [screenAspect, setScreenAspect] = useState<number | null>(null);
+  useEffect(() => {
+    const measure = () => setScreenAspect(innerWidth / innerHeight);
+    measure();
+    addEventListener("resize", measure);
+    return () => removeEventListener("resize", measure);
+  }, []);
+  const aspect = screenAspect ?? boothAspect(portrait);
   const rotation = config?.camera.rotation ?? 0;
   const shotIndex = Math.min(redo ?? shots.length, Math.max(0, needed - 1));
   const layout = (guest?.template?.layout ?? "landscape") as Layout;
@@ -289,14 +326,24 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     let cancelled = false;
     setFlash(true);
     setTimeout(() => setFlash(false), 450);
-    // More photos to come: show this one right away (a copy of the live frame at the shutter), for
-    // PEEK_MS. The next countdown waits for both the timer and the real photo, so a slow camera
-    // can't cut the preview short or skip a shot.
-    const more = redo === null && shotsRef.current.length + 1 < needed;
-    const n = shotsRef.current.length + 1;
-    let timerDone = false, captured = false;
-    const next = () => { if (cancelled || !timerDone || !captured) return; setPeek(null); setCount(guest?.captureIntervalSeconds ?? 3); };
-    const startPeek = (url: string) => { setPeek({ url, n }); setTimeout(() => { timerDone = true; next(); }, PEEK_MS); };
+    // More photos to come (counting this one): show it right away (a copy of the live frame at the
+    // shutter) for the event's preview time. The next countdown waits for both the timer and the real
+    // photo, so a slow camera can't cut the preview short or skip a shot. A tap on Retake redoes this
+    // photo (once the real photo has arrived), then the sequence carries on.
+    const n = redo !== null ? redo + 1 : shotsRef.current.length + 1;
+    const more = (redo !== null ? shotsRef.current.length : shotsRef.current.length + 1) < needed;
+    let timerDone = false, captured = false, retake = false;
+    const next = () => {
+      if (cancelled || !captured) return;
+      if (retake) { peekCtl.current = null; setPeek(null); setRedo(n - 1); setCount(Math.max(1, guest?.countdownSeconds ?? 3)); return; }
+      if (!timerDone) return;
+      peekCtl.current = null; setPeek(null); setCount(guest?.captureIntervalSeconds ?? 3);
+    };
+    const startPeek = (url: string) => {
+      setPeek({ url, n });
+      peekCtl.current = { retake: () => { retake = true; next(); } };
+      setTimeout(() => { timerDone = true; next(); }, (guest?.previewSeconds ?? 3) * 1000);
+    };
     let instant = false;
     if (more) {
       const media = root.current?.querySelector<HTMLVideoElement | HTMLImageElement>(".k-view .k-media");
@@ -495,11 +542,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
           {dslr ? (
             <p className="k-text">{agent.status?.camera?.error ?? "Turn the camera on and connect it by USB. The agent reconnects by itself."}</p>
           ) : cam.state.status === "permission-denied" ? (
-            <ol className="k-steps">
-              <li>Click the camera icon in the address bar (or the site settings icon next to the address).</li>
-              <li>Set <b>Camera</b> to <b>Allow</b> for this site.</li>
-              <li>Press <b>Try again</b>. Chrome remembers the choice for next time.</li>
-            </ol>
+            <CameraHelp />
           ) : (
             <p className="k-text">{cam.state.error ?? "Plug in a USB webcam. This screen reconnects by itself."}</p>
           )}
@@ -559,8 +602,15 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
         <>
           {peek ? (
             <div className="k-peek" aria-live="polite">
-              <img className={config?.camera.mirrorPreview ? "mirror" : undefined} src={peek.url} alt={`Photo ${peek.n} of ${needed}`} />
-              <p className="k-shot">Photo {peek.n} of {needed} · next one coming up</p>
+              {/* the photo as taken, in a tilted instant-print frame over the live camera */}
+              <button type="button" className="k-polaroid" onClick={() => peekCtl.current?.retake()} aria-label={`Photo ${peek.n} of ${needed}. Tap to retake`}>
+                <img className={config?.camera.mirrorPreview ? "mirror" : undefined} src={peek.url} alt="" />
+                <span className="k-polaroid-cap">Photo {peek.n} of {needed}</span>
+              </button>
+              <div className="k-peek-bar">
+                <p className="k-peek-hint">Next one coming up</p>
+                <button type="button" className="k-btn ghost" onClick={() => peekCtl.current?.retake()}>Retake</button>
+              </div>
             </div>
           ) : (
             <p className="k-shot" aria-live="polite">{redo !== null ? `Retaking photo ${redo + 1}` : `Photo ${Math.min(shots.length + 1, needed)} of ${needed}`}</p>

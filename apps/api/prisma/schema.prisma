@@ -119,6 +119,8 @@ model EventConfig {
   shotsPerSession      Int      @default(3)
   // Seconds between shots in a multi-shot sequence.
   captureIntervalSeconds Int    @default(3)
+  // How long each photo is shown (in its frame) before the next countdown, in a multi-photo session.
+  previewSeconds       Int      @default(3)
   // The built-in event template, always printed on 4x6 (4R): "landscape" = 4R landscape,
   // "strip" = 2x6 strip printed twice on the sheet (cut in half), "grid" = 4x6 portrait.
   layout               String   @default("landscape")
