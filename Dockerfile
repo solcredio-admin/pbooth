@@ -20,6 +20,7 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
 FROM deps AS build
 COPY apps ./apps
+COPY tools ./tools
 RUN pnpm --filter @pbooth/api build && pnpm --filter @pbooth/web build
 # The booth agent, ready to run, served at /agent.zip: unzip, `npm install --omit=dev` (fetches sharp
 # for the booth's own OS), enroll. Nothing secret in it; booths still need a one-time enrollment code.
