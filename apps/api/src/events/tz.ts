@@ -48,3 +48,6 @@ export function eventWindow(date: string, startTime: string, endTime: string, ti
   }
   return { startsAt, endsAt };
 }
+
+/** Midnight at the start of `now`'s day on `timeZone`'s clock, as an exact instant. */
+export const startOfDayIn = (timeZone: string, now = new Date()) => wallTimeToUtc(utcToWallTime(now, timeZone).date, "00:00", timeZone);

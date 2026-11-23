@@ -37,7 +37,7 @@ test("each photo shows in a frame instantly, can be retaken, then the sequence g
   await expect(page.locator(".k-view video")).toBeVisible(); // the live camera stays behind the frame
 
   // retake it: a fresh countdown for photo 1, then the sequence continues
-  await page.getByRole("button", { name: "Retake" }).click();
+  await page.getByRole("button", { name: "Retake", exact: true }).click();
   await expect(page.locator(".k-peek")).toBeHidden();
   await expect(page.locator(".k-shot")).toHaveText("Retaking photo 1");
   await expect(page.locator(".k-polaroid-cap")).toHaveText("Photo 1 of 3", { timeout: 15_000 }); // the new photo 1

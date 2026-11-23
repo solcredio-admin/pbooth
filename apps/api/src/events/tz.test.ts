@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { eventWindow, isValidTimeZone, utcToWallTime, wallTimeToUtc } from "./tz.js";
+import { eventWindow, isValidTimeZone, startOfDayIn, utcToWallTime, wallTimeToUtc } from "./tz.js";
 
 describe("time zones", () => {
   it("converts venue wall time to UTC (winter and summer)", () => {
@@ -29,5 +29,12 @@ describe("time zones", () => {
     expect(isValidTimeZone("Asia/Manila")).toBe(true);
     expect(isValidTimeZone("UTC")).toBe(true);
     expect(isValidTimeZone("Mars/Olympus")).toBe(false);
+  });
+
+  it("finds the start of the venue's day, ahead of or behind UTC", () => {
+    // 02:31 in Manila is still the previous day in UTC: today must start at Manila midnight, not later
+    expect(startOfDayIn("Asia/Manila", new Date("2026-11-23T18:31:00Z")).toISOString()).toBe("2026-11-23T16:00:00.000Z");
+    expect(startOfDayIn("America/Los_Angeles", new Date("2026-11-24T05:00:00Z")).toISOString()).toBe("2026-11-23T08:00:00.000Z");
+    expect(startOfDayIn("UTC", new Date("2026-11-24T00:00:00Z")).toISOString()).toBe("2026-11-24T00:00:00.000Z");
   });
 });

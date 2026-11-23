@@ -8,6 +8,7 @@ import { hashToken } from "../auth/tokens.js";
 import { newEnrollmentCode, normalizeEnrollmentCode } from "../booths/codes.js";
 import type { AuthedAdmin } from "../common/request.js";
 import type { EventScope } from "../events/events.service.js";
+import { startOfDayIn } from "../events/tz.js";
 
 export const createVouchersSchema = z.object({
   kind: z.enum(["ONE_TIME", "UNLIMITED"]),
@@ -79,8 +80,8 @@ export class SelfServiceService {
   /** Paid, voucher and free sessions, revenue, and the venue's share. */
   async revenue(eventId: string, scope?: EventScope) {
     const e = await this.event(eventId, scope);
-    const startOfDay = new Date(new Date().toLocaleString("en-US", { timeZone: e.timeZone }));
-    startOfDay.setHours(0, 0, 0, 0);
+    // midnight today on the venue's clock, as an exact instant (works for zones ahead of or behind UTC)
+    const startOfDay = startOfDayIn(e.timeZone);
     const sum = async (since?: Date) => {
       const rows = await this.db.payment.groupBy({
         by: ["method"], where: { eventId, status: "PAID", ...(since ? { paidAt: { gte: since } } : {}) },
