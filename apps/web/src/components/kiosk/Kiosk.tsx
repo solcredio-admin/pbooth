@@ -20,6 +20,8 @@ const DONE_RESET_S = 20;      // the thank-you screen clears itself
 const DONE_RESET_QR_S = 35;   // longer when there's a QR code to scan
 // One tap on the welcome screen is enough: instructions show this long, then the countdown starts.
 const READY_SECONDS = 10;
+// In a multi-photo session, each photo is shown this long before the next countdown starts.
+const PEEK_MS = 3000;
 const GUEST = new Set<Screen>(["ready", "countdown", "composing", "review", "done"]);
 
 interface Shot { blob: Blob; url: string; printBlob?: Blob } // printBlob: the 4R sheet when it differs from the design
@@ -49,6 +51,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   const [design, setDesign] = useState<Shot | null>(null); // the photos inside the event template
   const [redo, setRedo] = useState<number | null>(null);   // retaking just this photo
   const [count, setCount] = useState(0);
+  const [peek, setPeek] = useState<{ url: string; n: number } | null>(null); // the photo just taken, shown before the next countdown
   const [readyLeft, setReadyLeft] = useState(READY_SECONDS); // instructions screen, then shooting starts by itself
   const [flash, setFlash] = useState(false);
   const [doneLeft, setDoneLeft] = useState(DONE_RESET_S);
@@ -201,7 +204,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     shotsRef.current.forEach((x) => URL.revokeObjectURL(x.url));
     if (designRef.current) URL.revokeObjectURL(designRef.current.url);
     session.current = null;
-    setShots([]); setDesign(null); setRedo(null); setCaptureError(""); setPrint(null); setQr(null); setSaving(null);
+    setShots([]); setDesign(null); setRedo(null); setPeek(null); setCaptureError(""); setPrint(null); setQr(null); setSaving(null);
     history.replaceState(null, "", `/kiosk/${boothCode}`);
     setScreen("loading"); // the resting-screen effect picks welcome / idle / camera
   }, [boothCode]);
@@ -271,8 +274,10 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
         if (redo !== null) { URL.revokeObjectURL(list[redo].url); list[redo] = shot; } else list.push(shot);
         setShots(list);
         setRedo(null);
-        if (redo === null && list.length < needed) setCount(guest?.captureIntervalSeconds ?? 3);
-        else compose(list);
+        if (redo === null && list.length < needed) {
+          setPeek({ url: shot.url, n: list.length });
+          setTimeout(() => { if (cancelled) return; setPeek(null); setCount(guest?.captureIntervalSeconds ?? 3); }, PEEK_MS);
+        } else compose(list);
       })
       .catch(() => { if (!cancelled) { setCaptureError("The camera didn't take that one. Let's try again."); setRedo(null); setScreen("ready"); } });
     return () => { cancelled = true; };
@@ -465,36 +470,46 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
 
       {screen === "welcome" && (
         <button type="button" className="k-tap" onClick={begin} aria-label="Start">
-          <span className="k-cap">{config?.event?.name}</span>
-          <span className="k-hero">{guest?.welcomeTitle ?? "Strike a pose"}</span>
-          <span className="k-text">{guest?.welcomeMessage ?? "Tap anywhere to start"}</span>
+          <span className="k-glass">
+            {config?.event?.name && <span className="k-event">{config.event.name}</span>}
+            <span className="k-hero">{guest?.welcomeTitle ?? "Strike a pose"}</span>
+            <span className="k-text">{guest?.welcomeMessage ?? "Tap anywhere to start"}</span>
+          </span>
         </button>
       )}
 
       {screen === "ready" && (
-        <div className="k-panel">
-          <p className="k-cap">{needed > 1 ? `${needed} photos in a row` : "One photo"}</p>
+        // Priority, top to bottom: what's happening, how long until it starts, what to do, the fine print.
+        <div className="k-panel k-ready">
+          <p className="k-cap k-eyebrow">{needed > 1 ? `${needed} photos in a row` : "One photo"}</p>
           <h1 className="k-title">Get ready.</h1>
-          <p className="k-ready-count" aria-live="polite">Starting in {Math.max(0, readyLeft)}</p>
+          <p className="k-ready-count" aria-live="polite"><span>Starting in</span> <b>{Math.max(0, readyLeft)}</b></p>
           <p className="k-text">
-            {(guest?.countdownSeconds ?? 3) > 0 ? `We count down from ${guest?.countdownSeconds ?? 3}, then snap` : "We snap right away"}
-            {needed > 1 ? `, then ${needed - 1} more, ${guest?.captureIntervalSeconds ?? 3} seconds apart. Change poses between shots!` : ". Look at the camera."}
+            {(guest?.countdownSeconds ?? 3) > 0 ? <>A <b>{guest?.countdownSeconds ?? 3}-second</b> countdown, then snap.</> : <>We snap right away.</>}
+            {needed > 1 ? <> You&apos;ll see each photo for a moment before the next one. <b>Change poses between shots!</b></> : <> Look at the camera.</>}
           </p>
-          {config?.storage && (
-            <p className="k-consent">By continuing, you agree that your photos are saved for {config.galleryRetentionDays} days and shared only with people who have your QR link.</p>
-          )}
           {captureError && <p className="k-error" role="alert">{captureError}</p>}
           <div className="k-actions">
             <button className="k-btn big" type="button" onClick={shoot}>Start now</button>
             <button className="k-btn ghost" type="button" onClick={() => reset("ABANDONED")}>Cancel</button>
           </div>
+          {config?.storage && (
+            <p className="k-consent">By continuing, you agree that your photos are saved for {config.galleryRetentionDays} days and shared only with people who have your QR link.</p>
+          )}
         </div>
       )}
 
       {screen === "countdown" && (
         <>
-          <p className="k-shot" aria-live="polite">{redo !== null ? `Retaking photo ${redo + 1}` : `Photo ${Math.min(shots.length + 1, needed)} of ${needed}`}</p>
-          {count > 0 && <div className="k-count" key={`${shots.length}-${count}`} aria-live="assertive">{count}</div>}
+          {peek ? (
+            <div className="k-peek" aria-live="polite">
+              <img src={peek.url} alt={`Photo ${peek.n} of ${needed}`} />
+              <p className="k-shot">Photo {peek.n} of {needed} · next one coming up</p>
+            </div>
+          ) : (
+            <p className="k-shot" aria-live="polite">{redo !== null ? `Retaking photo ${redo + 1}` : `Photo ${Math.min(shots.length + 1, needed)} of ${needed}`}</p>
+          )}
+          {!peek && count > 0 && <div className="k-count" key={`${shots.length}-${count}`} aria-live="assertive">{count}</div>}
         </>
       )}
 

@@ -1,7 +1,5 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import {
-  DeleteObjectsCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client,
-} from "@aws-sdk/client-s3";
+import { DeleteObjectsCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { Readable } from "node:stream";
 import { createHash } from "node:crypto";
@@ -87,6 +85,18 @@ export class StorageService {
       Bucket: this.bucket, Key: key,
       ...(downloadName ? { ResponseContentDisposition: `attachment; filename="${downloadName.replace(/[^\w.-]/g, "_")}"` } : {}),
     }), { expiresIn: GET_SECONDS });
+  }
+
+  /** Objects under a prefix (all pages), newest first. */
+  async list(prefix: string) {
+    const out: { key: string; size: number; at: Date }[] = [];
+    let token: string | undefined;
+    do {
+      const r = await this.client().send(new ListObjectsV2Command({ Bucket: this.bucket, Prefix: prefix, ContinuationToken: token }));
+      for (const o of r.Contents ?? []) if (o.Key) out.push({ key: o.Key, size: o.Size ?? 0, at: o.LastModified ?? new Date(0) });
+      token = r.IsTruncated ? r.NextContinuationToken : undefined;
+    } while (token);
+    return out.sort((a, b) => b.at.getTime() - a.at.getTime());
   }
 
   async delete(keys: string[]) {

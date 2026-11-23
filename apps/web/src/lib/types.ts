@@ -12,7 +12,7 @@ export interface EventConfig {
 }
 
 export interface EventDto {
-  id: string; name: string; organizerName: string | null; venueName: string | null; venueAddress: string | null;
+  id: string; name: string; organizerName: string | null; contactPhone: string | null; contactEmail: string | null; venueName: string | null; venueAddress: string | null;
   status: EventStatus; timeZone: string; startsAt: string; endsAt: string;
   local: { date: string; startTime: string; endTime: string };
   activatedAt: string | null; completedAt: string | null; createdAt: string; updatedAt: string;

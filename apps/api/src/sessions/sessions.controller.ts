@@ -3,6 +3,7 @@ import { z } from "zod";
 import { Public } from "../auth/public.decorator.js";
 import { KioskGuard, type KioskReq } from "../kiosk/kiosk.guard.js";
 import { SessionsService } from "./sessions.service.js";
+import { Allow } from "../auth/roles.js";
 
 const id = { schema: z.string().uuid("Not a valid session id") };
 // galleryToken: made by the kiosk at the start (256 random bits) so the QR works even offline.
@@ -33,6 +34,7 @@ export class SessionsController {
   }
 
   // Admin.
+  @Allow("EVENTS")
   @Get(":id")
   get(@Param("id", id) sessionId: string) {
     return this.sessions.get(sessionId);

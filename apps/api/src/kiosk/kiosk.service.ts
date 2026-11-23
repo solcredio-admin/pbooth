@@ -25,13 +25,25 @@ export class KioskService {
       throw new ApiError(HttpStatus.UNAUTHORIZED, "INVALID_CODE", "Pairing code is wrong, used or expired");
     }
     const booth = await this.db.booth.findUniqueOrThrow({ where: { code: body.boothCode }, select: { id: true, name: true, code: true } });
+    return this.issue(booth, meta, null);
+  }
+
+  /** "Open kiosk here": a signed-in booth admin or kiosk operator pairs this browser, no code needed. */
+  async pairSignedIn(boothId: string, actor: string, meta: { ip?: string; userAgent?: string }) {
+    const booth = await this.db.booth.findUnique({ where: { id: boothId }, select: { id: true, name: true, code: true, state: true } });
+    if (!booth) throw new ApiError(HttpStatus.NOT_FOUND, "NOT_FOUND", "Booth not found");
+    if (booth.state === "REVOKED") throw new ApiError(HttpStatus.CONFLICT, "BOOTH_REVOKED", "This booth's access was revoked");
+    return this.issue({ id: booth.id, name: booth.name, code: booth.code }, meta, actor);
+  }
+
+  private async issue(booth: { id: string; name: string; code: string }, meta: { ip?: string; userAgent?: string }, by: string | null) {
     const token = newToken();
     // One kiosk per booth: pairing a new browser signs the old one out.
     const [, kiosk] = await this.db.$transaction([
       this.db.kiosk.deleteMany({ where: { boothId: booth.id } }),
       this.db.kiosk.create({ data: { boothId: booth.id, tokenHash: hashToken(token), userAgent: meta.userAgent, lastSeenAt: new Date() } }),
     ]);
-    await this.audit.record({ actor: `kiosk:${kiosk.id}`, action: "kiosk.pair", entityType: "booth", entityId: booth.id, ip: meta.ip });
+    await this.audit.record({ actor: by ?? `kiosk:${kiosk.id}`, action: "kiosk.pair", entityType: "booth", entityId: booth.id, ip: meta.ip, metadata: by ? { kioskId: kiosk.id, signedIn: true } : undefined });
     this.booths.push([booth.id]);
     return { token, booth };
   }

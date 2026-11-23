@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 // The internet drops in the middle of an event: guests keep shooting, the kiosk even gets reloaded,
 // and when the network returns every session and photo reaches the cloud exactly once.
 const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3399";
-const ADMIN = { email: process.env.E2E_EMAIL ?? "admin@test.local", password: process.env.E2E_PASSWORD ?? "correct-horse-battery" };
+const ADMIN = { username: process.env.E2E_USERNAME ?? "admin@test.local", password: process.env.E2E_PASSWORD ?? "correct-horse-battery" };
 const origin = new URL(BASE).origin;
 
 async function guest(page: Page) {

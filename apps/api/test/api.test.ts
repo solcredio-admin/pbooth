@@ -22,7 +22,7 @@ describe.skipIf(!base)("API against a real database", () => {
     expect(r.setCookie).toMatch(/pb_session=.+HttpOnly/i);
     expect(r.setCookie).toMatch(/SameSite=Strict/i);
     const cookie = r.setCookie!.split(";")[0];
-    expect((await call("/auth/me", { cookie })).body.admin.email).toBe(ADMIN.email);
+    expect((await call("/auth/me", { cookie })).body.admin).toMatchObject({ username: ADMIN.username, role: "OWNER" });
     expect((await call("/auth/logout", { method: "POST", cookie })).status).toBe(204);
     expect((await call("/auth/me", { cookie })).status).toBe(401); // the old cookie is dead server-side
   });
@@ -70,6 +70,13 @@ describe.skipIf(!base)("API against a real database", () => {
     expect(r.body.error.code).toBe("VALIDATION_ERROR");
     expect(r.body.error.details.map((d: { path: string }) => d.path).sort()).toEqual(["name", "timeZone"]);
     expect((await call("/events/not-a-uuid", { cookie })).status).toBe(400);
+    // contact details: checked, optional, and blank clears them
+    const bad = await call("/events", { method: "POST", body: { ...newEvent, contactEmail: "not-an-email", contactPhone: "call me maybe" }, cookie });
+    expect(bad.body.error.details.map((d: { path: string }) => d.path).sort()).toEqual(["contactEmail", "contactPhone"]);
+    const ok = await call("/events", { method: "POST", body: { ...newEvent, contactEmail: "ana@example.com", contactPhone: "+63 (917) 123-4567" }, cookie });
+    expect(ok.body).toMatchObject({ contactEmail: "ana@example.com", contactPhone: "+63 (917) 123-4567" });
+    const cleared = await call(`/events/${ok.body.id}`, { method: "PATCH", body: { contactEmail: "", contactPhone: "" }, cookie });
+    expect(cleared.body).toMatchObject({ contactEmail: null, contactPhone: null });
     expect((await call("/events/00000000-0000-4000-8000-000000000000", { cookie })).status).toBe(404);
   });
 

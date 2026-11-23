@@ -7,9 +7,11 @@ import { send } from "@/lib/client-api";
 import { useLiveBooths } from "@/lib/live";
 import { BOOTH_LABEL } from "@/lib/format";
 import type { BoothDto } from "@/lib/types";
+import { can, useMe } from "@/lib/roles";
 
 // All booths as a list that updates live, with a one-field form to register a new booth.
 export function BoothsBoard({ initial }: { initial: BoothDto[] }) {
+  const may = can(useMe().role);
   const router = useRouter();
   const { booths, connected } = useLiveBooths(initial);
   const [error, setError] = useState("");
@@ -59,6 +61,7 @@ export function BoothsBoard({ initial }: { initial: BoothDto[] }) {
             </div>
           </section>
         )}
+        {may.manageBooths && (
         <section className="host" aria-labelledby="new-booth">
           <div className="host-head">
             <span className="cap">A booth is a physical kit you reuse across events</span>
@@ -72,6 +75,7 @@ export function BoothsBoard({ initial }: { initial: BoothDto[] }) {
             {error && <p className="cap err" role="alert">{error}</p>}
           </div>
         </section>
+        )}
       </main>
     </>
   );

@@ -37,14 +37,17 @@ export function EventGallery({ event, data, origin }: { event: EventDto; data: E
 
   return (
     <>
-      <section className="hero compact">
+      <section className="detail-head">
         <Link className="plain cap back" href={`/events/${event.id}`}>← {event.name}</Link>
-        <h1>Gallery.</h1>
-        <div className="cap answer" role="status">
+        <div>
+          <div className="title-row"><h1>Gallery.</h1></div>
+          <div className="meta cap"><span>Photos, guest links and export</span></div>
+        </div>
+        <div className="cap answer head-summary" role="status">
           <span className="free">{ready} photos ready</span>{waiting ? ` · ${waiting} on the way` : ""}{failed ? <> · <span className="taken">{failed} failed</span></> : ""}
         </div>
       </section>
-      <main className="narrow">
+      <main>
         {!data.storageEnabled && (
           <p className="notice cap">Photo storage isn&apos;t set up yet, so photos aren&apos;t being saved. See <Link href="/settings">Settings → Storage</Link>.</p>
         )}

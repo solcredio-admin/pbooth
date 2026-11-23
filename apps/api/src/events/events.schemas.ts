@@ -37,6 +37,8 @@ const when = {
 const fields = {
   name: text(120).min(1, "Name is required"),
   organizerName: optionalText(120),
+  contactPhone: text(40).regex(/^[0-9+()\-.\s]*(ext\.?\s*\d+)?$/i, "Digits, spaces and + ( ) - only").transform((v) => v || null).nullish(),
+  contactEmail: text(254).transform((v) => v || null).pipe(z.string().email("Not a valid email").nullable()).nullish(),
   venueName: optionalText(160),
   venueAddress: optionalText(300),
   config: configSchema.optional(),

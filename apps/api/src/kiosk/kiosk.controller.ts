@@ -6,10 +6,9 @@ import { Public } from "../auth/public.decorator.js";
 import { CONFIG, type Config } from "../config.js";
 import { ApiError } from "../common/errors.js";
 import { KioskService } from "./kiosk.service.js";
-import { KIOSK_COOKIE, KioskGuard, type KioskReq } from "./kiosk.guard.js";
+import { KIOSK_COOKIE, KIOSK_COOKIE_DAYS, KioskGuard, type KioskReq } from "./kiosk.guard.js";
 import { kioskHeartbeatSchema, pairSchema, type KioskHeartbeat, type Pair } from "./kiosk.schemas.js";
 
-const KIOSK_COOKIE_DAYS = 180; // a booth shouldn't need re-pairing between events; revocable any time
 
 // Called by the guest-facing kiosk page. Never exposes anything admin-only.
 @Public()

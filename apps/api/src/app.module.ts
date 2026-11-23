@@ -28,16 +28,21 @@ import { BoothAuthGuard } from "./photos/booth-auth.guard.js";
 import { GalleriesService } from "./galleries/galleries.service.js";
 import { GalleriesController } from "./galleries/galleries.controller.js";
 
+import { BackupsController } from "./backups/backups.controller.js";
+import { UsersController } from "./users/users.controller.js";
+import { UsersService } from "./users/users.service.js";
+import { BackupsService } from "./backups/backups.service.js";
+
 // One module keeps wiring in one place; split per feature if it grows past easy reading.
 @Module({})
 export class AppModule {
   static forRoot(cfg: Config): DynamicModule {
     return {
       module: AppModule,
-      controllers: [HealthController, AuthController, EventsController, BoothsController, EventBoothsController, DevicesController, KioskController, SessionsController, PhotosController, EventPhotosController, StorageController, GalleriesController],
+      controllers: [HealthController, AuthController, EventsController, BoothsController, EventBoothsController, DevicesController, KioskController, SessionsController, PhotosController, EventPhotosController, StorageController, GalleriesController, BackupsController, UsersController],
       providers: [
         { provide: CONFIG, useValue: cfg },
-        PrismaService, AuditService, AuthService, EventsService, BoothsService, DevicesService, DeviceGuard, RealtimeGateway, KioskService, KioskGuard, SessionsService, StorageService, PhotosService, BoothAuthGuard, GalleriesService,
+        PrismaService, AuditService, AuthService, EventsService, BoothsService, DevicesService, DeviceGuard, RealtimeGateway, KioskService, KioskGuard, SessionsService, StorageService, PhotosService, BoothAuthGuard, GalleriesService, BackupsService, UsersService,
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_FILTER, useClass: ErrorFilter },
       ],

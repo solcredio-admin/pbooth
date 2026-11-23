@@ -28,7 +28,7 @@ export default async function setup(project: TestProject) {
   await db.query("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;");
   await db.end();
   execFileSync("npx", ["prisma", "migrate", "deploy"], { env, stdio: "inherit" });
-  execFileSync("node", ["dist/cli.js", "admin:create", "--email", ADMIN.email, "--password-stdin"], { env, input: ADMIN.password, stdio: ["pipe", "inherit", "inherit"] });
+  execFileSync("node", ["dist/cli.js", "admin:create", "--username", ADMIN.username, "--password-stdin"], { env, input: ADMIN.password, stdio: ["pipe", "inherit", "inherit"] });
 
   server = spawn("node", ["dist/main.js"], { env, stdio: "inherit" });
   const base = `http://127.0.0.1:${PORT}/api/v1`;

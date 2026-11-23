@@ -1,6 +1,8 @@
 import type { FastifyRequest } from "fastify";
 
-export interface AuthedAdmin { id: string; email: string; sessionId: string }
+import type { Role } from "../auth/roles.js";
+
+export interface AuthedAdmin { id: string; username: string; role: Role; sessionId: string }
 export type Req = FastifyRequest & { admin?: AuthedAdmin };
 
 export const clientMeta = (req: FastifyRequest) => ({

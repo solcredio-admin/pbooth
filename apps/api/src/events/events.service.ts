@@ -18,7 +18,7 @@ export function toDto(e: EventRow) {
   const end = utcToWallTime(e.endsAt, e.timeZone);
   const { eventId: _e, id: _i, createdAt: _c, updatedAt: _u, ...config } = e.config ?? ({} as NonNullable<EventRow["config"]>);
   return {
-    id: e.id, name: e.name, organizerName: e.organizerName, venueName: e.venueName, venueAddress: e.venueAddress,
+    id: e.id, name: e.name, organizerName: e.organizerName, contactPhone: e.contactPhone, contactEmail: e.contactEmail, venueName: e.venueName, venueAddress: e.venueAddress,
     status: e.status, timeZone: e.timeZone, startsAt: e.startsAt, endsAt: e.endsAt,
     local: { date: start.date, startTime: start.time, endTime: end.time },
     activatedAt: e.activatedAt, completedAt: e.completedAt, createdAt: e.createdAt, updatedAt: e.updatedAt,

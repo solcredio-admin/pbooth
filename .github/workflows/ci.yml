@@ -29,6 +29,12 @@ jobs:
         run: |
           docker run -d -p 8333:8333 chrislusf/seaweedfs:latest server -s3 -dir=/data -master.volumeSizeLimitMB=512
           for i in $(seq 1 60); do curl -s -o /dev/null http://localhost:8333/ && exit 0; sleep 2; done; echo "storage didn't start"; exit 1
+      - name: PostgreSQL 17 client tools for the backup/restore test
+        run: |
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-17
+          pg_dump --version
       - name: API unit + integration tests
         run: pnpm --filter @pbooth/api test
         env: { TEST_DATABASE_URL: "postgresql://postgres:test@localhost:5432/test", TEST_S3_ENDPOINT: "http://localhost:8333" }

@@ -7,6 +7,7 @@ import { send } from "@/lib/client-api";
 import { useLiveBooths } from "@/lib/live";
 import { longDate, STATUS_LABEL, timeRange } from "@/lib/format";
 import type { BoothDto, EventDto, EventSessions } from "@/lib/types";
+import { can, useMe } from "@/lib/roles";
 
 // The live view of one event: its booths, updating as they check in, plus booking controls.
 export function EventLive({ event, initial, allBooths, initialSessions }: { event: EventDto; initial: BoothDto[]; allBooths: BoothDto[]; initialSessions: EventSessions }) {
@@ -15,6 +16,7 @@ export function EventLive({ event, initial, allBooths, initialSessions }: { even
   const total = sessions?.total ?? { sessions: 0, completed: 0, photos: 0 };
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const book = can(useMe().role).bookBooths; // kiosk operators watch, they don't book
   const closed = event.status === "COMPLETED" || event.status === "ARCHIVED";
   const assigned = new Set(booths.map((b) => b.id));
   const choices = allBooths.filter((b) => !assigned.has(b.id) && b.state !== "REVOKED");
@@ -33,20 +35,24 @@ export function EventLive({ event, initial, allBooths, initialSessions }: { even
 
   return (
     <>
-      <section className="hero compact">
+      <section className="detail-head">
         <Link className="plain cap back" href={`/events/${event.id}`}>← {event.name}</Link>
-        <h1>{event.status === "ACTIVE" ? "Live now." : "Booths."}</h1>
-        <div className="meta cap">
-          <span><span className={"live-dot" + (connected ? " on" : "")} aria-hidden="true" />{connected ? "Updating live" : "Connecting…"}</span>
-          <span>{longDate(event)}</span><span>{timeRange(event)}</span>
+        <div>
+          <div className="title-row">
+            <h1>{event.status === "ACTIVE" ? "Live now." : "Booths."}</h1>
+            <span className={`pill s-${event.status}`}>{STATUS_LABEL[event.status]}</span>
+          </div>
+          <div className="meta cap">
+            <span><span className={"live-dot" + (connected ? " on" : "")} aria-hidden="true" />{connected ? "Updating live" : "Connecting…"}</span>
+            <span>{longDate(event)}</span><span>{timeRange(event)}</span>
+          </div>
         </div>
-        <div className="cap answer" role="status">
+        <div className="cap answer head-summary" role="status">
           <span className="free">{online} of {booths.length} online</span>
           {" · "}{total.completed} guest session{total.completed === 1 ? "" : "s"} · {total.photos} photo{total.photos === 1 ? "" : "s"}
           {problems > 0 && <> · <span className="taken">{problems} need attention</span></>}
           {" · "}{pendingUploads} uploads pending
         </div>
-        <span className={`pill s-${event.status}`}>{STATUS_LABEL[event.status]}</span>
       </section>
       <main>
         {booths.length === 0 ? (
@@ -58,13 +64,13 @@ export function EventLive({ event, initial, allBooths, initialSessions }: { even
         ) : (
           <div className="booth-grid">
             {booths.map((b) => (
-              <BoothCard key={b.id} b={b} stats={sessions?.byBooth[b.id] ?? { sessions: 0, completed: 0, photos: 0 }} action={!closed && (
+              <BoothCard key={b.id} b={b} stats={sessions?.byBooth[b.id] ?? { sessions: 0, completed: 0, photos: 0 }} action={!closed && book && (
                 <button type="button" className="plain cap" disabled={busy} onClick={() => run("DELETE", `/events/${event.id}/booths/${b.id}`)}>Remove from event</button>
               )} />
             ))}
           </div>
         )}
-        {!closed && choices.length > 0 && (
+        {!closed && book && choices.length > 0 && (
           <section className="host" aria-labelledby="book">
             <div className="host-head"><span className="cap">Booths you've registered</span><h2 id="book">Book a booth</h2></div>
             <div className="panel">

@@ -7,11 +7,16 @@ import { Quiet } from "./Quiet";
 import { Marks } from "./Marks";
 import { ThemeToggle } from "./ThemeToggle";
 import { V } from "@/lib/v";
+import { can, MeProvider, type Me } from "@/lib/roles";
 
 // WebGL layers only ever run in the browser.
 const Scene = dynamic(() => import("./gl/Scene.jsx"), { ssr: false });
 const Lift = dynamic(() => import("./gl/Lift.jsx"), { ssr: false });
-const Intro = dynamic(() => import("./gl/Intro.jsx"), { ssr: false });
+// While its code loads, the plain logo holds the stage, so the mark never blinks out.
+const Intro = dynamic(() => import("./gl/Intro.jsx"), {
+  ssr: false,
+  loading: () => <div className="intro-stage"><div className="liquid"><Marks /></div></div>,
+});
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard" },
@@ -26,7 +31,8 @@ const MARKS = [
 
 // Everything around the admin pages: the gradient, the post-login intro, the top bar,
 // the sign-out choreography and the bottom-corner controls.
-export function Shell({ children }: { children: ReactNode }) {
+export function Shell({ children, me }: { children: ReactNode; me: Me }) {
+  const may = can(me.role);
   const path = usePathname();
   const [intro, setIntro] = useState<"pending" | "on" | "off">("pending");
   const [scene, setScene] = useState(false);
@@ -92,7 +98,7 @@ export function Shell({ children }: { children: ReactNode }) {
           <Marks className="brand-logo" />
         </Link>
         <nav className="nav" aria-label="Main">
-          {NAV.map((n) => (
+          {NAV.filter((n) => n.href !== "/booths" || me.role !== "EVENTS").map((n) => (
             <Link key={n.href} href={n.href} aria-current={path === n.href || (n.href !== "/dashboard" && path.startsWith(n.href)) ? "page" : undefined}>
               {n.label}
             </Link>
@@ -104,10 +110,10 @@ export function Shell({ children }: { children: ReactNode }) {
           </button>
         </div>
       </header>
-      {children}
+      <MeProvider value={me}>{children}</MeProvider>
       <div id="lift" aria-hidden="true">{scene && <Quiet><Lift /></Quiet>}</div>
       <ThemeToggle />
-      {path !== "/events/new" && <Link className="plain add-agent" href="/events/new">+ New event</Link>}
+      {may.editEvents && path !== "/events/new" && <Link className="plain add-agent" href="/events/new">+ New event</Link>}
       <div id="outro" aria-hidden="true"><Marks /></div>
     </>
   );

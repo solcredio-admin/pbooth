@@ -10,9 +10,20 @@ datasource db {
   provider = "postgresql"
 }
 
+// Who can do what. OWNER manages everything (users included); the others are limited, see roles.ts.
+enum AdminRole {
+  OWNER // everything, including users, backups and storage
+  EVENTS // events: view, create, edit, run; galleries and exports
+  BOOTHS // booths: manage, pair, enroll; can view events but not change them
+  KIOSK // can only open a booth's kiosk on the computer they're signed in on
+}
+
+// Every person who signs in (the table keeps its original name).
 model Admin {
   id           String         @id @default(uuid()) @db.Uuid
-  email        String         @unique
+  username     String         @unique
+  role         AdminRole      @default(OWNER)
+  disabled     Boolean        @default(false)
   passwordHash String
   createdAt    DateTime       @default(now()) @db.Timestamptz(3)
   updatedAt    DateTime       @updatedAt @db.Timestamptz(3)
@@ -48,6 +59,9 @@ model Event {
   id            String       @id @default(uuid()) @db.Uuid
   name          String
   organizerName String?
+  // How to reach the client on the day (free text phone: +63, landlines, extensions)
+  contactPhone  String?
+  contactEmail  String?
   // Exact instants in UTC; timeZone (IANA, e.g. "America/Los_Angeles") is how they're shown.
   startsAt      DateTime     @db.Timestamptz(3)
   endsAt        DateTime     @db.Timestamptz(3)

@@ -5,6 +5,7 @@ import { hashToken } from "../auth/tokens.js";
 import { ApiError } from "../common/errors.js";
 
 export const KIOSK_COOKIE = "pb_kiosk";
+export const KIOSK_COOKIE_DAYS = 180; // a booth shouldn't need re-pairing between events; revocable any time
 export type KioskReq = FastifyRequest & { kiosk?: { id: string; boothId: string; boothCode: string } };
 
 // The kiosk browser proves itself with an HttpOnly cookie set at pairing. JavaScript on the

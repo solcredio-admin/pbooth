@@ -26,7 +26,13 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
  && cp -r apps/api/dist apps/api/prisma apps/api/prisma.config.ts /out/api/
 
 FROM node:24-bookworm-slim AS runtime
-RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+# pg_dump/pg_restore 17 (must match the server's major version) for database backups.
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates curl \
+ && install -d /usr/share/postgresql-common/pgdg \
+ && curl -fsSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+ && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
+ && apt-get update && apt-get install -y --no-install-recommends postgresql-client-17 \
+ && apt-get purge -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 ARG PBOOTH_VERSION=dev
 ENV NODE_ENV=production PBOOTH_VERSION=$PBOOTH_VERSION NEXT_TELEMETRY_DISABLED=1 \
     HOSTNAME=0.0.0.0 PORT=3000 API_HOST=127.0.0.1 API_PORT=4000 API_INTERNAL_URL=http://127.0.0.1:4000

@@ -59,14 +59,14 @@ export function LoginForm() {
     const data = new FormData(e.currentTarget);
     setBusy(true);
     setError("");
-    const res = await send("POST", "/auth/login", { email: data.get("email"), password: data.get("password") });
+    const res = await send("POST", "/auth/login", { username: data.get("username"), password: data.get("password") });
     if (res.ok) {
       await flight(true);
       location.replace("/dashboard?intro");
       return;
     }
     setBusy(false);
-    setError(res.status === 429 ? "Too many attempts. Try again in 15 minutes." : res.status === 401 || res.status === 400 ? "Wrong email or password." : res.message);
+    setError(res.status === 429 ? "Too many attempts. Try again in 15 minutes." : res.status === 401 || res.status === 400 ? "Wrong username or password." : res.message);
     if (pw.current) { pw.current.value = ""; pw.current.focus(); }
   }
 
@@ -74,7 +74,7 @@ export function LoginForm() {
     <form ref={form} method="post" onSubmit={submit} autoComplete="on">
       <Marks className="logo" alt="pbooth" />
       <h1>Every booth, every guest, every frame.</h1>
-      <label className="cap">Email <input name="email" type="email" autoComplete="username" required autoFocus /></label>
+      <label className="cap">Username <input name="username" type="text" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} required autoFocus /></label>
       <label className="cap">Password <input ref={pw} name="password" type="password" autoComplete="current-password" required /></label>
       <div className="cap err" role="alert">{error}</div>
       <button type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>

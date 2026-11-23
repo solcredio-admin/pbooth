@@ -28,7 +28,7 @@ tools/     simulate-booth.mjs: a SIMULATED booth for development and staging
 ```bash
 cp .env.example .env        # set APP_ORIGIN, POSTGRES_PASSWORD, PBOOTH_BIND
 docker compose up -d --build
-docker compose exec app sh -c "cd /app/api && node dist/cli.js admin:create --email you@example.com"
+docker compose exec app sh -c "cd /app/api && node dist/cli.js admin:create --username you"
 ```
 
 The last command asks for the password (12+ characters) without echoing it. There is no default
@@ -199,15 +199,33 @@ gallery photos"), checked hourly.
 ## Admin account
 
 ```bash
-docker compose exec app sh -c "cd /app/api && node dist/cli.js admin:create --email you@example.com"
+docker compose exec app sh -c "cd /app/api && node dist/cli.js admin:create --username you"
 ```
 
 ```bash
 docker compose exec app sh -c "cd /app/api && node dist/cli.js admin:reset-password"
 ```
 
-`admin:reset-password` signs out every browser. Both commands accept `--password-stdin` for scripts.
+`admin:reset-password` signs out every browser (pass `--username <name>` to reset someone else's,
+which also re-enables them). Both commands accept `--password-stdin` for scripts.
 Changing the password in Settings signs out every *other* browser.
+
+### Users and roles
+
+`admin:create` makes the first account, a **Super admin**. Everyone else is added in Settings → Users
+(username, password of 12+ characters, role), where a Super admin can also change roles, disable or
+enable, reset passwords and remove people.
+
+| Role | Can |
+|---|---|
+| Super admin | Everything, including users, backups and storage |
+| Event admin | Create, edit and run events; galleries and exports; book booths |
+| Booth admin | Manage booths (pairing, agent, hardware); view events, read-only; book booths |
+| Kiosk operator | View events and booths, read-only; open a booth's kiosk on the computer they're signed in on |
+
+The API checks the role on every request; routes are Super-admin-only unless they say otherwise. A
+disabled user, a new role or a reset password signs that person out everywhere at once. You can't
+disable, demote or remove yourself, and there is always at least one active Super admin.
 
 ## Backups
 
@@ -243,7 +261,7 @@ cp .env.example .env    # uncomment the "local development" block
 ```
 
 ```bash
-cd apps/api && npx prisma migrate deploy && pnpm build && pnpm admin admin:create --email you@example.com
+cd apps/api && npx prisma migrate deploy && pnpm build && pnpm admin admin:create --username you
 ```
 
 Then run `pnpm dev:api` and `pnpm dev:web` in two terminals and open http://localhost:3000.

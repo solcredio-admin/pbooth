@@ -3,10 +3,16 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { send } from "@/lib/client-api";
 import type { EventDto } from "@/lib/types";
+import { can, useMe } from "@/lib/roles";
 
 // Name + date is enough to start: the event opens as a draft (6–11 PM, this browser's time zone)
 // and the event page takes it from there.
+// Event editors only; everyone else sees the events, read-only.
 export function QuickEvent() {
+  return can(useMe().role).editEvents ? <QuickEventForm /> : null;
+}
+
+function QuickEventForm() {
   const router = useRouter();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);

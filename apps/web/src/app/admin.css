@@ -281,3 +281,102 @@ main.narrow { max-width: 900px; }
 .palette { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); padding: 0; cursor: pointer; }
 .palette.on { outline: 2px solid var(--ink); outline-offset: 2px; }
 .palette:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+/* Settings: database backups */
+.backup-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.backup-list li { display: grid; grid-template-columns: 1fr auto auto; gap: 16px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); font: 400 13px/1.4 var(--mono); }
+
+/* ---------- Detail pages (one event, one booth): title and status up top, what you edit in the
+   middle (tabs, not one long scroll), status at a glance on the right. ---------- */
+.detail-head { max-width: 1240px; margin: 0 auto; padding: 64px 16px 26px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 28px; align-items: end; }
+.detail-head .back { grid-column: 1 / -1; justify-self: start; }
+.detail-head h1 { margin: 0; font: 300 clamp(38px, 5vw, 64px)/1 var(--serif); letter-spacing: -0.02em; overflow-wrap: anywhere; }
+.detail-head .title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.detail-head .meta { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px; color: var(--muted); }
+.detail-head .head-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
+main.detail { max-width: 1240px; display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
+.detail-main { display: grid; gap: 18px; min-width: 0; }
+.detail-side { display: grid; gap: 16px; position: sticky; top: 80px; max-height: calc(100vh - 96px); overflow: auto; overscroll-behavior: contain; }
+.side-card { background: var(--glass); border: 1px solid var(--line); border-radius: 20px; padding: 18px; display: grid; gap: 12px; }
+.side-card > h2 { margin: 0; font: 500 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.side-card .kv { gap: 8px 16px; font-size: 13px; }
+.side-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.side-list li { display: flex; align-items: center; gap: 10px; font: 400 13px/1.4 var(--mono); }
+.side-list li a { color: inherit; }
+.side-list .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.side-list .dot.on { background: var(--free); box-shadow: 0 0 0 3px color-mix(in srgb, var(--free) 25%, transparent); }
+.side-list .dot.err { background: var(--warn); }
+.side-list .sub { margin-left: auto; color: var(--muted); font-size: 11px; text-transform: uppercase; }
+/* sections moved into the sidebar get the compact card look */
+.detail-side .host { padding: 18px; gap: 12px; border-radius: 20px; }
+.detail-side .host-head { text-align: left; padding: 0; gap: 2px; }
+.detail-side .host-head h2 { font: 500 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.detail-side .host-head .cap { display: none; }
+.detail-side .panel { padding: 14px; border-radius: 14px; }
+.detail-side .panel .actions { justify-content: flex-start; }
+.detail-side .lifecycle .steps { flex-wrap: wrap; }
+/* tabs */
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 5px; border-radius: 999px; background: var(--glass); border: 1px solid var(--line); width: fit-content; max-width: 100%; }
+.tabs button { position: relative; border: 0; background: transparent; color: var(--ink); border-radius: 999px; padding: 8px 16px; cursor: pointer; font: 500 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .03em; }
+.tabs button[aria-selected="true"] { background: var(--ink); color: var(--bg); }
+.tabs button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.tabs .has-err::after { content: ""; position: absolute; top: 6px; right: 7px; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); }
+.fields[hidden], .tab-pane[hidden] { display: none !important; }
+/* sections inside a tab: spaced apart, with compact headings (cards on a dashboard, not page titles) */
+.tab-pane { display: grid; gap: 18px; }
+.detail-main .host { padding: 22px 20px 20px; gap: 16px; border-radius: 22px; }
+.detail-main .host-head { gap: 4px; }
+.detail-main .host-head h2 { font-size: clamp(26px, 2.6vw, 34px); }
+.detail-main .panel { padding: 22px clamp(16px, 2.4vw, 28px) 24px; }
+.detail-main > .host:first-child, .detail-main .tab-pane > .host:first-child { margin-top: 0; }
+@media (max-width: 960px) {
+  .detail-head { grid-template-columns: 1fr; }
+  .detail-head .head-actions { justify-content: flex-start; }
+  main.detail { grid-template-columns: 1fr; }
+  .detail-side { position: static; max-height: none; overflow: visible; }
+}
+
+/* Settings: one column of tabs; Users table */
+main.detail.single { grid-template-columns: minmax(0, 1fr); } /* same 1240px width as every other page */
+.account-kv { margin-bottom: 26px; }
+.users-admin { display: grid; gap: 22px; }
+/* every field has a label, a box and a hint line, so the boxes sit on one line; the button meets them */
+.add-user { align-items: start; }
+.add-user .btn { align-self: start; margin-top: var(--add-btn-top, 22px); }
+.add-user .status-line { flex-basis: 100%; margin: 0; }
+/* role dropdowns in the table: the same underlined style as the form's (the add form already has it) */
+.users-admin td select {
+  appearance: none; font: 400 13px/1.4 var(--mono); color: var(--ink); cursor: pointer;
+  border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background-color: transparent; outline: none;
+  padding: 6px 26px 6px 0; min-width: 140px;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 9px) 55%, calc(100% - 4px) 55%; background-size: 5px 5px; background-repeat: no-repeat;
+  transition: border-color .15s ease;
+}
+.users-admin td select:focus { border-color: var(--ink); }
+.users-admin td select:disabled { cursor: default; opacity: .7; }
+.users-admin td select option { background: var(--bg); color: var(--ink); }
+.users-admin tr.muted td { opacity: .55; }
+.actions-cell { text-align: right; white-space: nowrap; }
+.row-actions { display: inline-flex; gap: 8px; justify-content: flex-end; align-items: center; }
+.row-btn { border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 999px; padding: 4px 12px; cursor: pointer; font: 500 11px/1.4 var(--mono); text-transform: uppercase; transition: background-color .15s ease, border-color .15s ease; }
+.row-btn:hover, .row-btn:focus-visible { background: color-mix(in srgb, var(--ink) 8%, transparent); border-color: color-mix(in srgb, var(--ink) 35%, transparent); outline: none; }
+.row-btn.danger { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.row-btn.danger:hover, .row-btn.danger:focus-visible { background: color-mix(in srgb, var(--warn) 12%, transparent); }
+.pill-toggle { border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 999px; padding: 4px 12px; cursor: pointer; font: 500 11px/1.4 var(--mono); text-transform: uppercase; }
+.pill-toggle.on { color: var(--ink); border-color: color-mix(in srgb, var(--free) 60%, transparent); background: color-mix(in srgb, var(--free) 16%, transparent); }
+.pill-toggle:disabled { cursor: default; opacity: .7; }
+.role-help { font-size: 12px; color: var(--muted); }
+fieldset.bare { border: 0; margin: 0; padding: 0; min-width: 0; display: contents; }
+
+/* Storage and Backups panels: details, then the button, then results, evenly spaced */
+.storage-check, .backups { display: grid; gap: 22px; }
+.storage-check > *, .backups > * { margin: 0; }
+.storage-check .actions, .backups .actions { align-items: center; gap: 14px; }
+
+/* Tabs in their own row above both columns, so the first card and the sidebar start level */
+main.detail.with-tabs { row-gap: 18px; }
+main.detail.with-tabs > .detail-tabs { grid-column: 1 / -1; }
+main.detail.single .tabs { margin-inline: auto; } /* centred like the page title above */
+.detail-head .head-summary { justify-self: end; align-self: end; }
+@media (max-width: 960px) { .detail-head .head-summary { justify-self: start; } }

@@ -7,8 +7,9 @@ import { Public } from "./public.decorator.js";
 import { SESSION_COOKIE } from "./tokens.js";
 import { CONFIG, type Config } from "../config.js";
 import { clientMeta, type Req as Request } from "../common/request.js";
+import { AnyRole } from "./roles.js";
 
-const loginBody = z.object({ email: z.string().trim().email().max(254), password: z.string().min(1).max(256) });
+const loginBody = z.object({ username: z.string().trim().min(1).max(254), password: z.string().min(1).max(256) });
 const passwordBody = z.object({ currentPassword: z.string().min(1).max(256), newPassword: z.string().min(1).max(256) });
 
 @Controller("auth")
@@ -21,7 +22,7 @@ export class AuthController {
   // Per-IP limit on top of the per-account limit in AuthService.
   @RouteConfig({ rateLimit: { max: 10, timeWindow: "15 minutes" } })
   async login(@Body({ schema: loginBody }) body: z.infer<typeof loginBody>, @Req() req: Request, @Res({ passthrough: true }) res: FastifyReply) {
-    const { token, expiresAt, admin } = await this.auth.login(body.email, body.password, clientMeta(req));
+    const { token, expiresAt, admin } = await this.auth.login(body.username, body.password, clientMeta(req));
     res.setCookie(SESSION_COOKIE, token, {
       httpOnly: true,                 // JavaScript can't read it, so XSS can't steal it
       secure: this.cfg.cookieSecure,  // HTTPS-only whenever APP_ORIGIN is https
@@ -32,6 +33,7 @@ export class AuthController {
     return { admin };
   }
 
+  @AnyRole()
   @Post("logout")
   @HttpCode(204)
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: FastifyReply) {
@@ -39,11 +41,13 @@ export class AuthController {
     res.clearCookie(SESSION_COOKIE, { path: "/" });
   }
 
+  @AnyRole()
   @Get("me")
   me(@Req() req: Request) {
-    return { admin: { id: req.admin!.id, email: req.admin!.email } };
+    return { admin: { id: req.admin!.id, username: req.admin!.username, role: req.admin!.role } };
   }
 
+  @AnyRole()
   @Post("password")
   @HttpCode(204)
   @RouteConfig({ rateLimit: { max: 10, timeWindow: "15 minutes" } })

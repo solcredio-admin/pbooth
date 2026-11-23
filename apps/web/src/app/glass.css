@@ -178,8 +178,9 @@ main { display: grid; gap: 40px; padding: 0 16px 140px; max-width: 1240px; margi
   position: fixed; z-index: 20; pointer-events: none;
   left: 50%; bottom: 16px; transform: translateX(-50%);
   width: min(680px, calc(100vw - 32px));
-  display: grid; grid-template-columns: auto 1fr; align-items: start; gap: 4px 22px;
-  background: var(--glass-strong); color: var(--ink);
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 260px); align-items: start; gap: 4px 22px;
+  /* nearly solid: the details must read clearly over bright tiles */
+  background: color-mix(in srgb, var(--bg) 92%, transparent); color: var(--ink);
   border: 1px solid var(--line); border-radius: 18px;
   padding: 14px 20px 16px;
   box-shadow: 0 24px 60px rgba(0,0,0,.25);
@@ -190,14 +191,14 @@ main { display: grid; gap: 40px; padding: 0 16px 140px; max-width: 1240px; margi
 .ticket h3 { grid-row: 2; }
 .ticket dl { grid-row: 2; }
 .ticket[hidden] { display: none; }
-.ticket h3 { margin: 2px 0 0; font: 300 44px/1 var(--serif); }
+.ticket h3 { margin: 2px 0 0; font: 300 clamp(28px, 3.4vw, 40px)/1.05 var(--serif); overflow-wrap: anywhere; min-width: 0; }
 .ticket dl { margin: 0; display: grid; grid-template-columns: 78px 1fr; gap: 5px 10px; padding-left: 20px; border-left: 1px solid var(--line); }
 @media (max-width: 520px) {
   .ticket { grid-template-columns: 1fr; }
   .ticket dl { grid-row: auto; padding: 10px 0 0; border-left: 0; border-top: 1px solid var(--line); }
 }
 .ticket dt { color: var(--muted); font-size: 10px; text-transform: uppercase; padding-top: 1px; }
-.ticket dd { margin: 0; font: 400 11.5px/1.45 var(--mono); word-break: break-all; white-space: pre-line; }
+.ticket dd { margin: 0; font: 400 12px/1.5 var(--mono); overflow-wrap: anywhere; white-space: pre-line; }
 
 /* ---------- login: the still version of the gradient, one glass card ---------- */
 .login { min-height: 100vh; display: grid; }

@@ -8,7 +8,7 @@ import { dummyHash, hashPassword, passwordProblem, verifyPassword } from "./pass
 import { hashToken, newToken } from "./tokens.js";
 
 const TOUCH_EVERY_MS = 5 * 60_000;
-// Across all IPs: a distributed guesser can't hammer the single admin account either.
+// Across all IPs: a distributed guesser can't hammer the accounts either.
 const ACCOUNT_FAILURE_LIMIT = 20;
 
 @Injectable()
@@ -19,8 +19,8 @@ export class AuthService {
     @Inject(CONFIG) private readonly cfg: Config,
   ) {}
 
-  async login(email: string, password: string, meta: { ip?: string; userAgent?: string }) {
-    email = email.trim().toLowerCase();
+  async login(username: string, password: string, meta: { ip?: string; userAgent?: string }) {
+    username = username.trim().toLowerCase();
     const since = new Date(Date.now() - this.cfg.LOGIN_WINDOW_MINUTES * 60_000);
     const recentFailures = await this.db.auditLog.count({
       where: { action: "auth.login.failed", at: { gte: since } },
@@ -29,11 +29,12 @@ export class AuthService {
       throw new ApiError(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMITED", "Too many failed sign-ins. Try again later.");
     }
 
-    const admin = await this.db.admin.findUnique({ where: { email } });
+    const admin = await this.db.admin.findUnique({ where: { username } });
     const ok = await verifyPassword(admin?.passwordHash ?? (await dummyHash()), password);
-    if (!admin || !ok) {
+    // A disabled account fails exactly like a wrong password: nothing tells a guesser it exists.
+    if (!admin || !ok || admin.disabled) {
       await this.audit.record({ actor: "anonymous", action: "auth.login.failed", ip: meta.ip });
-      throw new ApiError(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS", "Wrong email or password");
+      throw new ApiError(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS", "Wrong username or password");
     }
 
     const token = newToken();
@@ -44,20 +45,20 @@ export class AuthService {
     // Housekeeping: drop this admin's expired sessions.
     await this.db.adminSession.deleteMany({ where: { adminId: admin.id, expiresAt: { lt: new Date() } } });
     await this.audit.record({ actor: `admin:${admin.id}`, action: "auth.login", ip: meta.ip });
-    return { token, expiresAt, admin: { id: admin.id, email: admin.email } };
+    return { token, expiresAt, admin: { id: admin.id, username: admin.username, role: admin.role } };
   }
 
   async resolve(token: string | undefined): Promise<AuthedAdmin | null> {
     if (!token) return null;
     const session = await this.db.adminSession.findUnique({
       where: { tokenHash: hashToken(token) },
-      include: { admin: { select: { id: true, email: true } } },
+      include: { admin: { select: { id: true, username: true, role: true, disabled: true } } },
     });
-    if (!session || session.expiresAt <= new Date()) return null;
+    if (!session || session.expiresAt <= new Date() || session.admin.disabled) return null;
     if (Date.now() - session.lastUsedAt.getTime() > TOUCH_EVERY_MS) {
       await this.db.adminSession.update({ where: { id: session.id }, data: { lastUsedAt: new Date() } });
     }
-    return { id: session.admin.id, email: session.admin.email, sessionId: session.id };
+    return { id: session.admin.id, username: session.admin.username, role: session.admin.role, sessionId: session.id };
   }
 
   async logout(admin: AuthedAdmin, ip?: string) {

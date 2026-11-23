@@ -23,7 +23,7 @@ const HELP: Record<EventStatus, string> = {
 };
 
 // Status steps plus the moves allowed from here (the API enforces the same rules).
-export function Lifecycle({ event }: { event: EventDto }) {
+export function Lifecycle({ event, canEdit = true }: { event: EventDto; canEdit?: boolean }) {
   const router = useRouter();
   const dialog = useRef<HTMLDialogElement>(null);
   const [pending, setPending] = useState<Transition | null>(null);
@@ -51,7 +51,7 @@ export function Lifecycle({ event }: { event: EventDto }) {
         ))}
       </ol>
       <p>{HELP[event.status]}</p>
-      {event.actions.length > 0 && (
+      {canEdit && event.actions.length > 0 && (
         <div className="actions">
           {event.actions.map((t) => <button key={t} type="button" className={ACTIONS[t].cls} onClick={() => ask(t)}>{ACTIONS[t].label}</button>)}
         </div>

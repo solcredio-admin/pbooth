@@ -6,8 +6,14 @@ import { useMemo, useRef, useState, type FormEvent } from "react";
 import { send } from "@/lib/client-api";
 import { useLiveBooths } from "@/lib/live";
 import { DeleteZone } from "./DeleteZone";
+import { Tabs } from "./Tabs";
+import { OpenKioskHere } from "./OpenKioskHere";
+import { can, useMe } from "@/lib/roles";
 import { BOOTH_LABEL, bytes, STATUS_LABEL } from "@/lib/format";
 import type { BoothDto, CameraConfig, EventDto, HwStatus, PrinterConfig } from "@/lib/types";
+
+type BoothTab = "hardware" | "events" | "connect";
+const BOOTH_TABS: { id: BoothTab; label: string }[] = [{ id: "hardware", label: "Hardware" }, { id: "events", label: "Events" }, { id: "connect", label: "Connect" }];
 
 const hw = (s?: HwStatus) => (s ? `${s.name ?? "Unnamed"} · ${s.status}` : "Not reported yet");
 
@@ -16,24 +22,54 @@ export function BoothDetail({ initial, events, origin }: { initial: BoothDto; ev
   const { booths, connected } = useLiveBooths(seed, (b) => b.id === initial.id);
   const b = booths[0] ?? initial;
   const t = b.device?.telemetry ?? {};
+  const may = can(useMe().role);
+  // Nothing connected yet? Start where the setup happens; otherwise show the hardware.
+  const [tab, setTab] = useState<BoothTab>(() => (initial.device || initial.kiosk ? "hardware" : "connect"));
 
   return (
     <>
-      <section className="hero compact">
+      <section className="detail-head">
         <Link className="plain cap back" href="/booths">← Booths</Link>
-        <h1>{b.name}</h1>
-        <div className="meta cap">
-          <span>{b.code}</span>
-          <span><span className={"live-dot" + (connected ? " on" : "")} aria-hidden="true" />{connected ? "Live" : "Connecting…"}</span>
-          {b.liveEvent && <span>At <Link href={`/events/${b.liveEvent.id}/booths`}>{b.liveEvent.name}</Link></span>}
+        <div>
+          <div className="title-row">
+            <h1>{b.name}</h1>
+            <span className={`pill b-${b.status}`}>{BOOTH_LABEL[b.status]}</span>
+            {b.simulated && <span className="sim-badge">Simulated</span>}
+          </div>
+          <div className="meta cap">
+            <span>{b.code}</span>
+            <span><span className={"live-dot" + (connected ? " on" : "")} aria-hidden="true" />{connected ? "Live" : "Connecting…"}</span>
+            <span>Last seen <Ago iso={b.lastSeenAt} /></span>
+          </div>
         </div>
-        <span className={`pill b-${b.status}`}>{BOOTH_LABEL[b.status]}</span>
-        {b.simulated && <span className="sim-badge big">Simulated booth: not real hardware</span>}
+        <div className="head-actions">
+          {b.liveEvent && <Link className="btn go" href={`/events/${b.liveEvent.id}/booths`}>Live at {b.liveEvent.name}</Link>}
+          {may.openKiosk && <OpenKioskHere boothId={b.id} boothCode={b.code} className="btn ghost" />}
+        </div>
       </section>
-      <main className="narrow">
-        <section className="host" aria-labelledby="conn">
-          <div className="host-head"><span className="cap">What the booth reports each time it checks in</span><h2 id="conn">Connection</h2></div>
-          <div className="panel">
+      <main className="detail with-tabs">
+        <div className="detail-tabs"><Tabs label="Booth settings" tabs={BOOTH_TABS} value={tab} onChange={setTab} /></div>
+        <div className="detail-main">
+          <div className="tab-pane" hidden={tab !== "hardware"}><Hardware booth={b} readOnly={!may.manageBooths} /></div>
+          <div className="tab-pane" hidden={tab !== "events"}><Assignments booth={b} events={events} readOnly={!may.bookBooths} /></div>
+          <div className="tab-pane" hidden={tab !== "connect"}>
+            {may.manageBooths ? (
+              <>
+                <KioskPairing booth={b} origin={origin} />
+                <Enroll booth={b} origin={origin} />
+              </>
+            ) : (
+              <section className="host" aria-labelledby="open-here">
+                <div className="host-head"><span className="cap">On the booth computer, signed in as you</span><h2 id="open-here">Open the kiosk</h2></div>
+                <div className="panel"><div className="actions"><OpenKioskHere boothId={b.id} boothCode={b.code} /></div>
+                  <p className="cap center">This browser becomes {b.name}&apos;s guest screen. Pairing another screen signs out the old one.</p></div>
+              </section>
+            )}
+          </div>
+        </div>
+        <aside className="detail-side" aria-label="Booth status">
+          <section className="side-card" aria-labelledby="side-conn">
+            <h2 id="side-conn">Connection</h2>
             {!b.device && !b.kiosk ? (
               <div className="empty-state">
                 <h3>{b.state === "REVOKED" ? "Access revoked." : "Nothing connected yet."}</h3>
@@ -68,17 +104,23 @@ export function BoothDetail({ initial, events, origin }: { initial: BoothDto; ev
                 </dl>
               </>
             )}
-          </div>
-        </section>
-
-        <KioskPairing booth={b} origin={origin} />
-        <Enroll booth={b} origin={origin} />
-        <Hardware booth={b} />
-        <Assignments booth={b} events={events} />
-        <Revoke booth={b} />
-        <DeleteZone what="booth" name={b.name} path={`/booths/${b.id}/delete`} back="/booths"
-          lost="Removes the booth, disconnects its computer and kiosk, and takes it off every event. Photos it already took stay with their events."
-          blocked={b.liveEvent ? `This booth is serving “${b.liveEvent.name}” right now. Wrap up the event or take the booth off it first.` : undefined} />
+          </section>
+          <section className="side-card" aria-labelledby="side-event">
+            <h2 id="side-event">Event</h2>
+            {b.liveEvent ? (
+              <p><span className="live-dot on" aria-hidden="true" />Live at <Link href={`/events/${b.liveEvent.id}`}>{b.liveEvent.name}</Link></p>
+            ) : b.nextEvent ? (
+              <p>Next: <Link href={`/events/${b.nextEvent.id}`}>{b.nextEvent.name}</Link><br /><span className="cap">{new Date(b.nextEvent.startsAt).toLocaleString()}</span></p>
+            ) : (
+              <p className="cap">Not booked on an upcoming event.</p>
+            )}
+            <button type="button" className="plain cap" onClick={() => setTab("events")}>Manage bookings →</button>
+          </section>
+          {may.manageBooths && <Revoke booth={b} />}
+          {may.manageBooths && <DeleteZone what="booth" name={b.name} path={`/booths/${b.id}/delete`} back="/booths"
+            lost="Removes the booth, disconnects its computer and kiosk, and takes it off every event. Photos it already took stay with their events."
+            blocked={b.liveEvent ? `This booth is serving “${b.liveEvent.name}” right now. Wrap up the event or take the booth off it first.` : undefined} />}
+        </aside>
       </main>
     </>
   );
@@ -179,7 +221,7 @@ function Enroll({ booth, origin }: { booth: BoothDto; origin: string }) {
   );
 }
 
-function Hardware({ booth }: { booth: BoothDto }) {
+function Hardware({ booth, readOnly }: { booth: BoothDto; readOnly: boolean }) {
   const router = useRouter();
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -218,6 +260,7 @@ function Hardware({ booth }: { booth: BoothDto }) {
       <div className="host-head"><span className="cap">Sent to the booth as part of its config</span><h2 id="hw">Booth, camera &amp; printer</h2></div>
       <div className="panel">
         <form className="form" onSubmit={save} key={booth.configVersion + booth.name}>
+          <fieldset className="bare" disabled={readOnly}>
           <div className="fields">
             <label className="field"><span>Name</span><input name="name" defaultValue={booth.name} maxLength={80} required /></label>
             <label className="field"><span>Notes</span><input name="notes" defaultValue={booth.notes ?? ""} maxLength={500} placeholder="Kit contents, quirks…" /></label>
@@ -269,17 +312,20 @@ function Hardware({ booth }: { booth: BoothDto }) {
               <select name="printOrientation" defaultValue={booth.printer.orientation}><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select>
             </label>
           </div>
-          <div className="form-foot">
-            <button className="btn" type="submit" disabled={busy}>{busy ? "Saving…" : "Save"}</button>
-            <span className={"cap status " + (status?.ok ? "ok" : "bad")} role="status">{status?.text}</span>
-          </div>
+          </fieldset>
+          {readOnly ? <p className="cap center">Read-only: booth admins change hardware settings.</p> : (
+            <div className="form-foot">
+              <button className="btn" type="submit" disabled={busy}>{busy ? "Saving…" : "Save"}</button>
+              <span className={"cap status " + (status?.ok ? "ok" : "bad")} role="status">{status?.text}</span>
+            </div>
+          )}
         </form>
       </div>
     </section>
   );
 }
 
-function Assignments({ booth, events }: { booth: BoothDto; events: EventDto[] }) {
+function Assignments({ booth, events, readOnly }: { booth: BoothDto; events: EventDto[]; readOnly: boolean }) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -305,12 +351,12 @@ function Assignments({ booth, events }: { booth: BoothDto; events: EventDto[] })
               <li key={e.id}>
                 <Link href={`/events/${e.id}/booths`}>{e.name}</Link>
                 <span className={`pill s-${e.status}`}>{STATUS_LABEL[e.status]}</span>
-                <button type="button" className="plain cap" disabled={busy} onClick={() => run("DELETE", `/events/${e.id}/booths/${booth.id}`)}>Remove</button>
+                {!readOnly && <button type="button" className="plain cap" disabled={busy} onClick={() => run("DELETE", `/events/${e.id}/booths/${booth.id}`)}>Remove</button>}
               </li>
             ))}
           </ul>
         ) : <p className="cap center">Not booked for any event.</p>}
-        {booth.state !== "REVOKED" && choices.length > 0 && (
+        {!readOnly && booth.state !== "REVOKED" && choices.length > 0 && (
           <form className="inline-form" onSubmit={(e) => { e.preventDefault(); const id = String(new FormData(e.currentTarget).get("eventId") ?? ""); if (id) run("POST", `/events/${id}/booths`, { boothId: booth.id }); }}>
             <label className="field"><span>Book for</span>
               <select name="eventId" defaultValue="">

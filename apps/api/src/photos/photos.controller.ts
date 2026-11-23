@@ -7,6 +7,7 @@ import { PhotosService } from "./photos.service.js";
 import { BoothAuthGuard, type BoothReq } from "./booth-auth.guard.js";
 import { StorageService } from "../storage/storage.service.js";
 import type { Req as Request } from "../common/request.js";
+import { Allow } from "../auth/roles.js";
 
 const uuid = { schema: z.string().uuid() };
 const authorizeSchema = z.object({
@@ -18,6 +19,7 @@ const authorizeSchema = z.object({
 });
 const actor = (r: Request) => `admin:${r.admin!.id}`;
 
+@Allow("EVENTS")
 @Controller("photos")
 export class PhotosController {
   constructor(private readonly photos: PhotosService) {}
@@ -45,6 +47,7 @@ export class PhotosController {
   remove(@Param("id", uuid) id: string, @Req() r: Request) { return this.photos.deletePhotos({ id }, actor(r), "deleted by admin"); }
 }
 
+@Allow("EVENTS")
 @Controller("events/:eventId")
 export class EventPhotosController {
   constructor(private readonly photos: PhotosService) {}

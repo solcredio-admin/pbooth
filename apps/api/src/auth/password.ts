@@ -12,6 +12,6 @@ export function passwordProblem(pw: string): string | null {
   return null;
 }
 
-// Verified against when the email doesn't exist, so a wrong email takes as long as a wrong password.
+// Verified against when the username doesn't exist, so a wrong username takes as long as a wrong password.
 let dummy: Promise<string> | null = null;
 export const dummyHash = () => (dummy ??= hashPassword("not-a-real-password-just-timing"));

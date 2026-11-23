@@ -27,6 +27,9 @@ const config: NextConfig = {
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "Referrer-Policy", value: "same-origin" },
       { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=()" },
+      // HTTPS only from here on (browsers ignore this over plain http, so local dev is unaffected)
+      { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
+      { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
     ];
     return [
       { source: "/:path*", headers: security },

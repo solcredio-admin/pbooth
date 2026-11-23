@@ -134,8 +134,9 @@ export function Dashboard({ events, summary, booths: initialBooths }: { events: 
             <h3>{hover.e.name}</h3>
             <dl>
               <dt>When</dt><dd>{longDate(hover.e)}{"\n"}{timeRange(hover.e)}</dd>
-              <dt>Venue</dt><dd>{hover.e.venueName ?? "—"}</dd>
+              <dt>Venue</dt><dd>{[hover.e.venueName, hover.e.venueAddress].filter(Boolean).join("\n") || "—"}</dd>
               <dt>Organizer</dt><dd>{hover.e.organizerName ?? "—"}</dd>
+              <dt>Contact</dt><dd>{[hover.e.contactPhone, hover.e.contactEmail].filter(Boolean).join("\n") || "—"}</dd>
             </dl>
           </>
         )}

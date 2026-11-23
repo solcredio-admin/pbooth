@@ -57,7 +57,21 @@
   border: 1.5px dashed rgba(255, 255, 255, .55); border-radius: 6px;
   box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .38);
 }
-.ks-ready .k-frame::after, .ks-camera .k-frame::after { content: ""; position: absolute; inset: 0; background: linear-gradient(transparent 40%, rgba(0, 0, 0, .65)); }
+/* Words over the live camera stay readable whatever is in the picture (a white wall, a bright window):
+   light text on a translucent glass panel just behind the words; the rest of the preview stays clear. */
+.ks-welcome, .ks-ready, .ks-camera { --k-ink: #f6f5f0; }
+.ks-ready .k-panel, .ks-camera .k-panel, .ks-camera .k-center {
+  background: rgba(8, 9, 8, .5); border: 1px solid rgba(255, 255, 255, .14); border-radius: 28px;
+  -webkit-backdrop-filter: blur(14px) saturate(1.1); backdrop-filter: blur(14px) saturate(1.1);
+  box-shadow: 0 20px 60px -20px rgba(0, 0, 0, .5);
+}
+/* The welcome screen keeps its big full-screen title over the camera; a deeper shadow carries it. */
+.k-glass { display: grid; justify-items: center; gap: 26px; }
+:is(.ks-welcome, .ks-ready, .ks-camera) :is(.k-cap, .k-hero, .k-title, .k-text, .k-ready-count, .k-consent, .k-error) {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .7), 0 2px 18px rgba(0, 0, 0, .35);
+}
+:is(.ks-welcome, .ks-ready, .ks-camera) :is(.k-cap, .k-text, .k-consent) { opacity: 1; }
+.ks-welcome :is(.k-cap, .k-hero, .k-text) { text-shadow: 0 2px 4px rgba(0, 0, 0, .75), 0 4px 40px rgba(0, 0, 0, .6), 0 0 90px rgba(0, 0, 0, .45); }
 .ks-ready .k-panel { align-self: end; margin-bottom: 6vh; }
 
 .k-tap { position: relative; z-index: 2; inset: 0; width: 100%; height: 100%; border: 0; background: transparent; color: inherit; display: grid; place-content: center; justify-items: center; gap: 26px; text-align: center; cursor: pointer; padding: 32px; }
@@ -83,7 +97,7 @@
 @media (prefers-reduced-motion: reduce) { .k-tap .k-text, .k-count { animation: none; } }
 
 /* multi-shot + event template */
-.k-shot { position: absolute; top: 4vh; left: 50%; transform: translateX(-50%); z-index: 3; margin: 0; padding: 8px 18px; border-radius: 999px; background: rgba(0, 0, 0, .45); color: #fff; font: 600 16px/1.3 var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+.k-shot { position: absolute; top: 4vh; left: 50%; transform: translateX(-50%); z-index: 3; margin: 0; padding: 8px 18px; border-radius: 999px; background: rgba(0, 0, 0, .62); text-shadow: 0 1px 2px rgba(0, 0, 0, .6); color: #fff; font: 600 16px/1.3 var(--mono); text-transform: uppercase; letter-spacing: .06em; }
 .k-review { grid-template-columns: auto minmax(260px, 420px); align-items: center; gap: 4vw; }
 .k-design { max-height: 86vh; max-width: 56vw; border-radius: 6px; box-shadow: 0 30px 90px -20px rgba(0, 0, 0, .75); -webkit-user-drag: none; }
 .k-design.final { max-height: 62vh; max-width: 80vw; }
@@ -113,3 +127,25 @@
 .k-qr-title { margin: 0 0 6px; font: 300 clamp(26px, 3vw, 38px)/1.05 var(--serif); text-align: left; }
 .k-consent { margin: 0; max-width: 52ch; font: 400 13px/1.5 var(--mono); opacity: .7; }
 .k-done .k-design.final { max-height: 46vh; }
+
+/* The photo just taken, full screen for a moment before the next countdown (multi-photo sessions). */
+.k-peek { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; background: #000; animation: k-fade .25s ease-out both; }
+.k-peek img { width: 100%; height: 100%; object-fit: contain; display: block; }
+@keyframes k-fade { from { opacity: 0; } }
+
+/* Welcome: the event's name as a clear badge above the big title. */
+.k-event {
+  display: inline-block; padding: 10px 22px; border-radius: 999px;
+  font: 600 clamp(16px, 2.2vw, 28px)/1.2 var(--mono); letter-spacing: .12em; text-transform: uppercase;
+  color: var(--k-accent); background: rgba(8, 9, 8, .55); border: 1.5px solid color-mix(in srgb, var(--k-accent) 70%, transparent);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); text-shadow: none;
+}
+/* Get ready: one clear order of importance. */
+.k-ready { gap: 18px; }
+.k-ready .k-eyebrow { color: var(--k-accent); letter-spacing: .14em; font-size: 14px; }
+.k-ready .k-title { font-size: clamp(56px, 9vw, 120px); }
+.k-ready .k-ready-count { display: flex; align-items: baseline; gap: 12px; font: 500 clamp(16px, 1.8vw, 20px)/1 var(--mono); text-transform: uppercase; letter-spacing: .1em; }
+.k-ready .k-ready-count b { font: 600 clamp(44px, 6vw, 72px)/1 var(--mono); color: var(--k-accent); letter-spacing: 0; min-width: 1.2ch; text-align: center; }
+.k-ready .k-text { font-size: clamp(17px, 1.9vw, 22px); max-width: 40ch; }
+.k-ready .k-text b { color: var(--k-accent); font-weight: 600; }
+.k-ready .k-consent { font-size: 12px; opacity: .65 !important; max-width: 60ch; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, .16); }

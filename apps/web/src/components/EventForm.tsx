@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { send } from "@/lib/client-api";
 import type { EventConfig, EventDto } from "@/lib/types";
 import { TemplatePreview } from "./TemplatePreview";
+import { Tabs } from "./Tabs";
 
 // One-click colour pairs for the design (page colour, accent).
 const PALETTES = [
@@ -25,6 +26,18 @@ const STYLE_OPTIONS = {
 type StyleKey = keyof typeof STYLE_OPTIONS;
 const STYLE_LABEL: Record<StyleKey, string> = { pattern: "Background", frameStyle: "Frame", photoStyle: "Photo edges", fontStyle: "Footer type" };
 
+// The form's sections, one at a time. Every field stays in the form (hidden panes still submit).
+type Tab = "event" | "guest" | "design" | "prints";
+const TABS: { id: Tab; label: string }[] = [
+  { id: "event", label: "Event" }, { id: "guest", label: "Guest screen" }, { id: "design", label: "Photo design" }, { id: "prints", label: "Prints & gallery" },
+];
+const TAB_OF: Record<string, Tab> = {
+  name: "event", organizerName: "event", contactPhone: "event", contactEmail: "event", venueName: "event", venueAddress: "event", date: "event", startTime: "event", endTime: "event", timeZone: "event",
+  welcomeTitle: "guest", welcomeMessage: "guest", primaryColor: "guest", accentColor: "guest", countdownSeconds: "guest", shotsPerSession: "guest", captureIntervalSeconds: "guest",
+  layout: "design", pattern: "design", frameStyle: "design", photoStyle: "design", fontStyle: "design", footerText: "design", showDate: "design",
+  printEnabled: "prints", printCopies: "prints", galleryEnabled: "prints", galleryRetentionDays: "prints", saveOriginals: "prints",
+};
+
 const DEFAULTS: EventConfig = {
   welcomeTitle: "Strike a pose", welcomeMessage: "Tap anywhere to start", primaryColor: "#0b0c0a", accentColor: "#c6f36b",
   countdownSeconds: 3, shotsPerSession: 3, captureIntervalSeconds: 3, layout: "landscape", pattern: "none", frameStyle: "line", photoStyle: "rounded", fontStyle: "serif", footerText: "", showDate: true, printEnabled: false, printCopies: 1, galleryEnabled: true, galleryRetentionDays: 30, saveOriginals: false,
@@ -41,9 +54,9 @@ function Field({ name, label, error, hint, wide, children }: { name: string; lab
 }
 
 // Create and edit share one form. Times are entered on the venue's clock; the API stores exact instants.
-export function EventForm({ event }: { event?: EventDto }) {
+export function EventForm({ event, canEdit = true }: { event?: EventDto; canEdit?: boolean }) {
   const router = useRouter();
-  const readOnly = event?.status === "ARCHIVED";
+  const readOnly = event?.status === "ARCHIVED" || !canEdit;
   // Zone list and default come from the browser (the server runs in UTC), so they're filled in after mount.
   const [zones, setZones] = useState<{ list: string[]; mine: string } | null>(null);
   useEffect(() => setZones({ list: Intl.supportedValuesOf("timeZone"), mine: Intl.DateTimeFormat().resolvedOptions().timeZone }), []);
@@ -64,6 +77,8 @@ export function EventForm({ event }: { event?: EventDto }) {
   };
   const previewDate = look.date ? new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "long", day: "numeric", year: "numeric" }).format(new Date(`${look.date}T12:00:00Z`)) : "Event date";
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [tab, setTab] = useState<Tab>("event");
+  const errorTabs = [...new Set(Object.keys(errors).map((k) => TAB_OF[k]).filter(Boolean))];
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -75,7 +90,7 @@ export function EventForm({ event }: { event?: EventDto }) {
     const str = (k: string) => String(f.get(k) ?? "");
     const num = (k: string) => Number(f.get(k));
     const body = {
-      name: str("name"), organizerName: str("organizerName"), venueName: str("venueName"), venueAddress: str("venueAddress"),
+      name: str("name"), organizerName: str("organizerName"), contactPhone: str("contactPhone"), contactEmail: str("contactEmail"), venueName: str("venueName"), venueAddress: str("venueAddress"),
       date: str("date"), startTime: str("startTime"), endTime: str("endTime"), timeZone: str("timeZone"),
       config: {
         welcomeTitle: str("welcomeTitle"), welcomeMessage: str("welcomeMessage"),
@@ -94,6 +109,8 @@ export function EventForm({ event }: { event?: EventDto }) {
     setBusy(false);
     if (!res.ok) {
       setErrors(res.fields);
+      const first = Object.keys(res.fields).map((k) => TAB_OF[k]).find(Boolean);
+      if (first) setTab(first); // jump to the section with the problem
       setStatus({ ok: false, text: Object.keys(res.fields).length ? "Check the highlighted fields." : res.message });
       return;
     }
@@ -108,14 +125,20 @@ export function EventForm({ event }: { event?: EventDto }) {
 
   return (
     <form className="form" onSubmit={submit} onChange={onFormChange} noValidate>
+      <Tabs label="Event settings" tabs={TABS} value={tab} onChange={setTab} errors={errorTabs} />
       <fieldset disabled={readOnly || busy}>
-        <div className="fields">
-          <h3>The event</h3>
+        <div className="fields" hidden={tab !== "event"}>
           <Field name="name" label="Event name" error={errors.name} wide>
             <input {...attrs("name")} defaultValue={event?.name} required maxLength={120} autoFocus={!event} placeholder="Reyes Wedding" />
           </Field>
           <Field name="organizerName" label="Client / organizer" error={errors.organizerName}>
             <input {...attrs("organizerName")} defaultValue={event?.organizerName ?? ""} maxLength={120} />
+          </Field>
+          <Field name="contactPhone" label="Contact phone" error={errors.contactPhone} hint="Who to call on the day">
+            <input {...attrs("contactPhone")} type="tel" inputMode="tel" autoComplete="off" defaultValue={event?.contactPhone ?? ""} maxLength={40} placeholder="+63 917 123 4567" />
+          </Field>
+          <Field name="contactEmail" label="Contact email" error={errors.contactEmail}>
+            <input {...attrs("contactEmail")} type="email" inputMode="email" autoComplete="off" defaultValue={event?.contactEmail ?? ""} maxLength={254} placeholder="client@example.com" />
           </Field>
           <Field name="venueName" label="Venue" error={errors.venueName}>
             <input {...attrs("venueName")} defaultValue={event?.venueName ?? ""} maxLength={160} />
@@ -138,7 +161,8 @@ export function EventForm({ event }: { event?: EventDto }) {
             <input {...attrs("endTime")} type="time" defaultValue={event?.local.endTime ?? "23:00"} required />
           </Field>
 
-          <h3>Guest experience</h3>
+        </div>
+        <div className="fields" hidden={tab !== "guest"}>
           <Field name="welcomeTitle" label="Welcome title" error={errors.welcomeTitle}>
             <input {...attrs("welcomeTitle")} defaultValue={cfg.welcomeTitle} maxLength={80} />
           </Field>
@@ -163,7 +187,8 @@ export function EventForm({ event }: { event?: EventDto }) {
             <input {...attrs("captureIntervalSeconds")} type="number" min={1} max={10} defaultValue={cfg.captureIntervalSeconds} />
           </Field>
 
-          <h3>Photo design</h3>
+        </div>
+        <div className="fields" hidden={tab !== "design"}>
           <div className="wide design-row">
             <div className="design-fields">
               <Field name="layout" label="Layout" error={errors.layout} hint="Everything prints on 4×6 (4R) paper">
@@ -202,7 +227,8 @@ export function EventForm({ event }: { event?: EventDto }) {
               pattern={look.pattern} frameStyle={look.frameStyle} photoStyle={look.photoStyle} fontStyle={look.fontStyle} />
           </div>
 
-          <h3>Prints and gallery</h3>
+        </div>
+        <div className="fields" hidden={tab !== "prints"}>
           <label className="check"><input type="checkbox" name="printEnabled" defaultChecked={cfg.printEnabled} /><span>Print photos at the booth</span></label>
           <Field name="printCopies" label="Copies per session" error={errors.printCopies}>
             <input {...attrs("printCopies")} type="number" min={1} max={5} defaultValue={cfg.printCopies} />
@@ -217,7 +243,7 @@ export function EventForm({ event }: { event?: EventDto }) {
       </fieldset>
       <div className="form-foot">
         {!readOnly && <button className="btn" type="submit" disabled={busy}>{busy ? "Saving…" : event ? "Save changes" : "Create event"}</button>}
-        {readOnly && <span className="cap">Archived events are read-only.</span>}
+        {readOnly && <span className="cap">{canEdit ? "Archived events are read-only." : "Read-only: event admins change event settings."}</span>}
         <span className={"cap status " + (status?.ok ? "ok" : "bad")} role="status">{status?.text}</span>
       </div>
     </form>

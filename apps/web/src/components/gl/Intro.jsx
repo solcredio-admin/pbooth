@@ -10,6 +10,10 @@ import { useEffect, useState } from "react";
 const HOLD = 2000;      // ms of liquid metal on screen before clearing out
 const FAIL_HOLD = 1200; // ms if the metal can't load: still a proper beat, never a skip
 const LEAVE = 800;      // ms: matches the .leave transition in style.css
+const FADE = 900;       // ms: the metal's fade-in (.liquid .metal); the plain mark stays until it's done
+
+// Paper Shaders needs WebGL 2. Without it (GPU off, locked-down machines) the plain mark plays the beat.
+const hasWebGL = () => { try { return !!document.createElement("canvas").getContext("webgl2"); } catch { return false; } };
 
 const uniforms = (liquid) => ({
   u_image: liquid,
@@ -31,7 +35,9 @@ const uniforms = (liquid) => ({
 
 export default function Intro({ liquid, marks, caption, onLeave, onDone }) {
   const [u] = useState(() => uniforms(liquid));
+  const [webgl] = useState(hasWebGL);
   const [metal, setMetal] = useState(false);      // decoded and mounted: fade it in
+  const [covered, setCovered] = useState(false);  // metal fully in: only now let the plain mark go
   const [held, setHeld] = useState(false);
   const [loaded, setLoaded] = useState(() => !!window.pbLoaded);
   const leaving = held && loaded;
@@ -44,16 +50,18 @@ export default function Intro({ liquid, marks, caption, onLeave, onDone }) {
     const img = new Image();
     img.src = liquid;
     let t;
+    if (!webgl) { t = setTimeout(() => setHeld(true), FAIL_HOLD); return () => { removeEventListener("pb:loaded", onLoaded); clearTimeout(cap); clearTimeout(t); }; }
     img.decode()
       .then(() => requestAnimationFrame(() => requestAnimationFrame(() => setMetal(true))))
       .catch(() => { t = setTimeout(() => setHeld(true), FAIL_HOLD); });
     return () => { removeEventListener("pb:loaded", onLoaded); clearTimeout(cap); clearTimeout(t); };
-  }, [liquid]);
+  }, [liquid, webgl]);
 
   useEffect(() => {
     if (!metal) return;
+    const c = setTimeout(() => setCovered(true), FADE);
     const t = setTimeout(() => setHeld(true), HOLD);
-    return () => clearTimeout(t);
+    return () => { clearTimeout(c); clearTimeout(t); };
   }, [metal]);
 
   useEffect(() => {
@@ -67,14 +75,14 @@ export default function Intro({ liquid, marks, caption, onLeave, onDone }) {
   return (
     <div className="intro-stage">
       <div className="liquid">
-        {marks.map((m) => <img key={m.src} className={m.cls + (metal ? " gone" : "")} src={m.src} alt="" decoding="sync" />)}
-        <ShaderMount
+        {marks.map((m) => <img key={m.src} className={m.cls + (covered ? " gone" : "")} src={m.src} alt="" decoding="sync" />)}
+        {webgl && <ShaderMount
           className={"metal" + (metal ? " on" : "")}
           fragmentShader={liquidMetalFragmentShader}
           uniforms={u}
           mipmaps={["u_image"]}
           speed={1}
-        />
+        />}
       </div>
       <div className="cap" role="status">{caption}</div>
     </div>
