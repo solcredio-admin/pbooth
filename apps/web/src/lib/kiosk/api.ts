@@ -11,7 +11,7 @@ export interface KioskConfig {
   event: null | {
     id: string; name: string; timeZone: string; startsAt: string; endsAt: string;
     // self-service locations: a paid session needs a voucher (QR payment comes later); free mode skips it
-    selfService?: { priceCentavos: number; currency: string; freeSessions: boolean; qr?: boolean } | null;
+    selfService?: { priceCentavos: number; currency: string; freeSessions: boolean; vouchers?: boolean; qr?: boolean } | null;
     guest: null | { welcomeTitle: string; welcomeMessage: string; primaryColor: string; accentColor: string; countdownSeconds: number; shotsPerSession: number; captureIntervalSeconds: number; previewSeconds?: number; printEnabled: boolean; printCopies: number; galleryEnabled: boolean; saveOriginals: boolean;
       template: { layout: "landscape" | "strip" | "grid"; footerText: string; showDate: boolean; pattern?: Pattern; frameStyle?: FrameStyle; photoStyle?: PhotoStyle; fontStyle?: FontStyle } };
   };

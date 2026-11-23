@@ -36,7 +36,7 @@ const TAB_OF: Record<string, Tab> = {
   welcomeTitle: "guest", welcomeMessage: "guest", primaryColor: "guest", accentColor: "guest", countdownSeconds: "guest", shotsPerSession: "guest", captureIntervalSeconds: "guest", previewSeconds: "guest",
   layout: "design", pattern: "design", frameStyle: "design", photoStyle: "design", fontStyle: "design", footerText: "design", showDate: "design",
   printEnabled: "prints", printCopies: "prints", galleryEnabled: "prints", galleryRetentionDays: "prints", saveOriginals: "prints",
-  kind: "event", priceCentavos: "selfservice", freeSessions: "selfservice", partnerName: "selfservice", partnerSharePercent: "selfservice",
+  kind: "event", priceCentavos: "selfservice", freeSessions: "selfservice", acceptVouchers: "selfservice", acceptQr: "selfservice", partnerName: "selfservice", partnerSharePercent: "selfservice",
 };
 
 const DEFAULTS: EventConfig = {
@@ -110,6 +110,7 @@ export function EventForm({ event, canEdit = true, lockMoney = false }: { event?
         kind: str("kind") || "MANAGED",
         ...(str("kind") === "SELF_SERVICE" ? {
           priceCentavos: Math.round(Number(f.get("price")) * 100), freeSessions: f.get("freeSessions") === "on",
+          acceptVouchers: f.get("acceptVouchers") === "on", acceptQr: f.get("acceptQr") === "on",
           partnerName: str("partnerName"), partnerSharePercent: str("partnerSharePercent") === "" ? null : num("partnerSharePercent"),
         } : {}),
       }),
@@ -254,13 +255,18 @@ export function EventForm({ event, canEdit = true, lockMoney = false }: { event?
           </Field>
           <label className="check"><input type="checkbox" name="freeSessions" defaultChecked={event?.freeSessions ?? false} disabled={lockMoney} />
             <span>Free sessions: no payment, no prints, QR gallery only</span></label>
+          <label className="check"><input type="checkbox" name="acceptVouchers" defaultChecked={event?.acceptVouchers ?? true} disabled={lockMoney} />
+            <span>Guests can pay with a voucher from the counter</span></label>
+          <label className="check"><input type="checkbox" name="acceptQr" defaultChecked={event?.acceptQr ?? true} disabled={lockMoney} />
+            <span>Guests can scan to pay (PayMongo QR: GCash, Maya, banks)</span></label>
+          {errors.acceptVouchers && <span className="err wide" role="alert">{errors.acceptVouchers}</span>}
           <Field name="partnerName" label="Revenue shared with" error={errors.partnerName} hint="The venue, e.g. the café. Leave empty if not shared">
             <input {...attrs("partnerName")} defaultValue={event?.partnerName ?? ""} maxLength={120} placeholder="Kape Tayo Café" disabled={lockMoney} />
           </Field>
           <Field name="partnerSharePercent" label="Their share (%)" error={errors.partnerSharePercent}>
             <input {...attrs("partnerSharePercent")} type="number" min={0} max={100} defaultValue={event?.partnerSharePercent ?? ""} placeholder="0" disabled={lockMoney} />
           </Field>
-          <p className="hint wide cap">Guests pay with a voucher from the counter (make them in the Vouchers tab). QR payment comes next.{lockMoney ? " Only the owner changes the price and share." : ""}</p>
+          <p className="hint wide cap">Turn on vouchers, QR or both. Make vouchers in the Vouchers tab. QR needs the PayMongo key on the server.{lockMoney ? " Only the owner changes the price and share." : ""}</p>
         </div>
         <div className="fields" hidden={tab !== "prints"}>
           <label className="check"><input type="checkbox" name="printEnabled" defaultChecked={cfg.printEnabled} /><span>Print photos at the booth</span></label>

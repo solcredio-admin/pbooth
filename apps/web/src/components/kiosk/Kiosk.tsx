@@ -264,6 +264,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   // Self-service and not free: the guest pays (a voucher for now) before the session starts.
   const selfService = config?.event?.selfService ?? null;
   const mustPay = !!selfService && !selfService.freeSessions;
+  const payQrOn = !!selfService?.qr, payVoucherOn = selfService?.vouchers ?? true;
 
   const startSession = (paymentId?: string) => {
     const id = crypto.randomUUID();
@@ -619,16 +620,17 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
             <p className="k-cap" aria-live="polite">Waiting for payment · {Math.floor(qrLeft / 60)}:{String(qrLeft % 60).padStart(2, "0")}</p>
             <div className="k-actions"><button className="k-btn ghost" type="button" onClick={() => reset("ABANDONED")}>Cancel</button></div>
           </>) : (<>
-          <p className="k-text">One session, printed. {selfService.qr ? <><b>Scan to pay</b>, or enter a voucher code from the counter.</> : <><b>Enter the voucher code</b> from the counter.</>}</p>
-          {selfService.qr && <button className="k-btn big" type="button" onClick={() => void startQr()} disabled={paying}>Scan to pay</button>}
-          <label className="k-voucher">
+          <p className="k-text">{!payQrOn && !payVoucherOn ? <>Payment isn't set up at this booth yet. <b>Please ask the staff.</b></>
+            : <>One session, printed. {payQrOn && payVoucherOn ? <><b>Scan to pay</b>, or enter a voucher code from the counter.</> : payQrOn ? <><b>Scan to pay</b> with GCash, Maya or your bank app.</> : <><b>Enter the voucher code</b> from the counter.</>}</>}</p>
+          {payQrOn && <button className="k-btn big" type="button" onClick={() => void startQr()} disabled={paying}>Scan to pay</button>}
+          {payVoucherOn && <label className="k-voucher">
             <span className="k-cap">Voucher code</span>
             <input value={voucher} onChange={(e) => setVoucher(e.target.value.toUpperCase())} autoComplete="off" autoCapitalize="characters"
-              spellCheck={false} inputMode="text" maxLength={12} placeholder="XXXX-XXXX" autoFocus={!selfService.qr} aria-invalid={payError ? true : undefined} />
-          </label>
+              spellCheck={false} inputMode="text" maxLength={12} placeholder="XXXX-XXXX" autoFocus={!payQrOn} aria-invalid={payError ? true : undefined} />
+          </label>}
           {payError && <p className="k-error" role="alert">{payError}</p>}
           <div className="k-actions">
-            <button className={selfService.qr ? "k-btn" : "k-btn big"} type="submit" disabled={paying || voucher.trim().length < 4}>{paying ? "Checking…" : "Use voucher"}</button>
+            {payVoucherOn && <button className={payQrOn ? "k-btn" : "k-btn big"} type="submit" disabled={paying || voucher.trim().length < 4}>{paying ? "Checking…" : "Use voucher"}</button>}
             <button className="k-btn ghost" type="button" onClick={() => reset("ABANDONED")}>Cancel</button>
           </div>
           </>)}

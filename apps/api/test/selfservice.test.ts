@@ -22,7 +22,7 @@ describe.skipIf(!url)("self-service events: vouchers, payments, cashiers", () =>
     const kiosk = (await call("/kiosk/pair", { method: "POST", ip: IP, body: { boothCode: booth.code, code } })).setCookie!.split(";")[0];
     const K = (path: string, init: Parameters<typeof call>[1] = {}) => call(path, { cookie: kiosk, ip: IP, ...init });
     const cfg = (await K(`/kiosk/config?booth=${booth.code}`)).body;
-    expect(cfg.event.selfService).toEqual({ priceCentavos: 15000, currency: "PHP", freeSessions: false, qr: true });
+    expect(cfg.event.selfService).toEqual({ priceCentavos: 15000, currency: "PHP", freeSessions: false, vouchers: true, qr: true });
 
     const start = (paymentId?: string) => K("/sessions", { method: "POST", body: { id: randomUUID(), galleryToken: randomBytes(32).toString("base64url"), ...(paymentId ? { paymentId } : {}) } });
     expect((await start()).body.error.code).toBe("PAYMENT_REQUIRED"); // no voucher, no session
@@ -157,5 +157,16 @@ describe.skipIf(!url)("self-service events: vouchers, payments, cashiers", () =>
 
     // another booth can't read this booth's payment
     expect((await call(`/kiosk/payments/${qr.paymentId}`, { ip: IP })).status).toBe(401);
+
+    // payment options: QR only, then vouchers only; never neither
+    expect((await O(`/events/${ev.id}`, { method: "PATCH", body: { acceptVouchers: false, acceptQr: false } })).status).toBe(400);
+    await O(`/events/${ev.id}`, { method: "PATCH", body: { acceptVouchers: false, acceptQr: true } });
+    expect((await K(`/kiosk/config?booth=${booth.code}`)).body.event.selfService).toMatchObject({ vouchers: false, qr: true });
+    const v = (await O(`/events/${ev.id}/vouchers`, { method: "POST", body: { kind: "ONE_TIME", count: 1 } })).body;
+    expect((await K("/kiosk/redeem", { method: "POST", body: { code: v.codes[0] } })).body.error.code).toBe("VOUCHERS_OFF");
+    await O(`/events/${ev.id}`, { method: "PATCH", body: { acceptVouchers: true, acceptQr: false } });
+    expect((await K(`/kiosk/config?booth=${booth.code}`)).body.event.selfService).toMatchObject({ vouchers: true, qr: false });
+    expect((await K("/kiosk/payments/qr", { method: "POST" })).body.error.code).toBe("QR_OFF");
+    expect((await K("/kiosk/redeem", { method: "POST", body: { code: v.codes[0] } })).status).toBe(200);
   });
 });

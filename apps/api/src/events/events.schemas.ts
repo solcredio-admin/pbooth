@@ -47,11 +47,16 @@ const fields = {
   kind: z.enum(["MANAGED", "SELF_SERVICE"]).optional(),
   priceCentavos: z.number().int().min(0).max(10_000_000).optional(),
   freeSessions: z.boolean().optional(),
+  acceptVouchers: z.boolean().optional(),
+  acceptQr: z.boolean().optional(),
   partnerName: optionalText(120),
   partnerSharePercent: z.number().int().min(0).max(100).nullish(),
 };
 
-export const createEventSchema = z.object({ ...fields, ...when });
+const onePayment: [(b: { acceptVouchers?: boolean; acceptQr?: boolean }) => boolean, { message: string; path: string[] }] = [
+  (b) => !(b.acceptVouchers === false && b.acceptQr === false), { message: "Allow vouchers, QR payment or both", path: ["acceptVouchers"] }];
+
+export const createEventSchema = z.object({ ...fields, ...when }).refine(...onePayment);
 
 // Times can only change together: a date without its zone (or vice versa) is ambiguous.
 export const updateEventSchema = z.object({
@@ -60,7 +65,7 @@ export const updateEventSchema = z.object({
 }).refine((b) => {
   const n = [b.date, b.startTime, b.endTime, b.timeZone].filter((v) => v !== undefined).length;
   return n === 0 || n === 4;
-}, { message: "date, startTime, endTime and timeZone must be sent together", path: ["date"] });
+}, { message: "date, startTime, endTime and timeZone must be sent together", path: ["date"] }).refine(...onePayment);
 
 export const listEventsSchema = z.object({
   q: z.string().trim().max(120).optional(),

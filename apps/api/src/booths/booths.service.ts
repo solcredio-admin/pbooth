@@ -63,7 +63,7 @@ export class BoothsService implements OnModuleInit, OnModuleDestroy {
       heartbeatIntervalSeconds: this.cfg.HEARTBEAT_INTERVAL_SECONDS,
       event: live ? {
         id: live.id, name: live.name, timeZone: live.timeZone, startsAt: live.startsAt.toISOString(), endsAt: live.endsAt.toISOString(),
-        selfService: live.kind === "SELF_SERVICE" ? { priceCentavos: live.priceCentavos, currency: live.currency, freeSessions: live.freeSessions, qr: !!this.cfg.PAYMONGO_SECRET_KEY } : null,
+        selfService: live.kind === "SELF_SERVICE" ? { priceCentavos: live.priceCentavos, currency: live.currency, freeSessions: live.freeSessions, vouchers: live.acceptVouchers, qr: live.acceptQr && !!this.cfg.PAYMONGO_SECRET_KEY } : null,
         guest: c ? {
           welcomeTitle: c.welcomeTitle, welcomeMessage: c.welcomeMessage, primaryColor: c.primaryColor, accentColor: c.accentColor,
           countdownSeconds: c.countdownSeconds, shotsPerSession: c.shotsPerSession, captureIntervalSeconds: c.captureIntervalSeconds, previewSeconds: c.previewSeconds,

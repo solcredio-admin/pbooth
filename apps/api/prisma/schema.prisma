@@ -85,6 +85,9 @@ model Event {
   currency      String       @default("PHP")
   // Self-service free mode: no payment, no print, QR gallery only.
   freeSessions  Boolean      @default(false)
+  // How paying guests may pay: vouchers from the counter, PayMongo QR, or both (at least one).
+  acceptVouchers Boolean     @default(true)
+  acceptQr       Boolean     @default(true)
   // Revenue shared with the venue (e.g. the café): who and what percent; null = not shared.
   partnerName   String?
   partnerSharePercent Int?

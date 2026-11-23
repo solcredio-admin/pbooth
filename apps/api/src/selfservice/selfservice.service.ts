@@ -118,6 +118,7 @@ export class SelfServiceService {
     if (!live) throw new ApiError(HttpStatus.CONFLICT, "NO_LIVE_EVENT", "This booth isn't serving a live event");
     const e = live.event;
     if (e.kind !== "SELF_SERVICE" || e.freeSessions) throw new ApiError(HttpStatus.CONFLICT, "NO_PAYMENT_NEEDED", "This booth doesn't need a voucher");
+    if (!e.acceptVouchers) throw new ApiError(HttpStatus.CONFLICT, "VOUCHERS_OFF", "This booth doesn't take vouchers");
     const v = await this.db.voucher.findUnique({ where: { codeHash: hashToken(normalizeEnrollmentCode(code)) } });
     const bad = () => new ApiError(HttpStatus.BAD_REQUEST, "INVALID_VOUCHER", "That code isn't valid here, or it's already been used");
     if (!v || v.eventId !== e.id || v.voidedAt || (v.expiresAt && v.expiresAt <= new Date())) {
@@ -165,6 +166,7 @@ export class SelfServiceService {
     if (!live) throw new ApiError(HttpStatus.CONFLICT, "NO_LIVE_EVENT", "This booth isn't serving a live event");
     const e = live.event;
     if (e.kind !== "SELF_SERVICE" || e.freeSessions) throw new ApiError(HttpStatus.CONFLICT, "NO_PAYMENT_NEEDED", "This booth doesn't need a payment");
+    if (!e.acceptQr) throw new ApiError(HttpStatus.CONFLICT, "QR_OFF", "This booth doesn't take QR payment");
     if (!this.paymongo.enabled) throw new ApiError(HttpStatus.SERVICE_UNAVAILABLE, "QR_NOT_CONFIGURED", "QR payment isn't set up on the server");
     const qr = await this.paymongo.createQr(e.priceCentavos, `pbooth · ${e.name}`.slice(0, 200));
     const p = await this.db.payment.create({

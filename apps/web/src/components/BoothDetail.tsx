@@ -7,6 +7,7 @@ import { send } from "@/lib/client-api";
 import { useLiveBooths } from "@/lib/live";
 import { DeleteZone } from "./DeleteZone";
 import { Tabs } from "./Tabs";
+import { AgentInstall } from "./AgentInstall";
 import { OpenKioskHere } from "./OpenKioskHere";
 import { can, useMe } from "@/lib/roles";
 import { BOOTH_LABEL, bytes, STATUS_LABEL } from "@/lib/format";
@@ -73,7 +74,7 @@ export function BoothDetail({ initial, events, origin }: { initial: BoothDto; ev
             {!b.device && !b.kiosk ? (
               <div className="empty-state">
                 <h3>{b.state === "REVOKED" ? "Access revoked." : "Nothing connected yet."}</h3>
-                <p>For a webcam booth, pair its kiosk screen below. DSLR and printing need the booth agent (Phase 4).</p>
+                <p>For a webcam booth, pair its kiosk screen below. For a DSLR or printer, also enroll the booth agent.</p>
               </div>
             ) : !b.device ? (
               <>
@@ -203,12 +204,6 @@ function Enroll({ booth, origin }: { booth: BoothDto; origin: string }) {
           <>
             <p className="enroll-code" aria-label="Enrollment code">{code.code}</p>
             <p className="cap">Expires at {time(code.expiresAt)} · shown only once</p>
-            <ol className="steps-text">
-              <li>On the booth computer, start the pbooth agent and enter this code. <span className="muted">(The agent ships in Phase 4.)</span></li>
-              <li>To try it now without hardware, run the simulator from the repository:
-                <pre className="code-line">node tools/simulate-booth.mjs --url {origin} --code {code.code}</pre>
-              </li>
-            </ol>
           </>
         ) : (
           // the expiry is shown in the viewer's local time, which the server can't know
@@ -216,6 +211,7 @@ function Enroll({ booth, origin }: { booth: BoothDto; origin: string }) {
         )}
         {error && <p className="cap err" role="alert">{error}</p>}
         <div className="actions"><button className="btn" type="button" onClick={generate} disabled={busy}>{busy ? "Generating…" : code ? "New code" : "Generate enrollment code"}</button></div>
+        <AgentInstall origin={origin} code={code?.code ?? null} />
       </div>
     </section>
   );

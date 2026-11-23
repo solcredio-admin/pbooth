@@ -212,6 +212,18 @@ main.narrow { max-width: 900px; }
 .enroll { display: grid; gap: 14px; justify-items: center; text-align: center; }
 .enroll-code { margin: 4px 0 0; font: 500 clamp(34px, 7vw, 56px)/1 var(--mono); letter-spacing: .08em; -webkit-user-select: all; user-select: all; }
 .steps-text { margin: 6px 0 0; padding-left: 18px; text-align: left; display: grid; gap: 12px; font: 400 12.5px/1.55 var(--mono); max-width: 620px; justify-self: stretch; }
+.agent-install { justify-self: stretch; display: grid; gap: 14px; text-align: left; max-width: 680px; width: 100%; min-width: 0; margin: 6px auto 0; }
+.agent-install > *, .agent-install li { min-width: 0; }
+.enroll { min-width: 0; }
+.agent-install .tabs { justify-self: center; }
+.agent-install .steps-text { max-width: none; }
+.agent-install .steps-text p { margin: 4px 0 0; }
+.agent-install details summary { cursor: pointer; }
+.cmd { position: relative; min-width: 0; }
+.cmd .code-line { padding-right: 72px; }
+.cmd-copy { position: absolute; top: 6px; right: 6px; padding: 4px 10px; border: 1px solid rgba(255,255,255,.18); border-radius: 7px; background: #1c1d1a; color: #e8e8e8; font: 500 11px/1.4 var(--mono); cursor: pointer; }
+.cmd-copy:hover { background: #2a2b27; }
+.cmd-copy:focus-visible { outline: 2px solid var(--accent, #c8f56a); outline-offset: 2px; }
 .code-line { margin: 8px 0 0; padding: 10px 12px; border-radius: 10px; background: #0d0e0c; color: #e8e8e8; font: 400 11.5px/1.5 var(--mono); overflow-x: auto; white-space: pre; -webkit-user-select: all; user-select: all; }
 .hero .btn { justify-self: center; }
 .answer a { color: inherit; }

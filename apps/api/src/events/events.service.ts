@@ -24,7 +24,7 @@ export function toDto(e: EventRow) {
   return {
     id: e.id, name: e.name, organizerName: e.organizerName, contactPhone: e.contactPhone, contactEmail: e.contactEmail, venueName: e.venueName, venueAddress: e.venueAddress,
     status: e.status, timeZone: e.timeZone, startsAt: e.startsAt, endsAt: e.endsAt,
-    kind: e.kind, priceCentavos: e.priceCentavos, currency: e.currency, freeSessions: e.freeSessions,
+    kind: e.kind, priceCentavos: e.priceCentavos, currency: e.currency, freeSessions: e.freeSessions, acceptVouchers: e.acceptVouchers, acceptQr: e.acceptQr,
     partnerName: e.partnerName, partnerSharePercent: e.partnerSharePercent,
     cashiers: e.cashiers.map((c) => c.admin),
     local: { date: start.date, startTime: start.time, endTime: end.time },

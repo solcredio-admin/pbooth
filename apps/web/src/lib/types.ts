@@ -14,7 +14,7 @@ export interface EventConfig {
 export interface EventDto {
   id: string; name: string; organizerName: string | null; contactPhone: string | null; contactEmail: string | null; venueName: string | null; venueAddress: string | null;
   status: EventStatus; timeZone: string; startsAt: string; endsAt: string;
-  kind: "MANAGED" | "SELF_SERVICE"; priceCentavos: number; currency: string; freeSessions: boolean;
+  kind: "MANAGED" | "SELF_SERVICE"; priceCentavos: number; currency: string; freeSessions: boolean; acceptVouchers: boolean; acceptQr: boolean;
   partnerName: string | null; partnerSharePercent: number | null; cashiers: { id: string; username: string }[];
   local: { date: string; startTime: string; endTime: string };
   activatedAt: string | null; completedAt: string | null; createdAt: string; updatedAt: string;
