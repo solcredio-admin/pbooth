@@ -27,15 +27,16 @@ type StyleKey = keyof typeof STYLE_OPTIONS;
 const STYLE_LABEL: Record<StyleKey, string> = { pattern: "Background", frameStyle: "Frame", photoStyle: "Photo edges", fontStyle: "Footer type" };
 
 // The form's sections, one at a time. Every field stays in the form (hidden panes still submit).
-type Tab = "event" | "guest" | "design" | "prints";
+type Tab = "event" | "selfservice" | "guest" | "design" | "prints";
 const TABS: { id: Tab; label: string }[] = [
-  { id: "event", label: "Event" }, { id: "guest", label: "Guest screen" }, { id: "design", label: "Photo design" }, { id: "prints", label: "Prints & gallery" },
+  { id: "event", label: "Event" }, { id: "selfservice", label: "Self-service" }, { id: "guest", label: "Guest screen" }, { id: "design", label: "Photo design" }, { id: "prints", label: "Prints & gallery" },
 ];
 const TAB_OF: Record<string, Tab> = {
   name: "event", organizerName: "event", contactPhone: "event", contactEmail: "event", venueName: "event", venueAddress: "event", date: "event", startTime: "event", endTime: "event", timeZone: "event",
   welcomeTitle: "guest", welcomeMessage: "guest", primaryColor: "guest", accentColor: "guest", countdownSeconds: "guest", shotsPerSession: "guest", captureIntervalSeconds: "guest",
   layout: "design", pattern: "design", frameStyle: "design", photoStyle: "design", fontStyle: "design", footerText: "design", showDate: "design",
   printEnabled: "prints", printCopies: "prints", galleryEnabled: "prints", galleryRetentionDays: "prints", saveOriginals: "prints",
+  kind: "event", priceCentavos: "selfservice", freeSessions: "selfservice", partnerName: "selfservice", partnerSharePercent: "selfservice",
 };
 
 const DEFAULTS: EventConfig = {
@@ -54,7 +55,8 @@ function Field({ name, label, error, hint, wide, children }: { name: string; lab
 }
 
 // Create and edit share one form. Times are entered on the venue's clock; the API stores exact instants.
-export function EventForm({ event, canEdit = true }: { event?: EventDto; canEdit?: boolean }) {
+// lockMoney: cashiers run their events but the type, price and revenue share stay with the owner
+export function EventForm({ event, canEdit = true, lockMoney = false }: { event?: EventDto; canEdit?: boolean; lockMoney?: boolean }) {
   const router = useRouter();
   const readOnly = event?.status === "ARCHIVED" || !canEdit;
   // Zone list and default come from the browser (the server runs in UTC), so they're filled in after mount.
@@ -78,6 +80,8 @@ export function EventForm({ event, canEdit = true }: { event?: EventDto; canEdit
   const previewDate = look.date ? new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "long", day: "numeric", year: "numeric" }).format(new Date(`${look.date}T12:00:00Z`)) : "Event date";
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [tab, setTab] = useState<Tab>("event");
+  const [kind, setKind] = useState<EventDto["kind"]>(event?.kind ?? "MANAGED");
+  const tabs = TABS.filter((t) => t.id !== "selfservice" || kind === "SELF_SERVICE");
   const errorTabs = [...new Set(Object.keys(errors).map((k) => TAB_OF[k]).filter(Boolean))];
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -102,6 +106,13 @@ export function EventForm({ event, canEdit = true }: { event?: EventDto; canEdit
         galleryEnabled: f.get("galleryEnabled") === "on", galleryRetentionDays: num("galleryRetentionDays"),
         saveOriginals: f.get("saveOriginals") === "on",
       },
+      ...(lockMoney ? {} : {
+        kind: str("kind") || "MANAGED",
+        ...(str("kind") === "SELF_SERVICE" ? {
+          priceCentavos: Math.round(Number(f.get("price")) * 100), freeSessions: f.get("freeSessions") === "on",
+          partnerName: str("partnerName"), partnerSharePercent: str("partnerSharePercent") === "" ? null : num("partnerSharePercent"),
+        } : {}),
+      }),
     };
     setBusy(true);
     setStatus(null);
@@ -125,9 +136,15 @@ export function EventForm({ event, canEdit = true }: { event?: EventDto; canEdit
 
   return (
     <form className="form" onSubmit={submit} onChange={onFormChange} noValidate>
-      <Tabs label="Event settings" tabs={TABS} value={tab} onChange={setTab} errors={errorTabs} />
+      <Tabs label="Event settings" tabs={tabs} value={tab} onChange={setTab} errors={errorTabs} />
       <fieldset disabled={readOnly || busy}>
         <div className="fields" hidden={tab !== "event"}>
+          <Field name="kind" label="Event type" error={errors.kind} hint={kind === "SELF_SERVICE" ? "A booth left at a location (e.g. a café): guests pay or use a voucher" : "A dated event you run for a client"} wide>
+            <select {...attrs("kind")} value={kind} disabled={lockMoney} onChange={(e) => setKind(e.target.value as EventDto["kind"])}>
+              <option value="MANAGED">Managed event</option>
+              <option value="SELF_SERVICE">Self-service location</option>
+            </select>
+          </Field>
           <Field name="name" label="Event name" error={errors.name} wide>
             <input {...attrs("name")} defaultValue={event?.name} required maxLength={120} autoFocus={!event} placeholder="Reyes Wedding" />
           </Field>
@@ -227,6 +244,20 @@ export function EventForm({ event, canEdit = true }: { event?: EventDto; canEdit
               pattern={look.pattern} frameStyle={look.frameStyle} photoStyle={look.photoStyle} fontStyle={look.fontStyle} />
           </div>
 
+        </div>
+        <div className="fields" hidden={tab !== "selfservice" || kind !== "SELF_SERVICE"}>
+          <Field name="price" label="Price per session (₱)" error={errors.priceCentavos} hint="A paid session includes the prints">
+            <input {...attrs("price")} type="number" min={0} step={1} defaultValue={(event?.priceCentavos ?? 15000) / 100} disabled={lockMoney} />
+          </Field>
+          <label className="check"><input type="checkbox" name="freeSessions" defaultChecked={event?.freeSessions ?? false} disabled={lockMoney} />
+            <span>Free sessions: no payment, no prints, QR gallery only</span></label>
+          <Field name="partnerName" label="Revenue shared with" error={errors.partnerName} hint="The venue, e.g. the café. Leave empty if not shared">
+            <input {...attrs("partnerName")} defaultValue={event?.partnerName ?? ""} maxLength={120} placeholder="Kape Tayo Café" disabled={lockMoney} />
+          </Field>
+          <Field name="partnerSharePercent" label="Their share (%)" error={errors.partnerSharePercent}>
+            <input {...attrs("partnerSharePercent")} type="number" min={0} max={100} defaultValue={event?.partnerSharePercent ?? ""} placeholder="0" disabled={lockMoney} />
+          </Field>
+          <p className="hint wide cap">Guests pay with a voucher from the counter (make them in the Vouchers tab). QR payment comes next.{lockMoney ? " Only the owner changes the price and share." : ""}</p>
         </div>
         <div className="fields" hidden={tab !== "prints"}>
           <label className="check"><input type="checkbox" name="printEnabled" defaultChecked={cfg.printEnabled} /><span>Print photos at the booth</span></label>

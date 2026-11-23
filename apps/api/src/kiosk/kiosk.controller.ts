@@ -8,13 +8,15 @@ import { ApiError } from "../common/errors.js";
 import { KioskService } from "./kiosk.service.js";
 import { KIOSK_COOKIE, KIOSK_COOKIE_DAYS, KioskGuard, type KioskReq } from "./kiosk.guard.js";
 import { kioskHeartbeatSchema, pairSchema, type KioskHeartbeat, type Pair } from "./kiosk.schemas.js";
+import { SelfServiceService } from "../selfservice/selfservice.service.js";
+const redeemSchema = z.object({ code: z.string().trim().min(4).max(20) });
 
 
 // Called by the guest-facing kiosk page. Never exposes anything admin-only.
 @Public()
 @Controller("kiosk")
 export class KioskController {
-  constructor(private readonly kiosk: KioskService, @Inject(CONFIG) private readonly cfg: Config) {}
+  constructor(private readonly kiosk: KioskService, private readonly ss: SelfServiceService, @Inject(CONFIG) private readonly cfg: Config) {}
 
   @Post("pair") @HttpCode(200)
   @RouteConfig({ rateLimit: { max: 10, timeWindow: "15 minutes" } })
@@ -40,6 +42,14 @@ export class KioskController {
   @Post("agent-ticket") @HttpCode(200)
   agentTicket(@Req() r: KioskReq) {
     return this.kiosk.agentTicket(r.kiosk!.boothId);
+  }
+
+  /** A guest's voucher unlocks one session on this booth's self-service event. */
+  @UseGuards(KioskGuard)
+  @Post("redeem") @HttpCode(200)
+  @RouteConfig({ rateLimit: { max: 30, timeWindow: "15 minutes" } })
+  redeem(@Body({ schema: redeemSchema }) body: z.infer<typeof redeemSchema>, @Req() r: KioskReq) {
+    return this.ss.redeem(r.kiosk!.boothId, body.code, r.ip);
   }
 
   @UseGuards(KioskGuard)

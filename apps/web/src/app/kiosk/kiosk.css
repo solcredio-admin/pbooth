@@ -61,8 +61,8 @@
 }
 /* Words over the live camera stay readable whatever is in the picture (a white wall, a bright window):
    light text on a translucent glass panel just behind the words; the rest of the preview stays clear. */
-.ks-welcome, .ks-ready, .ks-camera { --k-ink: #f6f5f0; }
-.ks-ready .k-panel, .ks-camera .k-panel, .ks-camera .k-center {
+.ks-welcome, .ks-ready, .ks-camera, .ks-pay { --k-ink: #f6f5f0; }
+.ks-ready .k-panel, .ks-camera .k-panel, .ks-camera .k-center, .ks-pay .k-panel {
   background: rgba(8, 9, 8, .5); border: 1px solid rgba(255, 255, 255, .14); border-radius: 28px;
   -webkit-backdrop-filter: blur(14px) saturate(1.1); backdrop-filter: blur(14px) saturate(1.1);
   box-shadow: 0 20px 60px -20px rgba(0, 0, 0, .5);
@@ -153,3 +153,13 @@
 .k-ready .k-text { font-size: clamp(17px, 1.9vw, 22px); max-width: 40ch; }
 .k-ready .k-text b { color: var(--k-accent); font-weight: 600; }
 .k-ready .k-consent { font-size: 12px; opacity: .65 !important; max-width: 60ch; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, .16); }
+
+/* Pay (self-service): the price, then the voucher box */
+.ks-pay .k-panel { align-self: center; }
+.k-voucher { display: grid; gap: 8px; justify-items: center; }
+.k-voucher input {
+  min-height: 72px; width: min(360px, 80vw); border-radius: 18px; border: 2px solid rgba(255, 255, 255, .4); background: rgba(0, 0, 0, .25);
+  color: #fff; text-align: center; font: 600 32px/1 var(--mono); letter-spacing: .14em; outline: none;
+}
+.k-voucher input:focus { border-color: var(--k-accent); }
+.k-voucher input[aria-invalid="true"] { border-color: #ff8a6a; }

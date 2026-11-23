@@ -13,7 +13,7 @@ export async function apiGet<T>(path: string): Promise<T> {
     cache: "no-store",
   });
   if (res.status === 401) redirect("/login");
-  if (res.status === 403) redirect("/dashboard"); // a page this account's role can't open
+  if (res.status === 403) redirect("/events"); // a page this role can't open (every role can see events)
   if (res.status === 404 || res.status === 400) notFound();
   if (!res.ok) throw new Error(`API ${path} failed with ${res.status}`);
   return res.json() as Promise<T>;

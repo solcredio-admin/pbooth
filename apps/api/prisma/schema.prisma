@@ -13,9 +13,17 @@ datasource db {
 // Who can do what. OWNER manages everything (users included); the others are limited, see roles.ts.
 enum AdminRole {
   OWNER // everything, including users, backups and storage
+  CASHIER // only the self-service events assigned to them: vouchers and sales
   EVENTS // events: view, create, edit, run; galleries and exports
   BOOTHS // booths: manage, pair, enroll; can view events but not change them
   KIOSK // can only open a booth's kiosk on the computer they're signed in on
+}
+
+// MANAGED: a dated event you run (weddings, parties). SELF_SERVICE: a booth left running at a
+// location (a café) where guests pay per session or use a voucher.
+enum EventKind {
+  MANAGED
+  SELF_SERVICE
 }
 
 // Every person who signs in (the table keeps its original name).
@@ -28,6 +36,8 @@ model Admin {
   createdAt    DateTime       @default(now()) @db.Timestamptz(3)
   updatedAt    DateTime       @updatedAt @db.Timestamptz(3)
   sessions     AdminSession[]
+  cashierOf    EventCashier[]
+  vouchers     Voucher[]
 }
 
 // Server-side login sessions: the cookie holds a random token, the DB only its SHA-256.
@@ -69,6 +79,15 @@ model Event {
   venueName     String?
   venueAddress  String?
   status        EventStatus  @default(DRAFT)
+  kind          EventKind    @default(MANAGED)
+  // Self-service: what a paid session costs (centavos; ₱150 = 15000). A paid session includes prints.
+  priceCentavos Int          @default(15000)
+  currency      String       @default("PHP")
+  // Self-service free mode: no payment, no print, QR gallery only.
+  freeSessions  Boolean      @default(false)
+  // Revenue shared with the venue (e.g. the café): who and what percent; null = not shared.
+  partnerName   String?
+  partnerSharePercent Int?
   activatedAt   DateTime?    @db.Timestamptz(3)
   completedAt   DateTime?    @db.Timestamptz(3)
   createdAt     DateTime     @default(now()) @db.Timestamptz(3)
@@ -78,6 +97,9 @@ model Event {
   sessions      Session[]
   photos        Photo[]
   galleries     Gallery[]
+  cashiers      EventCashier[]
+  vouchers      Voucher[]
+  payments      Payment[]
 
   @@index([status, startsAt])
   @@index([startsAt])
@@ -308,4 +330,78 @@ model Gallery {
   createdAt DateTime     @default(now()) @db.Timestamptz(3)
 
   @@index([eventId, scope])
+}
+
+// Cashier accounts and the self-service events they may manage.
+model EventCashier {
+  eventId String @db.Uuid
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  adminId String @db.Uuid
+  admin   Admin  @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, adminId])
+  @@index([adminId])
+}
+
+enum VoucherKind {
+  ONE_TIME // sold at the cashier: one paid session (with prints)
+  UNLIMITED // the owner's code: any number of sessions, free (complimentary)
+}
+
+// A code a guest types at the booth instead of paying. Works only on its own event. The code
+// itself is shown once when it's made; only its hash is kept (a short hint helps find it).
+model Voucher {
+  id          String      @id @default(uuid()) @db.Uuid
+  eventId     String      @db.Uuid
+  event       Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  kind        VoucherKind
+  codeHash    String      @unique
+  hint        String // last 4 characters, to recognise it in lists
+  label       String? // e.g. "Owner", "Batch 12 Dec"
+  batch       String? // groups one-time codes made together
+  uses        Int         @default(0)
+  expiresAt   DateTime?   @db.Timestamptz(3)
+  voidedAt    DateTime?   @db.Timestamptz(3)
+  createdById String?     @db.Uuid
+  createdBy   Admin?      @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime    @default(now()) @db.Timestamptz(3)
+  payments    Payment[]
+
+  @@index([eventId, createdAt])
+}
+
+enum PaymentMethod {
+  VOUCHER
+  QR
+  FREE
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  EXPIRED
+  FAILED
+  REFUNDED
+}
+
+// What unlocked a self-service session. Amounts in centavos; a complimentary (unlimited) voucher
+// is recorded with amount 0 so reports separate revenue from free sessions.
+model Payment {
+  id             String        @id @default(uuid()) @db.Uuid
+  eventId        String        @db.Uuid
+  event          Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  boothId        String?       @db.Uuid
+  sessionId      String?       @unique @db.Uuid
+  method         PaymentMethod
+  status         PaymentStatus @default(PENDING)
+  amountCentavos Int
+  currency       String        @default("PHP")
+  voucherId      String?       @db.Uuid
+  voucher        Voucher?      @relation(fields: [voucherId], references: [id], onDelete: SetNull)
+  provider       String? // e.g. "paymongo" (phase 9)
+  providerRef    String?       @unique
+  paidAt         DateTime?     @db.Timestamptz(3)
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+
+  @@index([eventId, createdAt])
 }

@@ -190,6 +190,14 @@ export class PhotosService implements OnModuleInit, OnModuleDestroy {
       const events = await this.db.event.findMany({ where: { photos: { some: { status: { not: "DELETED" } } } }, include: { config: true } });
       for (const e of events) {
         const days = e.config?.galleryRetentionDays ?? 30;
+        if (e.kind === "SELF_SERVICE") {
+          // runs indefinitely: each photo is kept `days` from when it was taken; galleries stay open
+          const cutoff = new Date(now.getTime() - days * 86400_000);
+          const old = await this.db.photo.findMany({ where: { eventId: e.id, status: { not: "DELETED" }, createdAt: { lt: cutoff } }, select: { id: true } });
+          for (const p of old) await this.deletePhotos({ id: p.id }, "system", `retention ${days} days`);
+          if (old.length) this.log.log(`retention: deleted ${old.length} photos of "${e.name}"`);
+          continue;
+        }
         if (e.endsAt.getTime() + days * 86400_000 < now.getTime()) {
           const r = await this.deletePhotos({ eventId: e.id }, "system", `retention ${days} days`);
           await this.db.gallery.updateMany({ where: { eventId: e.id }, data: { enabled: false } });

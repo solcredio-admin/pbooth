@@ -210,6 +210,18 @@ docker compose exec app sh -c "cd /app/api && node dist/cli.js admin:reset-passw
 which also re-enables them). Both commands accept `--password-stdin` for scripts.
 Changing the password in Settings signs out every *other* browser.
 
+### Self-service locations (cafés)
+
+An event's type can be **Self-service location**: a booth left running at a venue. Guests pay per
+session (₱150 by default, prints included) by entering a **voucher** at the booth; QR payment via
+PayMongo comes next (see `docs/SELF-SERVICE.md`). In the event's **Vouchers** tab you make
+one-time codes in batches (printed as cards for the counter) and, as super admin, unlimited codes
+for free sessions; codes only work on their own event and can be voided. **Free sessions** mode
+skips payment and prints nothing (QR gallery only). The sidebar shows today's and all-time sales
+and the venue's share. **Cashier** accounts see only the events assigned to them (sidebar →
+Cashiers): they make one-time vouchers, see sales and run the event, but can't change the price,
+the revenue share or make unlimited codes.
+
 ### Users and roles
 
 `admin:create` makes the first account, a **Super admin**. Everyone else is added in Settings → Users
@@ -222,6 +234,7 @@ enable, reset passwords and remove people.
 | Event admin | Create, edit and run events; galleries and exports; book booths |
 | Booth admin | Manage booths (pairing, agent, hardware); view events, read-only; book booths |
 | Kiosk operator | View events and booths, read-only; open a booth's kiosk on the computer they're signed in on |
+| Cashier | Only the self-service events assigned to them: vouchers, sales, and running the event |
 
 The API checks the role on every request; routes are Super-admin-only unless they say otherwise. A
 disabled user, a new role or a reset password signs that person out everywhere at once. You can't

@@ -13,16 +13,19 @@ import QRCode from "qrcode";
 
 type Screen =
   | "loading" | "unpaired" | "wrong-booth" | "idle" | "agent" | "camera"
-  | "welcome" | "ready" | "countdown" | "composing" | "review" | "done";
+  | "welcome" | "pay" | "ready" | "countdown" | "composing" | "review" | "done";
 
 const INACTIVITY_MS = 60_000; // a guest who walks away mid-session
 const DONE_RESET_S = 20;      // the thank-you screen clears itself
 const DONE_RESET_QR_S = 35;   // longer when there's a QR code to scan
+const peso = (centavos: number, currency: string) =>
+  new Intl.NumberFormat("en-PH", { style: "currency", currency, maximumFractionDigits: centavos % 100 ? 2 : 0 }).format(centavos / 100);
+
 // One tap on the welcome screen is enough: instructions show this long, then the countdown starts.
 const READY_SECONDS = 10;
 // In a multi-photo session, each photo is shown this long before the next countdown starts.
 const PEEK_MS = 3000;
-const GUEST = new Set<Screen>(["ready", "countdown", "composing", "review", "done"]);
+const GUEST = new Set<Screen>(["pay", "ready", "countdown", "composing", "review", "done"]);
 
 interface Shot { blob: Blob; url: string; printBlob?: Blob } // printBlob: the 4R sheet when it differs from the design
 
@@ -209,14 +212,35 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     setScreen("loading"); // the resting-screen effect picks welcome / idle / camera
   }, [boothCode]);
 
-  const begin = () => {
-    document.documentElement.requestFullscreen?.().catch(() => undefined);
+  // Self-service and not free: the guest pays (a voucher for now) before the session starts.
+  const selfService = config?.event?.selfService ?? null;
+  const mustPay = !!selfService && !selfService.freeSessions;
+
+  const startSession = (paymentId?: string) => {
     const id = crypto.randomUUID();
     const galleryToken = newGalleryToken();
     session.current = { id, retakes: 0, finished: false, galleryToken };
-    void kioskQueue().add("session-start", id, { id, startedAt: new Date().toISOString(), galleryToken, eventId: config?.event?.id });
+    void kioskQueue().add("session-start", id, { id, startedAt: new Date().toISOString(), galleryToken, eventId: config?.event?.id, ...(paymentId ? { paymentId } : {}) });
     history.replaceState(null, "", `/kiosk/${boothCode}/session/${id}`);
     setScreen("ready");
+  };
+  const begin = () => {
+    document.documentElement.requestFullscreen?.().catch(() => undefined);
+    if (mustPay) { setVoucher(""); setPayError(""); setScreen("pay"); return; }
+    startSession();
+  };
+  const [voucher, setVoucher] = useState("");
+  const [payError, setPayError] = useState("");
+  const [paying, setPaying] = useState(false);
+  const redeem = async () => {
+    if (!voucher.trim() || paying) return;
+    setPaying(true); setPayError("");
+    const r = await kioskFetch<{ paymentId: string }>("POST", "/kiosk/redeem", { code: voucher });
+    setPaying(false);
+    if (r.ok) { startSession(r.data.paymentId); return; }
+    setPayError(r.status === 0 ? "No internet right now. Vouchers need a connection; please try again in a moment."
+      : r.status === 429 ? "Too many tries. Please ask the staff for help."
+      : "That code isn't valid here, or it's already been used.");
   };
 
   const shoot = useCallback(() => {
@@ -362,7 +386,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
 
   // Walked away? Abandon the session after a minute of no touches (never during the countdown).
   useEffect(() => {
-    if (screen !== "ready" && screen !== "review") return;
+    if (screen !== "ready" && screen !== "review" && screen !== "pay") return;
     let t = setTimeout(() => reset("ABANDONED"), INACTIVITY_MS);
     const poke = () => { clearTimeout(t); t = setTimeout(() => reset("ABANDONED"), INACTIVITY_MS); };
     window.addEventListener("pointerdown", poke);
@@ -390,7 +414,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     loadConfig();
   }
 
-  const previewing = ["welcome", "ready", "countdown", "camera"].includes(screen) && camReady;
+  const previewing = ["welcome", "pay", "ready", "countdown", "camera"].includes(screen) && camReady;
   const showVideo = !dslr && previewing;
   const showLive = dslr && previewing && !!agent.liveUrl;
 
@@ -493,6 +517,23 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
         </button>
       )}
 
+      {screen === "pay" && selfService && (
+        <form className="k-panel k-ready k-pay" onSubmit={(e) => { e.preventDefault(); void redeem(); }}>
+          <p className="k-cap k-eyebrow">{config?.event?.name}</p>
+          <h1 className="k-title">{peso(selfService.priceCentavos, selfService.currency)}</h1>
+          <p className="k-text">One session, printed. <b>Enter the voucher code</b> from the counter.</p>
+          <label className="k-voucher">
+            <span className="k-cap">Voucher code</span>
+            <input value={voucher} onChange={(e) => setVoucher(e.target.value.toUpperCase())} autoComplete="off" autoCapitalize="characters"
+              spellCheck={false} inputMode="text" maxLength={12} placeholder="XXXX-XXXX" autoFocus aria-invalid={payError ? true : undefined} />
+          </label>
+          {payError && <p className="k-error" role="alert">{payError}</p>}
+          <div className="k-actions">
+            <button className="k-btn big" type="submit" disabled={paying || voucher.trim().length < 4}>{paying ? "Checking…" : "Continue"}</button>
+            <button className="k-btn ghost" type="button" onClick={() => reset("ABANDONED")}>Cancel</button>
+          </div>
+        </form>
+      )}
       {screen === "ready" && (
         // Priority, top to bottom: what's happening, how long until it starts, what to do, the fine print.
         <div className="k-panel k-ready">

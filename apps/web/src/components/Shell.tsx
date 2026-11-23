@@ -98,7 +98,7 @@ export function Shell({ children, me }: { children: ReactNode; me: Me }) {
           <Marks className="brand-logo" />
         </Link>
         <nav className="nav" aria-label="Main">
-          {NAV.filter((n) => n.href !== "/booths" || me.role !== "EVENTS").map((n) => (
+          {NAV.filter((n) => (n.href !== "/booths" || may.seeBooths) && (n.href !== "/dashboard" || me.role !== "CASHIER")).map((n) => (
             <Link key={n.href} href={n.href} aria-current={path === n.href || (n.href !== "/dashboard" && path.startsWith(n.href)) ? "page" : undefined}>
               {n.label}
             </Link>

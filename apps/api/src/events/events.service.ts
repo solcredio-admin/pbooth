@@ -9,7 +9,11 @@ import { eventWindow, utcToWallTime } from "./tz.js";
 import { BoothsService } from "../booths/booths.service.js";
 import { PhotosService } from "../photos/photos.service.js";
 
-const withConfig = { config: true } as const;
+const withConfig = { config: true, cashiers: { select: { admin: { select: { id: true, username: true } } } } } as const;
+
+/** A cashier sees only the events assigned to them; everyone else sees all. */
+export type EventScope = { cashierId?: string };
+const scoped = (s?: EventScope): Prisma.EventWhereInput => (s?.cashierId ? { cashiers: { some: { adminId: s.cashierId } } } : {});
 type EventRow = Prisma.EventGetPayload<{ include: typeof withConfig }>;
 
 // What the web app receives: exact instants plus the same times on the venue's clock.
@@ -20,6 +24,9 @@ export function toDto(e: EventRow) {
   return {
     id: e.id, name: e.name, organizerName: e.organizerName, contactPhone: e.contactPhone, contactEmail: e.contactEmail, venueName: e.venueName, venueAddress: e.venueAddress,
     status: e.status, timeZone: e.timeZone, startsAt: e.startsAt, endsAt: e.endsAt,
+    kind: e.kind, priceCentavos: e.priceCentavos, currency: e.currency, freeSessions: e.freeSessions,
+    partnerName: e.partnerName, partnerSharePercent: e.partnerSharePercent,
+    cashiers: e.cashiers.map((c) => c.admin),
     local: { date: start.date, startTime: start.time, endTime: end.time },
     activatedAt: e.activatedAt, completedAt: e.completedAt, createdAt: e.createdAt, updatedAt: e.updatedAt,
     config: e.config ? config : null,
@@ -31,8 +38,9 @@ export function toDto(e: EventRow) {
 export class EventsService {
   constructor(private readonly db: PrismaService, private readonly audit: AuditService, private readonly booths: BoothsService, private readonly photos: PhotosService) {}
 
-  async list(q: ListEvents) {
+  async list(q: ListEvents, scope?: EventScope) {
     const where: Prisma.EventWhereInput = {
+      ...scoped(scope),
       ...(q.status ? { status: q.status } : {}),
       ...(q.q ? { OR: ["name", "organizerName", "venueName"].map((f) => ({ [f]: { contains: q.q, mode: "insensitive" } })) } : {}),
     };
@@ -43,16 +51,16 @@ export class EventsService {
     return { items: items.map(toDto), page: q.page, pageSize: q.pageSize, total };
   }
 
-  async summary() {
-    const groups = await this.db.event.groupBy({ by: ["status"], _count: { _all: true } });
+  async summary(scope?: EventScope) {
+    const groups = await this.db.event.groupBy({ by: ["status"], where: scoped(scope), _count: { _all: true } });
     const byStatus = Object.fromEntries(Object.values(EventStatus).map((s) => [s, 0])) as Record<EventStatus, number>;
     for (const g of groups) byStatus[g.status] = g._count._all;
     return { total: Object.values(byStatus).reduce((a, b) => a + b, 0), byStatus };
   }
 
-  async get(id: string) {
-    const e = await this.db.event.findUnique({ where: { id }, include: withConfig });
-    if (!e) throw notFound("Event");
+  async get(id: string, scope?: EventScope) {
+    const e = await this.db.event.findFirst({ where: { id, ...scoped(scope) }, include: withConfig });
+    if (!e) throw notFound("Event"); // a cashier's unassigned event looks like it doesn't exist
     return toDto(e);
   }
 
@@ -125,5 +133,17 @@ export class EventsService {
     await this.audit.record({ actor, action: "event.delete", entityType: "event", entityId: id, ip, metadata: { name: e.name, photos: deleted } });
     this.booths.push(e.booths.map((b) => b.boothId)); // their next/live event changed
     return { deleted: true };
+  }
+
+  /** Which cashier accounts manage this event (replaces the list). Only CASHIER users count. */
+  async setCashiers(id: string, adminIds: string[], actor: string, ip?: string) {
+    await this.get(id);
+    const valid = await this.db.admin.findMany({ where: { id: { in: adminIds }, role: "CASHIER" }, select: { id: true } });
+    await this.db.$transaction([
+      this.db.eventCashier.deleteMany({ where: { eventId: id } }),
+      this.db.eventCashier.createMany({ data: valid.map((a) => ({ eventId: id, adminId: a.id })) }),
+    ]);
+    await this.audit.record({ actor, action: "event.cashiers", entityType: "event", entityId: id, ip, metadata: { adminIds: valid.map((a) => a.id) } });
+    return this.get(id);
   }
 }

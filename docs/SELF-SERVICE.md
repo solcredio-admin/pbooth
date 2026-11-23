@@ -1,6 +1,11 @@
 # Self-service booths: design draft
 
-Status: **draft for review**, nothing built yet. pbooth today runs **managed events**: a date, a
+Status: **phase 8 built** (self-service events, vouchers, free sessions, revenue share, cashiers).
+**Phase 9 next**: PayMongo QR payments and thermal receipt printing. Decisions so far: ₱150 per
+paid session (includes prints); vouchers belong to one event and are managed in its Vouchers tab;
+free-session events print nothing (QR only); the owner makes unlimited free-session codes; cashiers
+log in and run only their assigned events; boot/shutdown is handled by your RMM tool (no opening
+hours in pbooth). pbooth today runs **managed events**: a date, a
 client, a booth you set up and watch over. This adds a second kind: a **self-service location**, a
 booth left running indefinitely (a café, a mall, a hotel lobby) where guests pay and use it on
 their own, while you manage and monitor it remotely.

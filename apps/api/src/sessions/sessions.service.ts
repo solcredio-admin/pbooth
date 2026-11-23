@@ -2,12 +2,13 @@ import { HttpStatus, Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma.service.js";
 import { RealtimeGateway } from "../realtime/realtime.gateway.js";
 import { ApiError, notFound } from "../common/errors.js";
+import { SelfServiceService } from "../selfservice/selfservice.service.js";
 
 export interface SessionStats { sessions: number; completed: number; photos: number }
 
 @Injectable()
 export class SessionsService {
-  constructor(private readonly db: PrismaService, private readonly realtime: RealtimeGateway) {}
+  constructor(private readonly db: PrismaService, private readonly realtime: RealtimeGateway, private readonly ss: SelfServiceService) {}
 
   /**
    * Idempotent: the kiosk makes the UUID, so sending the same start twice is harmless.
@@ -15,7 +16,7 @@ export class SessionsService {
    * accepted as long as this booth was booked for that event and it was live (ACTIVE) or has since
    * been completed, so photos shot during an outage still land even if the event ended meanwhile.
    */
-  async start(boothId: string, id: string, startedAt?: string, galleryToken?: string, eventId?: string) {
+  async start(boothId: string, id: string, startedAt?: string, galleryToken?: string, eventId?: string, paymentId?: string) {
     const live = eventId
       ? await this.db.eventBooth.findFirst({ where: { boothId, eventId, event: { status: { in: ["ACTIVE", "COMPLETED"] } } }, select: { eventId: true } })
       : await this.db.eventBooth.findFirst({ where: { boothId, event: { status: "ACTIVE" } }, select: { eventId: true } });
@@ -25,6 +26,8 @@ export class SessionsService {
       return { id, eventId: existing.eventId, status: existing.status };
     }
     if (!live) throw new ApiError(HttpStatus.CONFLICT, "NO_LIVE_EVENT", "This booth isn't serving a live event");
+    // self-service: no session without a paid voucher/payment (free-session events are recorded as FREE)
+    await this.ss.claimForSession(live.eventId, boothId, id, paymentId);
     // Trust the kiosk's clock (sessions may be sent late), but never a time in the future.
     const at = startedAt ? new Date(Math.min(new Date(startedAt).getTime(), Date.now())) : new Date();
     const s = await this.db.session.create({

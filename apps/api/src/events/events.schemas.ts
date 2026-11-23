@@ -42,6 +42,12 @@ const fields = {
   venueName: optionalText(160),
   venueAddress: optionalText(300),
   config: configSchema.optional(),
+  // self-service (a booth left at a café): price per paid session, free mode, revenue share
+  kind: z.enum(["MANAGED", "SELF_SERVICE"]).optional(),
+  priceCentavos: z.number().int().min(0).max(10_000_000).optional(),
+  freeSessions: z.boolean().optional(),
+  partnerName: optionalText(120),
+  partnerSharePercent: z.number().int().min(0).max(100).nullish(),
 };
 
 export const createEventSchema = z.object({ ...fields, ...when });

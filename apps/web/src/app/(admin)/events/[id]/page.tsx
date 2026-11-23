@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { EventForm } from "@/components/EventForm";
+import { EventMain } from "@/components/EventMain";
+import { EventCashiers, EventRevenue, type Revenue } from "@/components/EventSales";
+import type { UserRow } from "@/components/UsersAdmin";
 import { Lifecycle } from "@/components/Lifecycle";
 import { DeleteZone } from "@/components/DeleteZone";
 import { apiGet } from "@/lib/server-api";
@@ -20,8 +22,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 // One event at a glance: title and status on top, settings in the middle, status on the right.
 export default async function EventPage({ params }: Props) {
   const { id } = await params;
-  const [e, booths, { admin }] = await Promise.all([apiGet<EventDto>(`/events/${id}`), apiGet<{ items: BoothDto[] }>(`/events/${id}/booths`), apiGet<{ admin: Me }>("/auth/me")]);
-  const canEdit = admin.role === "OWNER" || admin.role === "EVENTS"; // the API enforces this too
+  const { admin } = await apiGet<{ admin: Me }>("/auth/me");
+  const cashier = admin.role === "CASHIER";
+  const [e, booths] = await Promise.all([
+    apiGet<EventDto>(`/events/${id}`),
+    cashier ? Promise.resolve({ items: [] as BoothDto[] }) : apiGet<{ items: BoothDto[] }>(`/events/${id}/booths`), // cashiers don't see booths
+  ]);
+  const canEdit = admin.role === "OWNER" || admin.role === "EVENTS" || cashier; // the API enforces this too (cashiers: own events)
+  const selfService = e.kind === "SELF_SERVICE";
+  const [revenue, users] = await Promise.all([
+    selfService && canEdit ? apiGet<Revenue>(`/events/${id}/revenue`) : Promise.resolve(null),
+    selfService && admin.role === "OWNER" ? apiGet<{ items: UserRow[] }>("/users").then((r) => r.items.filter((u) => u.role === "CASHIER")) : Promise.resolve(null),
+  ]);
   const online = booths.items.filter((b) => b.online).length;
   const c = e.config;
   return (
@@ -41,14 +53,12 @@ export default async function EventPage({ params }: Props) {
           <Link className={e.status === "ACTIVE" ? "btn go" : "btn ghost"} href={`/events/${e.id}/booths`}>
             {e.status === "ACTIVE" ? "Open live view" : "Booths"} · {booths.items.length ? `${online}/${booths.items.length} online` : "none booked"}
           </Link>
-          {canEdit && <Link className="plain" href={`/events/${e.id}/gallery`}>Gallery &amp; export</Link>}
+          {canEdit && !cashier && <Link className="plain" href={`/events/${e.id}/gallery`}>Gallery &amp; export</Link>}
         </div>
       </section>
       <main className="detail">
         <div className="detail-main">
-          <section className="host" aria-label="Event settings">
-            <div className="panel"><EventForm key={e.updatedAt} event={e} canEdit={canEdit} /></div>
-          </section>
+          <EventMain event={e} canEdit={canEdit} lockMoney={cashier} />
         </div>
         <aside className="detail-side" aria-label="Event status">
           <section className="side-card" aria-labelledby="side-life">
@@ -66,7 +76,9 @@ export default async function EventPage({ params }: Props) {
               </dl>
             </section>
           )}
-          <section className="side-card" aria-labelledby="side-booths">
+          {revenue && <EventRevenue revenue={revenue} />}
+          {users && <EventCashiers event={e} cashiers={users} />}
+          {!cashier && <section className="side-card" aria-labelledby="side-booths">
             <h2 id="side-booths">Booths · {online} of {booths.items.length} online</h2>
             {booths.items.length === 0 ? (
               <p className="cap">No booth booked yet.</p>
@@ -82,7 +94,7 @@ export default async function EventPage({ params }: Props) {
               </ul>
             )}
             <Link className="plain cap" href={`/events/${e.id}/booths`}>{booths.items.length ? "Manage booths →" : "Book a booth →"}</Link>
-          </section>
+          </section>}
           {c && (
             <section className="side-card" aria-labelledby="side-glance">
               <h2 id="side-glance">At a glance</h2>

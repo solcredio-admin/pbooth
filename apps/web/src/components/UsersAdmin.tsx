@@ -6,7 +6,7 @@ import { Ago } from "./Ago";
 import { ROLE_HELP, ROLE_LABEL, useMe, type Role } from "@/lib/roles";
 
 export interface UserRow { id: string; username: string; role: Role; disabled: boolean; createdAt: string; lastActiveAt: string | null }
-const ROLES: Role[] = ["OWNER", "EVENTS", "BOOTHS", "KIOSK"];
+const ROLES: Role[] = ["OWNER", "EVENTS", "BOOTHS", "KIOSK", "CASHIER"];
 
 // Who can sign in: add people with a role, change roles, disable/enable, reset passwords, remove.
 // The API enforces the rules (admin-only, never lock yourself out, keep one admin); this mirrors them.
