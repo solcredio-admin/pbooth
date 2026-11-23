@@ -1,0 +1,155 @@
+# Self-service booths: design draft
+
+Status: **draft for review**, nothing built yet. pbooth today runs **managed events**: a date, a
+client, a booth you set up and watch over. This adds a second kind: a **self-service location**, a
+booth left running indefinitely (a café, a mall, a hotel lobby) where guests pay and use it on
+their own, while you manage and monitor it remotely.
+
+Both kinds use the same events, booths, bookings, kiosk, designs, galleries, storage, users and
+backups. Self-service adds opening hours, prices, payments and vouchers on top.
+
+## 1. Two kinds of event
+
+| | Managed event (today) | Self-service location (new) |
+|---|---|---|
+| Example | Reyes–Santos Wedding, Sat 3–11 pm | Kape Tayo Café, BGC |
+| Runs | One date, start to end | Indefinitely, during opening hours |
+| Guests pay | No (the client paid you) | Yes, per session: QR payment or a voucher |
+| Who's there | You or an operator | Nobody; staff only sell vouchers and refill paper |
+| Lifecycle | Draft → Scheduled → Live → Wrapped → Archived | Draft → Open ⇄ Paused → Closed (archived) |
+| Design | Set per event | Set per location; can be changed any time (e.g. seasonal frames) |
+| Reports | Sessions and photos for the event | Daily sessions, revenue, vouchers, uptime, paper |
+
+In the data, an event gets a `kind`: `MANAGED` (every event today) or `SELF_SERVICE`. Everything
+that works for events today keeps working for both kinds.
+
+## 2. Booths and booking (same as today)
+
+- A booth is booked onto a self-service location exactly like onto an event (Booths → Events tab,
+  or the event's Booths). While the location is **Open**, the booth serves it.
+- The current rule stays: **a booth serves one live event at a time**. An open location counts as
+  live, so a booth at the café can't also be live at a wedding. To take it to a wedding, **pause**
+  the location (or move the booth), then book it on the wedding.
+- A location can have more than one booth (a big mall); each booth reports separately.
+- The booth page shows which location it serves, and its health as today (agent, kiosk, camera,
+  printer, uploads).
+
+## 3. The guest's experience (kiosk)
+
+```
+Attract screen ─tap→ Choose a package ─→ Pay ─→ Get ready (10 s) ─→ Shoot ─→ Review ─→ Print + QR ─→ Thank you
+   (loops a            (e.g. 1 strip ₱150,    QR code, or            same as today                                  back to attract
+    sample video        2 prints ₱250)        enter a voucher
+    or photos)
+```
+
+- **Attract screen** when idle: the location's welcome title, sample photos, price, "Tap to start".
+- **Packages**: up to 3, each with a price, number of prints, layout (4R or strips) and whether
+  digital copies are included. One package can be free (staff tests, promos).
+- **Pay** (one screen, both methods side by side):
+  - **Scan to pay**: a QR code for the exact amount. When the payment provider confirms it, the
+    screen moves on by itself (usually a few seconds). The QR expires after ~5 minutes.
+  - **Have a voucher?**: type the code from the cashier; it's checked and used once.
+- **Payment never blocks forever**: Cancel is always there; an unpaid session times out and returns
+  to the attract screen.
+- **Out of hours**: a "We're closed, open again at 10:00" screen; nothing can be paid or shot.
+- **Out of paper / printer error**: the booth stops taking payment and shows "Temporarily
+  unavailable" (so nobody pays for a print they won't get), and you get an alert.
+
+## 4. Payments
+
+### 4a. QR payment (automatic)
+
+- Through a payment provider that supports **QR Ph** (one QR that works with GCash, Maya and bank
+  apps), for example **PayMongo**, Xendit or Maya Business. pbooth never sees card or bank details.
+- Flow: kiosk asks the API for a payment → API creates a payment intent with the provider for the
+  package price (the price always comes from the server, never from the kiosk) → kiosk shows the
+  QR → the provider calls pbooth's **webhook** when it's paid → API marks the session paid → kiosk
+  moves on.
+- Webhooks are verified by signature and are idempotent (a repeated notice doesn't pay twice).
+- Needs internet at the moment of payment. If the booth is offline, the QR option is hidden and
+  vouchers still work.
+- Refunds are done in the provider's dashboard; pbooth records them for reports.
+
+### 4b. Vouchers (paid at the cashier)
+
+- You (or a future *Cashier* role) generate a **batch** of vouchers in pbooth: how many, which
+  package, which location (or any), and an expiry date.
+- Each voucher is a short code like `7K3M-Q9TX` (the same easy-to-read alphabet as booth codes),
+  printable as a sheet of cards with a QR the booth camera could also scan later.
+- The cashier sells one with the coffee; the guest types it at the booth.
+- **One use only**, checked by the server. Codes are stored hashed; guessing is rate-limited.
+- **Offline**: the booth keeps a list of the location's unused voucher hashes, so a voucher still
+  works without internet; redemptions sync later. (With one booth per location this can't be used
+  twice; with several booths, the rare offline double-use is flagged in reports.)
+- Reports: sold vs used, by batch, by day; void a lost batch in one click.
+
+## 5. What you see as the owner
+
+- **Location page** (same layout as an event page): header with Open/Paused/Closed and today's
+  numbers; tabs for *Location*, *Guest screen*, *Photo design*, *Packages & prices*, *Payments*,
+  *Vouchers*, *Hours*; sidebar with booth health, today's revenue, paper left, last session.
+- **Dashboard**: locations get their own tiles (status dot + today's sessions/revenue), next to
+  booths and events.
+- **Reports**: per day/week/month: sessions, revenue by method (QR vs voucher), voucher use,
+  uptime during opening hours, failed or cancelled payments; CSV export.
+- **Alerts** (Telegram, like Gatus today) during opening hours: booth offline, printer out of
+  paper or erroring, camera lost, payments failing repeatedly.
+- **Remote actions**: pause/resume the location, restart the kiosk, change design or prices
+  (applied to the next session), void vouchers.
+
+## 6. Reliability for unattended booths
+
+- Kiosk runs full-screen and locked down (browser kiosk mode), restarts by itself after a crash or
+  power cut, and resumes on the attract screen.
+- Opening hours turn the booth "on" and "off" (attract vs closed screen); optional screen sleep.
+- Print counter and paper-low warnings (from the printer agent where the printer reports it, or a
+  configured sheets-per-roll count).
+- A paid session that fails (camera error, crash) is **marked for refund** automatically and shows
+  the guest a code to show the cashier.
+
+## 7. Data model (draft)
+
+- `Event.kind`: `MANAGED | SELF_SERVICE` (default `MANAGED`; existing events unchanged).
+- `Event.hours`: weekly opening hours + time zone (self-service only); `endsAt` optional for them.
+- `Package`: eventId, name, price (centavos), currency, prints, layout, digital, active, order.
+- `Payment`: sessionId, packageId, method (`QR | VOUCHER | FREE`), amount, provider, providerRef,
+  status (`PENDING | PAID | EXPIRED | FAILED | REFUNDED`), timestamps.
+- `VoucherBatch`: eventId (or null = any location), packageId, count, expiresAt, createdBy, voided.
+- `Voucher`: batchId, codeHash, usedAt, sessionId.
+- `Session` gains `paymentId`; a self-service session can't start shooting until it's paid.
+
+## 8. Security notes
+
+- Prices, packages and "paid" status live only on the server; the kiosk can't set an amount.
+- Payment webhooks: signature check, idempotency key, amount and currency re-checked.
+- Voucher codes: hashed, one-time, expiry, per-IP and per-booth guess limits, audit log of every
+  redemption.
+- Provider API keys only in the server's `.env`, never on the booth.
+- New role options: **Cashier** (generate/print vouchers, see today's sales, nothing else);
+  **Location manager** (one location's reports and pause/resume).
+
+## 9. Build order (proposal)
+
+1. **Locations + vouchers** (no online payments yet): event kind, opening hours, packages, the new
+   kiosk flow with voucher entry, voucher batches and printing, closed screen, basic daily report.
+   Lets you run a café booth with cashier-sold vouchers.
+2. **QR payments**: provider integration, webhook, QR screen, refunds recorded, revenue report.
+3. **Unattended reliability + alerts**: kiosk lockdown/auto-restart guide, paper tracking,
+   Telegram alerts during opening hours, auto-refund flagging.
+4. **Reports and roles**: weekly/monthly reports, CSV, Cashier and Location manager roles,
+   dashboard location tiles.
+
+## 10. Decisions needed from you
+
+1. **Payment provider** for QR: PayMongo, Xendit, Maya Business, or another you already use?
+2. **Currency and prices**: PHP? What packages (e.g. 1 strip ₱150, 2 prints ₱250, digital only ₱99)?
+3. **Receipts**: do guests need a receipt (BIR / official receipt), or is the provider's
+   confirmation enough? Should the café print a receipt for voucher sales?
+4. **Vouchers**: tied to one café, or valid at any of your locations? Default expiry?
+5. **Revenue sharing** with the café (e.g. a % per session)? If so, reports should show it.
+6. **Free sessions**: allowed (promos, staff tests) and who can trigger them?
+7. **Cashier role**: should café staff log in to pbooth to generate vouchers, or will you hand
+   them printed batches?
+8. **Opening hours**: follow the café's hours, or always on?
+9. **Digital copies**: always included via the QR gallery, or a paid add-on?

@@ -38,9 +38,11 @@
 .k-frame { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; background: #000; }
 /* The booth's shape (16:9 or 9:16), as large as fits: on a matching screen it's full screen, and it
    never changes from the welcome screen to the countdown. Photos are captured in exactly this shape. */
-.k-view {
+.kiosk {
   --k-vw: min(100vw, calc(100vh * var(--k-aspect, 1.7778)));
   --k-vh: min(100vh, calc(100vw / var(--k-aspect, 1.7778)));
+}
+.k-view {
   position: relative; overflow: hidden; width: var(--k-vw); height: var(--k-vh);
 }
 /* The camera image, centred, turned for a sideways camera (--k-rot) and mirrored if asked. */
@@ -97,7 +99,8 @@
 @media (prefers-reduced-motion: reduce) { .k-tap .k-text, .k-count { animation: none; } }
 
 /* multi-shot + event template */
-.k-shot { position: absolute; top: 4vh; left: 50%; transform: translateX(-50%); z-index: 3; margin: 0; padding: 8px 18px; border-radius: 999px; background: rgba(0, 0, 0, .62); text-shadow: 0 1px 2px rgba(0, 0, 0, .6); color: #fff; font: 600 16px/1.3 var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+/* inside the camera frame, never on the black bars around it (screens taller or wider than the booth shape) */
+.k-shot { position: absolute; top: calc((100vh - var(--k-vh)) / 2 + 3vh); left: 50%; transform: translateX(-50%); z-index: 4; margin: 0; padding: 8px 18px; border-radius: 999px; background: rgba(8, 9, 8, .72); border: 1px solid rgba(255, 255, 255, .18); white-space: nowrap; text-shadow: 0 1px 2px rgba(0, 0, 0, .6); color: #fff; font: 600 16px/1.3 var(--mono); text-transform: uppercase; letter-spacing: .06em; }
 .k-review { grid-template-columns: auto minmax(260px, 420px); align-items: center; gap: 4vw; }
 .k-design { max-height: 86vh; max-width: 56vw; border-radius: 6px; box-shadow: 0 30px 90px -20px rgba(0, 0, 0, .75); -webkit-user-drag: none; }
 .k-design.final { max-height: 62vh; max-width: 80vw; }
@@ -131,6 +134,7 @@
 /* The photo just taken, full screen for a moment before the next countdown (multi-photo sessions). */
 .k-peek { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; background: #000; animation: k-fade .25s ease-out both; }
 .k-peek img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.k-peek img.mirror { transform: scaleX(-1); } /* matches the mirrored live preview; the saved photo isn't mirrored */
 @keyframes k-fade { from { opacity: 0; } }
 
 /* Welcome: the event's name as a clear badge above the big title. */

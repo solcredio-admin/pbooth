@@ -7,7 +7,7 @@ import { cachedConfig, enqueuePhoto, kioskQueue, saveConfig } from "@/lib/offlin
 import type { QueueStatus } from "@/lib/offline/queue";
 import { composeTemplate, printCanvas, toJpeg } from "@/lib/template/compose";
 import { plan, type Layout } from "@/lib/template/layout";
-import { boothAspect, frameShot } from "@/lib/kiosk/frame";
+import { boothAspect, frameShot, snapshot } from "@/lib/kiosk/frame";
 import { newGalleryToken } from "@/lib/kiosk/upload";
 import QRCode from "qrcode";
 
@@ -265,6 +265,20 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     let cancelled = false;
     setFlash(true);
     setTimeout(() => setFlash(false), 450);
+    // More photos to come: show this one right away (a copy of the live frame at the shutter), for
+    // PEEK_MS. The next countdown waits for both the timer and the real photo, so a slow camera
+    // can't cut the preview short or skip a shot.
+    const more = redo === null && shotsRef.current.length + 1 < needed;
+    const n = shotsRef.current.length + 1;
+    let timerDone = false, captured = false;
+    const next = () => { if (cancelled || !timerDone || !captured) return; setPeek(null); setCount(guest?.captureIntervalSeconds ?? 3); };
+    const startPeek = (url: string) => { setPeek({ url, n }); setTimeout(() => { timerDone = true; next(); }, PEEK_MS); };
+    let instant = false;
+    if (more) {
+      const media = root.current?.querySelector<HTMLVideoElement | HTMLImageElement>(".k-view .k-media");
+      const snap = media ? snapshot(media, rotation, aspect) : null;
+      if (snap) { startPeek(snap); instant = true; }
+    }
     (dslr ? agent.capture() : cam.capture())
       .then((raw) => frameShot(raw, rotation, aspect))
       .then((blob) => {
@@ -274,9 +288,10 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
         if (redo !== null) { URL.revokeObjectURL(list[redo].url); list[redo] = shot; } else list.push(shot);
         setShots(list);
         setRedo(null);
-        if (redo === null && list.length < needed) {
-          setPeek({ url: shot.url, n: list.length });
-          setTimeout(() => { if (cancelled) return; setPeek(null); setCount(guest?.captureIntervalSeconds ?? 3); }, PEEK_MS);
+        if (more) {
+          if (!instant) startPeek(shot.url); // couldn't copy the live frame: show the photo as it arrives
+          captured = true;
+          next();
         } else compose(list);
       })
       .catch(() => { if (!cancelled) { setCaptureError("The camera didn't take that one. Let's try again."); setRedo(null); setScreen("ready"); } });
@@ -503,7 +518,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
         <>
           {peek ? (
             <div className="k-peek" aria-live="polite">
-              <img src={peek.url} alt={`Photo ${peek.n} of ${needed}`} />
+              <img className={config?.camera.mirrorPreview ? "mirror" : undefined} src={peek.url} alt={`Photo ${peek.n} of ${needed}`} />
               <p className="k-shot">Photo {peek.n} of {needed} · next one coming up</p>
             </div>
           ) : (

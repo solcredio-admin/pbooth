@@ -296,7 +296,7 @@ main.narrow { max-width: 900px; }
 .detail-head .head-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
 main.detail { max-width: 1240px; display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
 .detail-main { display: grid; gap: 18px; min-width: 0; }
-.detail-side { display: grid; gap: 16px; position: sticky; top: 80px; max-height: calc(100vh - 96px); overflow: auto; overscroll-behavior: contain; }
+.detail-side { display: grid; gap: 16px; align-content: start; } /* scrolls with the page: no inner scrollbar, nothing cut off */
 .side-card { background: var(--glass); border: 1px solid var(--line); border-radius: 20px; padding: 18px; display: grid; gap: 12px; }
 .side-card > h2 { margin: 0; font: 500 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 .side-card .kv { gap: 8px 16px; font-size: 13px; }
@@ -333,7 +333,6 @@ main.detail { max-width: 1240px; display: grid; grid-template-columns: minmax(0,
   .detail-head { grid-template-columns: 1fr; }
   .detail-head .head-actions { justify-content: flex-start; }
   main.detail { grid-template-columns: 1fr; }
-  .detail-side { position: static; max-height: none; overflow: visible; }
 }
 
 /* Settings: one column of tabs; Users table */
@@ -380,3 +379,99 @@ main.detail.with-tabs > .detail-tabs { grid-column: 1 / -1; }
 main.detail.single .tabs { margin-inline: auto; } /* centred like the page title above */
 .detail-head .head-summary { justify-self: end; align-self: end; }
 @media (max-width: 960px) { .detail-head .head-summary { justify-self: start; } }
+
+/* =====================================================================================
+   Calm layer (minimal pass). One box per section, one heading, few type sizes, three
+   button styles, quiet status, softer effects. Later rules on purpose: they override the
+   older ones above in one place.
+   ===================================================================================== */
+
+/* --- contrast: muted text a step darker in light mode and lighter in dark --- */
+:root { --muted: #4c4f48; --soft-line: rgba(11, 12, 10, .1); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --muted: #a8aca2; --soft-line: rgba(241, 242, 238, .09); } }
+:root[data-theme="dark"] { --muted: #a8aca2; --soft-line: rgba(241, 242, 238, .09); }
+
+/* --- type: serif for titles only; mono body 13px; ONE small uppercase label style (11px) --- */
+.cap, .plain, .nav a, .tabs button, .btn, .pill, .answer, .meta, .hint, .field .hint, .field .err, .err, .status, .linkish {
+  text-transform: none; letter-spacing: 0;
+}
+.cap, .meta, .answer { font: 400 13px/1.5 var(--mono); }
+.field > span, .table th, .side-card > h2, .detail-side .host-head h2, .kv dt, .ticket dt, .key .p {
+  font: 500 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
+}
+.field .hint, .field .err, .err { font: 400 12px/1.45 var(--mono); }
+.kv dd, .table td, .side-list li, .side-card p { font-size: 13px; }
+.nav a { font: 500 13px/1 var(--mono); }
+
+/* --- one box per section: the glass card; panels inside it are no longer a second box --- */
+.host {
+  padding: clamp(20px, 2.6vw, 30px); gap: 20px; border-radius: 22px;
+  background-color: var(--glass); background-image: none; border: 1px solid var(--soft-line);
+  box-shadow: inset 0 1px 0 var(--rim-soft);
+}
+.panel, .detail-main .panel, .detail-side .panel {
+  background: none; box-shadow: none; border-radius: 0; padding: 0;
+}
+/* one heading per section: the title, then its explanation as a plain line under it */
+.host-head, .detail-main .host-head, .detail-side .host-head {
+  display: flex; flex-direction: column-reverse; align-items: flex-start; gap: 4px; padding: 0; text-align: left;
+}
+.host-head h2, .detail-main .host-head h2 { font: 400 clamp(22px, 2.2vw, 28px)/1.15 var(--serif); letter-spacing: -0.01em; color: var(--ink); text-transform: none; }
+.host-head .cap { color: var(--muted); }
+.detail-side .host-head .cap { display: block; }
+.side-card { padding: 20px; border: 1px solid var(--soft-line); background-image: none; box-shadow: none; }
+.detail-side .host { padding: 20px; }
+
+/* --- three buttons: primary (accent, the one main action), secondary (outline), text link --- */
+.btn, .btn.go {
+  background: var(--key); border: 1px solid var(--key); color: var(--key-ink);
+  font: 500 13px/1.4 var(--mono); padding: 9px 20px; border-radius: 999px;
+}
+.btn:hover, .btn:focus-visible, .btn.go:hover, .btn.go:focus-visible { background: var(--key-edge); border-color: var(--key-edge); color: var(--key-ink); }
+.btn.ghost, .btn.warn, .row-btn, .pill-toggle {
+  background: transparent; border: 1px solid color-mix(in srgb, var(--ink) 28%, transparent); color: var(--ink);
+  font: 500 13px/1.4 var(--mono); border-radius: 999px;
+}
+.btn.ghost, .btn.warn { padding: 9px 20px; }
+.row-btn, .pill-toggle { padding: 5px 14px; }
+.btn.ghost:hover, .btn.ghost:focus-visible, .row-btn:hover, .row-btn:focus-visible, .pill-toggle:hover {
+  background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); border-color: color-mix(in srgb, var(--ink) 45%, transparent);
+}
+.btn.warn, .row-btn.danger { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 55%, transparent); }
+.btn.warn:hover, .btn.warn:focus-visible, .row-btn.danger:hover { background: color-mix(in srgb, var(--warn) 12%, transparent); color: var(--warn); }
+.plain, .plain.cap, .linkish { font: 500 13px/1.4 var(--mono); color: var(--ink); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--ink) 30%, transparent); text-underline-offset: 4px; }
+.plain:hover, .plain:focus-visible { text-decoration-color: currentColor; outline: none; }
+.plain.icon, .bar .plain, .plain.back { text-decoration: none; }
+.plain.danger { color: var(--warn); }
+
+/* --- quiet status: a small coloured dot and plain text, no coloured badges --- */
+.pill, .pill-toggle.on {
+  display: inline-flex; align-items: center; gap: 7px; background: none; border: 0; padding: 0;
+  font: 500 12px/1.4 var(--mono); color: var(--ink);
+}
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none; }
+.pill.s-ACTIVE::before, .pill.b-ONLINE::before, .pill.b-ACTIVE::before, .pill.free::before { background: var(--key-edge); box-shadow: 0 0 0 3px color-mix(in srgb, var(--key-edge) 22%, transparent); }
+.pill.s-SCHEDULED::before, .pill.b-READY::before { background: var(--sched-edge); }
+.pill.s-COMPLETED::before { background: var(--done-edge, #7b7c76); }
+.pill.b-ERROR::before, .pill.b-REVOKED::before, .pill.taken::before { background: var(--warn); }
+.pill.s-ACTIVE, .pill.s-SCHEDULED, .pill.s-DRAFT, .pill.s-ARCHIVED, .pill.s-COMPLETED, .pill.b-ONLINE, .pill.b-ACTIVE, .pill.b-READY, .pill.b-OFFLINE, .pill.b-UNREGISTERED, .pill.b-ERROR, .pill.b-REVOKED { color: var(--ink); border: 0; }
+.pill-toggle.on { padding: 5px 14px; border: 1px solid color-mix(in srgb, var(--ink) 28%, transparent); border-radius: 999px; }
+.pill-toggle.on::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--key-edge); }
+.answer .free, .answer .taken { color: var(--ink); }
+.sim-badge { text-transform: none; letter-spacing: 0; font-size: 11px; }
+
+/* --- softer effects: a quieter background, faint glass, keycap hover stays the one flourish --- */
+#scene.on { opacity: .55; }
+.bar { background-image: none; }
+
+/* --- room for items, less frame: bigger tiles with readable names --- */
+.keys { margin-top: 0; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+.key { aspect-ratio: auto; min-height: 104px; padding: 14px 14px 13px; gap: 6px; border-radius: 12px; }
+.key .n { font-size: 20px; }
+.key .l { font-size: 12px; opacity: .8; }
+
+/* --- tabs stay on one row on phones (they scroll sideways instead of wrapping) --- */
+.tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs button { font: 500 13px/1.4 var(--mono); white-space: nowrap; }
+.detail-head .head-actions { align-items: center; gap: 18px; }

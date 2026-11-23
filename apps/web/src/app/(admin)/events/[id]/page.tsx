@@ -35,15 +35,13 @@ export default async function EventPage({ params }: Props) {
           </div>
           <div className="meta cap">
             <span>{longDate(e)}</span><span>{timeRange(e)}</span>
-            {e.venueName && <span>{e.venueName}</span>}
-            {e.organizerName && <span>For {e.organizerName}</span>}
           </div>
         </div>
         <div className="head-actions">
           <Link className={e.status === "ACTIVE" ? "btn go" : "btn ghost"} href={`/events/${e.id}/booths`}>
             {e.status === "ACTIVE" ? "Open live view" : "Booths"} · {booths.items.length ? `${online}/${booths.items.length} online` : "none booked"}
           </Link>
-          {canEdit && <Link className="btn ghost" href={`/events/${e.id}/gallery`}>Gallery &amp; export</Link>}
+          {canEdit && <Link className="plain" href={`/events/${e.id}/gallery`}>Gallery &amp; export</Link>}
         </div>
       </section>
       <main className="detail">
