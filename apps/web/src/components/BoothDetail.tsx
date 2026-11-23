@@ -7,7 +7,7 @@ import { send } from "@/lib/client-api";
 import { useLiveBooths } from "@/lib/live";
 import { DeleteZone } from "./DeleteZone";
 import { Tabs } from "./Tabs";
-import { AgentInstall } from "./AgentInstall";
+import { AgentInstall, AgentRemove } from "./AgentInstall";
 import { OpenKioskHere } from "./OpenKioskHere";
 import { can, useMe } from "@/lib/roles";
 import { BOOTH_LABEL, bytes, STATUS_LABEL } from "@/lib/format";
@@ -210,7 +210,7 @@ function Enroll({ booth, origin }: { booth: BoothDto; origin: string }) {
           <p className="cap center" suppressHydrationWarning>{booth.enrollmentExpiresAt ? `A code is waiting (expires ${time(booth.enrollmentExpiresAt)}). A new one replaces it.` : booth.device ? "Enrolling another computer disconnects the current one." : "Codes are single-use and expire after 30 minutes."}</p>
         )}
         {error && <p className="cap err" role="alert">{error}</p>}
-        <div className="actions"><button className="btn" type="button" onClick={generate} disabled={busy}>{busy ? "Generating…" : code ? "New code" : "Generate enrollment code"}</button></div>
+        <div className="actions"><button className="btn" type="button" onClick={generate} disabled={busy}>{busy ? "Generating…" : code ? "New code" : "Generate enrollment code"}</button><AgentRemove /></div>
         <AgentInstall origin={origin} code={code?.code ?? null} />
       </div>
     </section>

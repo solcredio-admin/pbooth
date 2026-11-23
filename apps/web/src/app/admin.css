@@ -219,6 +219,8 @@ main.narrow { max-width: 900px; }
 .agent-install .steps-text { max-width: none; }
 .agent-install .steps-text p { margin: 4px 0 0; }
 .agent-install details summary { cursor: pointer; }
+.agent-remove { width: min(720px, calc(100vw - 32px)); }
+.agent-remove .agent-install { margin: 0; }
 .cmd { position: relative; min-width: 0; }
 .cmd .code-line { padding-right: 72px; }
 .cmd-copy { position: absolute; top: 6px; right: 6px; padding: 4px 10px; border: 1px solid rgba(255,255,255,.18); border-radius: 7px; background: #1c1d1a; color: #e8e8e8; font: 500 11px/1.4 var(--mono); cursor: pointer; }

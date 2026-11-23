@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Tabs } from "./Tabs";
 
 // Installing the booth agent from a fresh computer, per OS. The enrollment code is filled in when one is showing.
@@ -21,13 +21,19 @@ function Cmd({ children }: { children: string }) {
 }
 const Step = ({ title, children }: { title: string; children?: ReactNode }) => <li><b>{title}</b>{children}</li>;
 
-export function AgentInstall({ origin, code }: { origin: string; code: string | null }) {
-  const [os, setOs] = useState<Os>("windows");
-  // start on the tab for the computer you're reading this on (after hydration, so server and client agree)
+// start on the tab for the computer you're reading this on (after hydration, so server and client agree)
+function useThisOs() {
+  const state = useState<Os>("windows");
+  const setOs = state[1];
   useEffect(() => {
     const ua = navigator.userAgent;
     setOs(/Mac/.test(ua) ? "mac" : /Linux|X11/.test(ua) && !/Android/.test(ua) ? "linux" : "windows");
-  }, []);
+  }, [setOs]);
+  return state;
+}
+
+export function AgentInstall({ origin, code }: { origin: string; code: string | null }) {
+  const [os, setOs] = useThisOs();
   const c = code ?? "XXXX-XXXX";
   const win = `[Net.ServicePointManager]::SecurityProtocol='Tls12'; $env:PBOOTH_SERVER='${origin}'; $env:PBOOTH_CODE='${c}'; irm ${origin}/install-agent.ps1 | iex`;
   const unix = `curl -fsSL ${origin}/install-agent.sh | bash -s -- ${origin} ${c}`;
@@ -84,5 +90,47 @@ export function AgentInstall({ origin, code }: { origin: string; code: string | 
         <Cmd>{`node tools/simulate-booth.mjs --url ${origin} --code ${c}`}</Cmd>
       </details>
     </div>
+  );
+}
+
+// Removing the agent from a computer: stops it, removes the start-up entry, its folder and its saved state.
+const REMOVE: Record<Os, { where: string; cmd: string; after: string }> = {
+  windows: {
+    where: "PowerShell as Administrator",
+    cmd: "Stop-ScheduledTask -TaskName 'pbooth agent' -ErrorAction SilentlyContinue; Unregister-ScheduledTask -TaskName 'pbooth agent' -Confirm:$false -ErrorAction SilentlyContinue; Start-Sleep 2; Remove-Item -Recurse -Force C:\\pbooth-agent, \"$env:ProgramData\\pbooth-agent\" -ErrorAction SilentlyContinue; Write-Host 'pbooth agent removed'",
+    after: "Node.js stays installed; remove it in Settings → Apps if nothing else uses it.",
+  },
+  mac: {
+    where: "Terminal",
+    cmd: "launchctl unload -w ~/Library/LaunchAgents/net.pbooth.agent.plist 2>/dev/null; rm -f ~/Library/LaunchAgents/net.pbooth.agent.plist; rm -rf /Users/Shared/pbooth-agent ~/.local/share/pbooth-agent /tmp/pbooth-agent.log; echo 'pbooth agent removed'",
+    after: "Node.js stays installed (sudo rm -rf /usr/local/bin/node /usr/local/lib/node_modules removes it). gPhoto2, if you added it: brew uninstall gphoto2.",
+  },
+  linux: {
+    where: "a Terminal",
+    cmd: "sudo systemctl disable --now pbooth-agent 2>/dev/null; sudo rm -f /etc/systemd/system/pbooth-agent.service; sudo systemctl daemon-reload; sudo rm -rf /opt/pbooth-agent /var/lib/pbooth-agent; id pbooth >/dev/null 2>&1 && sudo userdel -r pbooth 2>/dev/null; echo 'pbooth agent removed'",
+    after: "Node.js, gPhoto2 and CUPS stay installed (sudo apt remove nodejs gphoto2 removes them; keep CUPS if you print from this computer).",
+  },
+};
+
+export function AgentRemove() {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const [os, setOs] = useThisOs();
+  return (
+    <>
+      <button type="button" className="btn ghost" onClick={() => dialog.current?.showModal()}>Remove the agent from a computer</button>
+      <dialog ref={dialog} className="setup agent-remove" aria-labelledby="agent-remove-title">
+        <span className="cap">Booth agent</span>
+        <h2 id="agent-remove-title">Remove the agent from a computer</h2>
+        <p>Stops the agent, removes it from start-up, and deletes its folder and saved booth login on that computer.</p>
+        <div className="agent-install">
+          <Tabs label="Booth computer" tabs={OS_TABS} value={os} onChange={setOs} />
+          <ol className="steps-text">
+            <Step title={`Run this in ${REMOVE[os].where}.`}><Cmd>{REMOVE[os].cmd}</Cmd><p>{REMOVE[os].after}</p></Step>
+            <Step title="Then disconnect it here."><p>If this booth still lists that computer, use <i>Revoke access</i> in the booth&apos;s sidebar, so its old login stops working even if a copy survives.</p></Step>
+          </ol>
+        </div>
+        <div className="actions"><button type="button" className="btn" onClick={() => dialog.current?.close()}>Done</button></div>
+      </dialog>
+    </>
   );
 }
