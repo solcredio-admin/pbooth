@@ -12,14 +12,14 @@ import { AgentInstall, AgentRemove } from "./AgentInstall";
 import { OpenKioskHere } from "./OpenKioskHere";
 import { can, useMe } from "@/lib/roles";
 import { BOOTH_LABEL, bytes, STATUS_LABEL } from "@/lib/format";
-import type { BoothDto, CameraConfig, EventDto, HwStatus, PrinterConfig } from "@/lib/types";
+import type { BoothDto, CameraConfig, EventDto, HwStatus, StationDto } from "@/lib/types";
 
 type BoothTab = "hardware" | "events" | "connect";
 const BOOTH_TABS: { id: BoothTab; label: string }[] = [{ id: "hardware", label: "Hardware" }, { id: "events", label: "Events" }, { id: "connect", label: "Connect" }];
 
 const hw = (s?: HwStatus) => (s ? `${s.name ?? "Unnamed"} · ${s.status}` : "Not reported yet");
 
-export function BoothDetail({ initial, events, origin }: { initial: BoothDto; events: EventDto[]; origin: string }) {
+export function BoothDetail({ initial, events, stations, origin }: { initial: BoothDto; events: EventDto[]; stations: StationDto[]; origin: string }) {
   const seed = useMemo(() => [initial], [initial]); // stable, or every render would reset the live data
   const { booths, connected } = useLiveBooths(seed, (b) => b.id === initial.id);
   const b = booths[0] ?? initial;
@@ -52,7 +52,7 @@ export function BoothDetail({ initial, events, origin }: { initial: BoothDto; ev
       <main className="detail with-tabs">
         <div className="detail-tabs"><Tabs label="Booth settings" tabs={BOOTH_TABS} value={tab} onChange={setTab} /></div>
         <div className="detail-main">
-          <div className="tab-pane" hidden={tab !== "hardware"}><Hardware booth={b} readOnly={!may.manageBooths} /></div>
+          <div className="tab-pane" hidden={tab !== "hardware"}><Hardware booth={b} readOnly={!may.manageBooths} /><Stations booth={b} all={stations} readOnly={!may.manageBooths} /></div>
           <div className="tab-pane" hidden={tab !== "events"}><Assignments booth={b} events={events} readOnly={!may.bookBooths} /></div>
           <div className="tab-pane" hidden={tab !== "connect"}>
             {may.manageBooths ? (
@@ -76,7 +76,7 @@ export function BoothDetail({ initial, events, origin }: { initial: BoothDto; ev
             {!b.device && !b.kiosk ? (
               <div className="empty-state">
                 <h3>{b.state === "REVOKED" ? "Access revoked." : "Nothing connected yet."}</h3>
-                <p>For a webcam booth, pair its kiosk screen below. For a DSLR or printer, also enroll the booth agent.</p>
+                <p>For a webcam booth, pair its kiosk screen below. For a DSLR, also enroll the booth agent. Printers are set up under Stations.</p>
               </div>
             ) : !b.device ? (
               <>
@@ -200,7 +200,7 @@ function Enroll({ booth, origin }: { booth: BoothDto; origin: string }) {
 
   return (
     <section className="host" aria-labelledby="enr">
-      <div className="host-head"><span className="cap">For DSLR cameras and printing · one-time code, valid 30 minutes</span><h2 id="enr">{booth.device ? "Replace the agent computer" : "Booth agent"}</h2></div>
+      <div className="host-head"><span className="cap">For DSLR cameras · one-time code, valid 30 minutes</span><h2 id="enr">{booth.device ? "Replace the agent computer" : "Booth agent"}</h2></div>
       <div className="panel enroll">
         {code ? (
           <>
@@ -226,7 +226,6 @@ function Hardware({ booth, readOnly }: { booth: BoothDto; readOnly: boolean }) {
   const t = booth.device?.telemetry ?? {};
   // Cameras the booth reported: the agent's (DSLR/webcam) plus the kiosk browser's webcams.
   const cameras = [...(t.cameras ?? []), ...(booth.kiosk?.telemetry.cameras ?? [])];
-  const printers = t.printers ?? [];
 
   async function save(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -237,12 +236,8 @@ function Hardware({ booth, readOnly }: { booth: BoothDto; readOnly: boolean }) {
       resolution: s("resolution") as CameraConfig["resolution"], orientation: s("orientation") as CameraConfig["orientation"],
       rotation: Number(s("rotation")) as CameraConfig["rotation"], mirrorPreview: f.get("mirrorPreview") === "on",
     };
-    const printer: PrinterConfig = {
-      enabled: f.get("printEnabled") === "on", printerName: s("printerName") || null,
-      paperSize: s("paperSize") as PrinterConfig["paperSize"], orientation: s("printOrientation") as PrinterConfig["orientation"],
-    };
     setBusy(true);
-    const res = await send<BoothDto>("PATCH", `/booths/${booth.id}`, { name: s("name"), notes: s("notes"), camera, printer });
+    const res = await send<BoothDto>("PATCH", `/booths/${booth.id}`, { name: s("name"), notes: s("notes"), camera });
     setBusy(false);
     if (!res.ok) return setStatus({ ok: false, text: res.message });
     setStatus({ ok: true, text: booth.device ? "Saved. The booth applies it on its next check-in." : "Saved." });
@@ -251,11 +246,10 @@ function Hardware({ booth, readOnly }: { booth: BoothDto; readOnly: boolean }) {
 
   // Unknown saved device names stay selectable even if the booth stopped reporting them.
   const camOptions = [...new Set([...cameras.map((c) => c.name), ...(booth.camera.deviceName ? [booth.camera.deviceName] : [])])];
-  const printOptions = [...new Set([...printers.map((p) => p.name), ...(booth.printer.printerName ? [booth.printer.printerName] : [])])];
 
   return (
     <section className="host" aria-labelledby="hw">
-      <div className="host-head"><span className="cap">Sent to the booth as part of its config</span><h2 id="hw">Booth, camera &amp; printer</h2></div>
+      <div className="host-head"><span className="cap">Sent to the booth as part of its config</span><h2 id="hw">Booth &amp; camera</h2></div>
       <div className="panel">
         <form className="form" onSubmit={save} key={booth.configVersion + booth.name}>
           <fieldset className="bare" disabled={readOnly}>
@@ -294,21 +288,6 @@ function Hardware({ booth, readOnly }: { booth: BoothDto; readOnly: boolean }) {
               <span className="hint">For a camera mounted sideways, e.g. turned to match a portrait screen.</span>
             </label>
             <label className="check"><input type="checkbox" name="mirrorPreview" defaultChecked={booth.camera.mirrorPreview} /><span>Mirror the live preview (photos are never mirrored)</span></label>
-
-            <h3>Printer</h3>
-            <label className="check wide"><input type="checkbox" name="printEnabled" defaultChecked={booth.printer.enabled} /><span>This booth has a printer</span></label>
-            <label className="field"><span>Printer</span>
-              <select name="printerName" defaultValue={booth.printer.printerName ?? ""}>
-                <option value="">System default</option>
-                {printOptions.map((n) => <option key={n} value={n}>{n}</option>)}
-              </select>
-            </label>
-            <label className="field"><span>Paper</span>
-              <select name="paperSize" defaultValue={booth.printer.paperSize}><option value="4x6">4×6 in</option><option value="2x6">2×6 in strips</option><option value="5x7">5×7 in</option></select>
-            </label>
-            <label className="field"><span>Print orientation</span>
-              <select name="printOrientation" defaultValue={booth.printer.orientation}><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select>
-            </label>
           </div>
           </fieldset>
           {readOnly ? <p className="cap center">Read-only: booth admins change hardware settings.</p> : (
@@ -318,6 +297,61 @@ function Hardware({ booth, readOnly }: { booth: BoothDto; readOnly: boolean }) {
             </div>
           )}
         </form>
+      </div>
+    </section>
+  );
+}
+
+/** Where this booth prints: one station, a fixed list with backups, or several taking turns. */
+function Stations({ booth, all, readOnly }: { booth: BoothDto; all: StationDto[]; readOnly: boolean }) {
+  const router = useRouter();
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const ids = booth.stations.map((s) => s.id);
+  const rest = all.filter((s) => !ids.includes(s.id));
+  const save = async (stationIds: string[], mode = booth.printMode) => {
+    setBusy(true);
+    const res = await send("PUT", `/booths/${booth.id}/stations`, { stationIds, mode });
+    setBusy(false);
+    setError(res.ok ? "" : res.message);
+    router.refresh();
+  };
+  const swap = (i: number) => { const n = [...ids]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; void save(n); };
+  const rotate = booth.printMode === "ROTATE";
+
+  return (
+    <section className="host" aria-labelledby="stn">
+      <div className="host-head"><span className="cap">The printers this booth may use</span><h2 id="stn">Stations</h2></div>
+      <div className="panel">
+        {booth.stations.length === 0 ? <p className="cap center">No station linked: this booth doesn&apos;t print.</p> : (
+          <ul className="refunds">
+            {booth.stations.map((s, i) => (
+              <li key={s.id}>
+                <div><b>{readOnly ? s.name : <Link href={`/stations/${s.id}`}>{s.name}</Link>}</b>
+                  <div className="sub">{rotate || booth.stations.length === 1 ? "" : i === 0 ? "Main · " : "Backup · "}{!s.enabled ? "switched off" : s.ready ? "ready" : s.online ? "printer problem" : "offline"}</div></div>
+                {!readOnly && <div className="refund-acts">
+                  {i > 0 && !rotate && <button className="row-btn" type="button" disabled={busy} onClick={() => swap(i)} aria-label={`Move ${s.name} up`}>Move up</button>}
+                  <button className="row-btn danger" type="button" disabled={busy} onClick={() => save(ids.filter((x) => x !== s.id))} aria-label={`Unlink ${s.name}`}>Unlink</button>
+                </div>}
+              </li>
+            ))}
+          </ul>
+        )}
+        {booth.stations.length > 1 && (
+          <fieldset className="bare print-mode" aria-label="With several stations" disabled={readOnly || busy}>
+            <label className="check"><input type="radio" name="printMode" checked={!rotate} onChange={() => save(ids, "FIXED")} /><span><b>Fixed list.</b> Always the main one. A backup prints only when the ones above it can&apos;t: off, out of paper, or stuck.</span></label>
+            <label className="check"><input type="radio" name="printMode" checked={rotate} onChange={() => save(ids, "ROTATE")} /><span><b>Rotate.</b> They take turns. One that&apos;s off or busy is skipped.</span></label>
+          </fieldset>
+        )}
+        {!readOnly && (rest.length ? (
+          <label className="field"><span>Add a station</span>
+            <select value="" disabled={busy} onChange={(e) => e.target.value && save([...ids, e.target.value])}>
+              <option value="">Choose…</option>
+              {rest.map((s) => <option key={s.id} value={s.id}>{s.name}{s.booths.length ? ` (also ${s.booths.map((b) => b.name).join(", ")})` : ""}</option>)}
+            </select>
+          </label>
+        ) : all.length === 0 && <p className="cap center"><Link href="/stations">Add a station</Link> first.</p>)}
+        {error && <p className="cap err" role="alert">{error}</p>}
       </div>
     </section>
   );

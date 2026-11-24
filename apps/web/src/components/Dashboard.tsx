@@ -1,9 +1,11 @@
 "use client";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { Ago } from "./Ago";
+import { stationState } from "./StationsBoard";
 import { useLiveBooths } from "@/lib/live";
-import type { BoothDto, EventDto, Summary } from "@/lib/types";
+import type { BoothDto, EventDto, PrintJobDto, StationDto, Summary } from "@/lib/types";
 import { BOOTH_LABEL, BOOTH_SHORT, boothTile, capDate, longDate, STATUS_LABEL, STATUS_SHORT, timeRange } from "@/lib/format";
 
 const tileClass = (e: EventDto) =>
@@ -21,10 +23,17 @@ const FILTERS: { key: Filter; label: string; dot: string }[] = [
 
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
-type Hover = { kind: "event"; e: EventDto; top: boolean } | { kind: "booth"; b: BoothDto; top: boolean };
+type Hover = { kind: "event"; e: EventDto; top: boolean } | { kind: "booth"; b: BoothDto; top: boolean } | { kind: "station"; s: StationDto; top: boolean };
+
+const stationTile = (s: StationDto) => (!s.enabled || !s.computer || !s.online ? "key local" : s.lastError ? "key err" : "key");
 
 // The dashboard: booths (live) on top, then one Events box sorted by date with status filters.
-export function Dashboard({ events, summary, booths: initialBooths }: { events: EventDto[]; summary: Summary; booths: BoothDto[] }) {
+export function Dashboard({ events, summary, booths: initialBooths, stations, jobs }: { events: EventDto[]; summary: Summary; booths: BoothDto[]; stations: StationDto[] | null; jobs: PrintJobDto[] }) {
+  const router = useRouter();
+  // booths arrive live; stations are re-read
+  useEffect(() => { if (!stations) return; const t = setInterval(() => router.refresh(), 10_000); return () => clearInterval(t); }, [stations, router]);
+  const line = jobs.filter((j) => ["WAITING", "CLAIMED", "PRINTING"].includes(j.status)).length;
+  const look = jobs.filter((j) => j.status === "FAILED" || j.status === "EXPIRED").length;
   const { booths } = useLiveBooths(initialBooths);
   const [hover, setHover] = useState<Hover | null>(null);
   const closing = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -38,6 +47,7 @@ export function Dashboard({ events, summary, booths: initialBooths }: { events: 
   const top = (el: HTMLElement) => el.getBoundingClientRect().bottom > innerHeight - 190; // don't cover the tile being looked at
   const openEvent = (e: EventDto, el: HTMLElement) => { clearTimeout(closing.current); setHover({ kind: "event", e, top: top(el) }); };
   const openBooth = (b: BoothDto, el: HTMLElement) => { clearTimeout(closing.current); setHover({ kind: "booth", b, top: top(el) }); };
+  const openStation = (st: StationDto, el: HTMLElement) => { clearTimeout(closing.current); setHover({ kind: "station", s: st, top: top(el) }); };
   const close = () => { closing.current = setTimeout(() => setHover(null), 220); };
 
   return (
@@ -53,6 +63,7 @@ export function Dashboard({ events, summary, booths: initialBooths }: { events: 
           ))}
           <span className="chip-sep" aria-hidden="true">·</span>
           <span>{online}/{booths.length} booths online</span>
+          {!!stations?.length && <><span className="chip-sep" aria-hidden="true">·</span><span>{stations.filter((x) => x.ready).length}/{stations.length} stations ready</span></>}
         </div>
       </section>
       <main id="cards">
@@ -84,6 +95,33 @@ export function Dashboard({ events, summary, booths: initialBooths }: { events: 
             )}
           </div>
         </section>
+
+        {stations && (
+          <section className="host" aria-labelledby="g-stations">
+            <div className="host-head">
+              <span className="cap">{stations.length ? <>{plural(line, "print")} in line{look > 0 && <> · <Link href="/stations">{look} need{look === 1 ? "s" : ""} a look</Link></>}</> : "Printers your booths share"}</span>
+              <h2 id="g-stations">Stations</h2>
+            </div>
+            <div className="panel">
+              {stations.length === 0 ? (
+                <div className="actions"><Link className="btn" href="/stations">Add a station</Link></div>
+              ) : (
+                <div className="keys">
+                  {stations.map((st) => (
+                    <Link key={st.id} href={`/stations/${st.id}`} className={stationTile(st)}
+                      onMouseEnter={(ev) => openStation(st, ev.currentTarget)} onMouseLeave={close}
+                      onFocus={(ev) => openStation(st, ev.currentTarget)} onBlur={close}
+                      aria-label={`${st.name}, ${stationState(st).text}`}>
+                      <span className="p">{st.computer?.simulated ? "Sim" : !st.enabled ? "Paused" : !st.computer ? "New" : !st.online ? "Off" : st.lastError ? "Error" : st.busy ? "Print" : "Ready"}</span>
+                      <span className="n">{st.code.replace(/^ST-/, "")}</span>
+                      <span className="l">{st.name}</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
         <section className="host" aria-labelledby="g-events">
           <div className="host-head">
@@ -137,6 +175,17 @@ export function Dashboard({ events, summary, booths: initialBooths }: { events: 
               <dt>Venue</dt><dd>{[hover.e.venueName, hover.e.venueAddress].filter(Boolean).join("\n") || "—"}</dd>
               <dt>Organizer</dt><dd>{hover.e.organizerName ?? "—"}</dd>
               <dt>Contact</dt><dd>{[hover.e.contactPhone, hover.e.contactEmail].filter(Boolean).join("\n") || "—"}</dd>
+            </dl>
+          </>
+        )}
+        {hover?.kind === "station" && (
+          <>
+            <span className="cap">{stationState(hover.s).text} · {hover.s.code}</span>
+            <h3>{hover.s.name}</h3>
+            <dl>
+              <dt>Last seen</dt><dd><Ago iso={hover.s.lastPollAt} /></dd>
+              <dt>Booths</dt><dd>{hover.s.booths.map((b) => b.name).join(", ") || "—"}</dd>
+              <dt>Problem</dt><dd>{(hover.s.online && hover.s.lastError) || "—"}</dd>
             </dl>
           </>
         )}

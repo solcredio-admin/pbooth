@@ -7,7 +7,7 @@ SERVER="${1:?usage: install-agent.sh <server-url> <enrollment-code>}"
 CODE="${2:?usage: install-agent.sh <server-url> <enrollment-code>}"
 step() { printf '\n== %s\n' "$1"; }
 has_node24() { node --version 2>/dev/null | grep -q '^v24\.'; }
-enroll_failed() { echo "Enrollment failed. Codes work once and last 30 minutes: make a new one on the booth page and run the new command." >&2; exit 1; }
+enroll_failed() { echo "Enrollment failed. Codes work once and last 30 minutes: make a new one on the booth or station page and run the new command." >&2; exit 1; }
 
 if [ "$(uname -s)" = Darwin ]; then
   DIR=/Users/Shared/pbooth-agent
@@ -26,7 +26,7 @@ if [ "$(uname -s)" = Darwin ]; then
   mkdir -p "$DIR" && unzip -oq /tmp/pbooth-agent.zip -d "$DIR"
   (cd "$DIR" && npm install --omit=dev --no-audit --no-fund)
 
-  step "Enroll this booth"
+  step "Connect this computer"
   node "$DIR/dist/main.js" enroll --server "$SERVER" --code "$CODE" || enroll_failed
 
   step "Start when you log in"
@@ -56,7 +56,7 @@ else
   sudo install -d -o pbooth -g pbooth /var/lib/pbooth-agent
   gio mount -s gphoto2 2>/dev/null || true # stop the desktop from grabbing the camera
 
-  step "Enroll this booth"
+  step "Connect this computer"
   sudo -u pbooth PBOOTH_AGENT_DIR=/var/lib/pbooth-agent node "$DIR/dist/main.js" enroll --server "$SERVER" --code "$CODE" || enroll_failed
 
   step "Start with the computer"

@@ -1,4 +1,5 @@
 import { run } from "../exec.js";
+import { NotPrinted } from "./types.js";
 import type { JobState, PrinterInfo, PrinterProvider, Submit } from "./types.js";
 
 // Windows printing through the Print Spooler, using PowerShell and .NET's System.Drawing
@@ -58,6 +59,7 @@ export class WindowsPrinter implements PrinterProvider {
 
   async submitPrint(j: Submit) {
     const r = await ps(withArgs(j, PRINT_SCRIPT), 60_000);
+    if (r.stderr.includes("Printer not found")) throw new NotPrinted(r.stderr.trim());
     if (r.code !== 0 || !r.stdout.includes("ok")) throw new Error(r.stderr.trim() || "Printing failed");
     return { providerJobId: j.jobName }; // the spooler job is found again by its document name
   }

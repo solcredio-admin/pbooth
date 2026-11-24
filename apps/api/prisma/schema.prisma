@@ -107,6 +107,7 @@ model Event {
   vouchers            Voucher[]
   payments            Payment[]
   refundRequests      RefundRequest[]
+  printJobs           PrintJob[]
 
   @@index([status, startsAt])
   @@index([startsAt])
@@ -177,6 +178,12 @@ enum BoothState {
   REVOKED // device access withdrawn; needs a new enrollment code
 }
 
+// How a booth with several stations chooses one.
+enum PrintMode {
+  FIXED // the first in the list; the next ones only when it can't print
+  ROTATE // take turns
+}
+
 // A physical booth. Reused across events; never confused with an event.
 model Booth {
   id                  String       @id @default(uuid()) @db.Uuid
@@ -185,7 +192,7 @@ model Booth {
   notes               String?
   state               BoothState   @default(UNREGISTERED)
   camera              Json // validated by booths.schemas.ts cameraSchema
-  printer             Json // validated by booths.schemas.ts printerSchema
+  printer             Json // unused since stations (phase 11.1): kept so the previous release can still run
   // One-time enrollment code, stored as SHA-256 only; cleared once used.
   enrollmentCodeHash  String?      @unique
   enrollmentExpiresAt DateTime?    @db.Timestamptz(3)
@@ -196,10 +203,13 @@ model Booth {
   updatedAt           DateTime     @updatedAt @db.Timestamptz(3)
   // argon2 of the PIN that opens the kiosk's hidden staff menu; null = no staff menu
   staffPinHash        String?
+  printMode           PrintMode      @default(FIXED)
   device              Device?
   kiosk               Kiosk?
   events              EventBooth[]
   sessions            Session[]
+  stations            BoothStation[]
+  printJobs           PrintJob[]
 }
 
 // The browser that runs the booth's guest screen. It holds an HttpOnly cookie (never readable by
@@ -486,4 +496,86 @@ model Alert {
 
   @@index([key])
   @@index([createdAt])
+}
+
+// A printer and the computer (agent) it's plugged into. Shared by any number of booths.
+model Station {
+  id                  String         @id @default(uuid()) @db.Uuid
+  name                String
+  code                String         @unique // "ST-7K3M"
+  enabled             Boolean        @default(true)
+  printerName         String? // as reported by the computer; null = its default printer
+  paperSize           String         @default("4x6")
+  orientation         String         @default("portrait")
+  enrollmentCodeHash  String?        @unique
+  enrollmentExpiresAt DateTime?      @db.Timestamptz(3)
+  // The computer. Its token is its own, or the booth's when one agent is both (stations made by the
+  // phase 11.1 migration): then it follows the booth's agent when that enrolls again.
+  tokenHash           String?        @unique
+  identifier          String? // machine id: the same as the booth's device when one computer is both
+  hostname            String?
+  os                  String?
+  agentVersion        String?
+  simulated           Boolean        @default(false)
+  enrolledAt          DateTime?      @db.Timestamptz(3)
+  // Reported every couple of seconds while the agent runs.
+  lastPollAt          DateTime?      @db.Timestamptz(3)
+  ready               Boolean        @default(false)
+  lastError           String?
+  printers            Json?
+  lastClaimAt         DateTime?      @db.Timestamptz(3) // whose turn it is when rotating
+  createdAt           DateTime       @default(now()) @db.Timestamptz(3)
+  booths              BoothStation[]
+  jobs                PrintJob[]
+}
+
+// "This booth's prints may go to this station", tried in position order.
+model BoothStation {
+  boothId   String  @db.Uuid
+  booth     Booth   @relation(fields: [boothId], references: [id], onDelete: Cascade)
+  stationId String  @db.Uuid
+  station   Station @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  position  Int
+
+  @@id([boothId, stationId])
+  @@index([stationId])
+}
+
+enum PrintStatus {
+  WAITING // in line, no station has it
+  CLAIMED // a station is fetching it; it may not print yet, so it can still move by itself
+  PRINTING // the station was told to print it: from here only that station or staff decide
+  DONE
+  FAILED
+  EXPIRED // waited too long
+}
+
+// A print sent through the cloud. The id is the session id, so one session is never two prints.
+model PrintJob {
+  id              String      @id @db.Uuid
+  boothId         String?     @db.Uuid
+  booth           Booth?      @relation(fields: [boothId], references: [id], onDelete: SetNull)
+  eventId         String      @db.Uuid
+  event           Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  photoId         String      @db.Uuid
+  copies          Int
+  strip           Boolean     @default(false) // a 2x6 strip: the station prints it twice on one sheet
+  status          PrintStatus @default(WAITING)
+  stationId       String?     @db.Uuid // who has (or had) it
+  station         Station?    @relation(fields: [stationId], references: [id], onDelete: SetNull)
+  targetStationId String?     @db.Uuid // staff sent it there: nobody else may take it
+  attempt         Int         @default(1) // raised whenever it changes hands: a station only acts on the current one
+  requeues        Int         @default(0) // handed back by itself this often
+  tried           String[]    @db.Uuid // stations that handed it back: others go first
+  notBefore       DateTime?   @db.Timestamptz(3) // a station that handed it back waits until then
+  error           String?
+  createdAt       DateTime    @default(now()) @db.Timestamptz(3)
+  expiresAt       DateTime    @db.Timestamptz(3)
+  claimedAt       DateTime?   @db.Timestamptz(3)
+  doneAt          DateTime?   @db.Timestamptz(3)
+
+  @@index([status, createdAt])
+  @@index([stationId, status])
+  @@index([boothId, status])
+  @@index([eventId])
 }

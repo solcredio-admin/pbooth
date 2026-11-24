@@ -11,6 +11,7 @@ export const enrollSchema = z.object({
     agentVersion: z.string().trim().max(40).optional(),
   }),
   simulated: z.boolean().default(false),
+  stations: z.boolean().default(false), // this agent can run a station (0.5.0 and later)
 });
 
 export const heartbeatSchema = z.object({

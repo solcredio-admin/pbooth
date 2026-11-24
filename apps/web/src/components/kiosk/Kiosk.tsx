@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { useWebcam } from "@/lib/kiosk/camera";
 import { useAgent, type AgentJob } from "@/lib/kiosk/agent";
 import { kioskFetch, type KioskConfig } from "@/lib/kiosk/api";
-import { cachedConfig, enqueuePhoto, kioskQueue, saveConfig } from "@/lib/offline/kiosk-sync";
+import { cachedConfig, enqueuePhoto, enqueuePrint, kioskQueue, saveConfig } from "@/lib/offline/kiosk-sync";
 import type { QueueStatus } from "@/lib/offline/queue";
 import { composeTemplate, printCanvas, toJpeg } from "@/lib/template/compose";
 import { plan, type Layout } from "@/lib/template/layout";
@@ -74,10 +74,11 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   const cam = useWebcam(config?.camera ?? null, !!config && config.camera.provider === "webcam");
   // DSLR booths and printing go through the pbooth agent on this computer.
   const dslr = config?.camera.provider === "gphoto2";
-  const printWanted = !!(config?.printer.enabled && guest?.printEnabled);
+  const stations = config?.printing?.stations ?? (config?.printer.enabled ? 1 : 0);
+  const printWanted = !!(stations && guest?.printEnabled);
   const agent = useAgent(config?.booth.code, !!config && (dslr || !!config.printer.enabled));
   const camReady = dslr ? agent.available && agent.status?.camera?.status === "connected" : cam.state.status === "connected";
-  const [print, setPrint] = useState<null | { state: "sending" | "queued" | "printing" | "done" | "failed" | "unavailable"; message?: string }>(null);
+  const [print, setPrint] = useState<null | PrintView>(null);
 
   // ---------- one guest's session ----------
   const session = useRef<{ id: string; retakes: number; finished: boolean; galleryToken: string } | null>(null);
@@ -131,7 +132,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     const beat = async () => {
       const c = camRef.current;
       const a = agentRef.current;
-      const needsAgent = config.camera.provider === "gphoto2" || config.printer.enabled;
+      const needsAgent = config.camera.provider === "gphoto2"; // printing can go through another computer
       const r = await kioskFetch<{ configVersion: string }>("POST", "/kiosk/heartbeat", {
         lastError: needsAgent && !a.available ? a.problem ?? "The pbooth agent isn't running on this computer"
           : config.camera.provider === "gphoto2" || c.state.status === "connected" || c.state.status === "idle" ? null : c.state.error ?? c.state.status,
@@ -523,6 +524,10 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     setDoneLeft(sharing ? DONE_RESET_QR_S : DONE_RESET_S);
     setScreen("done");
     const s = session.current;
+    // One way or the other, never both: straight to this computer's printer (works with no internet),
+    // or into the cloud's line for the booth's stations.
+    const direct = printWanted && agent.available && (!config?.printing || config.printing.direct || (!!config.printing.here && (!online || !config.storage)));
+    const toStation = printWanted && !direct && !!config?.storage && !!config.printing;
     if (s && config?.storage) {
       // Save in the background: the design always, each individual shot only if the event keeps
       // originals (otherwise storage holds just the finished photo). Uploads keep going after the
@@ -535,7 +540,13 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
       ];
       // Into the durable outbox: delivered whenever the cloud is reachable, even after a reload.
       setSaving({ total: files.length, pending: files.length });
-      void (async () => { for (const [blob, kind, index] of files) await enqueuePhoto(s.id, blob, kind, index); })();
+      const strip = !!design?.printBlob && design.printBlob !== design.blob;
+      void (async () => {
+        for (const [blob, kind, index] of files) {
+          const photoId = await enqueuePhoto(s.id, blob, kind, index);
+          if (kind === "DESIGN" && toStation) await enqueuePrint(s.id, photoId, strip);
+        }
+      })();
       if (sharing) {
         QRCode.toDataURL(`${location.origin}/g/${s.galleryToken}`, { margin: 1, width: 360, errorCorrectionLevel: "M", color: { dark: "#0b0c0a", light: "#ffffff" } })
           .then(setQr).catch(() => setQr(null));
@@ -545,21 +556,32 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     // Printing never holds up the guest: the done screen just reports how it's going.
     const id = session.current?.id;
     const image = design?.printBlob ?? design?.blob ?? shots[0]?.blob;
-    if (!agent.available || !id || !image) { setPrint({ state: "unavailable" }); return; }
+    if (toStation) { setPrint({ state: "sending", cloud: true }); return; }
+    if (!direct || !id || !image) { setPrint({ state: "unavailable" }); return; }
     setPrint({ state: "sending" });
-    agent.print(id, image, guest?.printCopies ?? 1).then((j) => setPrint(printState(j))).catch((e) => setPrint({ state: "failed", message: (e as Error).message }));
+    agent.print(id, image, guest?.printCopies ?? 1).then((j) => setPrint({ ...printState(j), station: config?.printing?.here })).catch((e) => setPrint({ state: "failed", message: (e as Error).message }));
   };
   approveRef.current = approve;
 
   // Follow the print while the thank-you screen is up. Depends only on the print's state, not on
   // every render (the screen re-renders each second for its countdown, which would reset the timer).
-  const printing = screen === "done" && !!print && ["sending", "queued", "printing"].includes(print.state);
+  const printing = screen === "done" && !!print && ["sending", "waiting", "queued", "printing"].includes(print.state);
+  const viaCloud = !!print?.cloud;
   useEffect(() => {
     const id = session.current?.id;
     if (!printing || !id) return;
-    const t = setInterval(async () => { const j = await agentRef.current.job(id).catch(() => null); if (j) setPrint(printState(j)); }, 2000);
+    let waited = 0;
+    const t = setInterval(async () => {
+      if (!viaCloud) { const j = await agentRef.current.job(id).catch(() => null); if (j) setPrint((p) => p && { ...p, ...printState(j) }); return; }
+      const r = await kioskFetch<{ status: keyof typeof CLOUD_STATE; station: string | null; ahead: number }>("GET", `/kiosk/prints/${id}`);
+      // a ready station takes it within a few seconds: only then say it's waiting
+      if (r.ok && r.data.status === "WAITING" && r.data.ahead) setPrint({ state: "queued", cloud: true, ahead: r.data.ahead });
+      else if (r.ok && r.data.status === "WAITING") { if (++waited > 4) setPrint({ state: "waiting", cloud: true }); }
+      else if (r.ok) setPrint({ state: CLOUD_STATE[r.data.status], cloud: true, station: r.data.station });
+      else if (++waited > 8) setPrint({ state: "waiting", cloud: true }); // no internet, or the photo is still on its way
+    }, 2000);
     return () => clearInterval(t);
-  }, [printing]);
+  }, [printing, viaCloud]);
 
   // The instructions screen counts down and starts the photos itself (also after a failed capture).
   useEffect(() => {
@@ -877,7 +899,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
                 <p className="k-cap">{!saving ? "" : saving.pending === 0 ? "Saved. They'll be ready in a moment." : !online || queueStatus?.online === false ? "No internet right now. Your photos are safe here and upload automatically; the link fills in once they arrive." : `Saving ${saving.total - saving.pending} of ${saving.total}…`}</p>
               </div>
             )}
-            {print && <p className={`k-print ${print.state}`} role="status">{PRINT_TEXT[print.state]}</p>}
+            {print && <p className={`k-print ${print.state}`} role="status">{printText(print)}</p>}
             {!config?.storage && <p className="k-preview">Preview build: photos aren't saved yet.</p>}
             <div className="k-actions">
               <button className="k-btn big" type="button" onClick={() => reset("COMPLETED")}>Done</button>
@@ -891,7 +913,17 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   );
 }
 
+interface PrintView { state: "sending" | "waiting" | "queued" | "printing" | "done" | "failed" | "unavailable"; message?: string; cloud?: boolean; ahead?: number; station?: string | null }
+const CLOUD_STATE = { WAITING: "sending", CLAIMED: "queued", PRINTING: "printing", DONE: "done", FAILED: "failed", EXPIRED: "failed" } as const;
+function printText(p: PrintView) {
+  if (p.ahead) return `Your print is in line: ${p.ahead} before you.`;
+  if (p.station && p.state === "queued") return `Your print is in line at ${p.station}…`;
+  if (p.station && p.state === "printing") return `Printing your photos at ${p.station}…`;
+  if (p.station && p.state === "done") return `Printed! Collect it at ${p.station}.`;
+  return PRINT_TEXT[p.state];
+}
 const PRINT_TEXT = {
+  waiting: "Your print is waiting for a free printer. It prints by itself; keep your QR code.",
   sending: "Sending to the printer…",
   queued: "Your print is in line…",
   printing: "Printing your photos…",

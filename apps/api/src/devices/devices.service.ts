@@ -9,6 +9,8 @@ import { newDeviceToken, normalizeEnrollmentCode } from "../booths/codes.js";
 import type { Enroll, Heartbeat } from "./devices.schemas.js";
 import { newLocalSecret } from "./ticket.js";
 
+const REPLACED = "The station's computer was replaced. Check the printer before printing again.";
+
 @Injectable()
 export class DevicesService {
   constructor(
@@ -24,6 +26,8 @@ export class DevicesService {
       throw new ApiError(HttpStatus.FORBIDDEN, "SIMULATION_DISABLED", "Simulated booths are disabled on this server");
     }
     const codeHash = hashToken(normalizeEnrollmentCode(body.code));
+    const station = await this.db.station.findUnique({ where: { enrollmentCodeHash: codeHash }, select: { id: true, name: true, code: true } });
+    if (station) return this.enrollStation(station, codeHash, body, ip);
     const booth = await this.db.booth.findUnique({ where: { enrollmentCodeHash: codeHash }, select: { id: true, name: true, code: true } });
     // Claim the code atomically: of two devices racing with the same code, exactly one wins.
     const claimed = booth && (await this.db.booth.updateMany({
@@ -39,15 +43,42 @@ export class DevicesService {
     const localSecret = newLocalSecret();
     const d = body.device;
     // One device per booth: enrolling a new computer replaces the old one (its token dies with it).
+    // A station using the old computer's token moves to the new one; what it had taken is checked by a person.
+    const old = await this.db.device.findUnique({ where: { boothId: booth.id }, select: { tokenHash: true } });
+    const same = { tokenHash: old?.tokenHash ?? "" };
     const [, device] = await this.db.$transaction([
       this.db.device.deleteMany({ where: { boothId: booth.id } }),
       this.db.device.create({
         data: { boothId: booth.id, tokenHash: hashToken(token), localSecret, identifier: d.identifier, hostname: d.hostname, os: d.os, agentVersion: d.agentVersion, simulated: body.simulated, lastIp: ip },
       }),
+      this.db.printJob.updateMany({ where: { station: same, status: { in: ["CLAIMED", "PRINTING"] } }, data: { status: "FAILED", error: REPLACED } }),
+      this.db.station.updateMany({ where: same, data: { tokenHash: hashToken(token), identifier: d.identifier, hostname: d.hostname, os: d.os, agentVersion: d.agentVersion, simulated: body.simulated, ready: false } }),
     ]);
     await this.audit.record({ actor: `device:${device.id}`, action: "device.enroll", entityType: "booth", entityId: booth.id, ip, metadata: { simulated: body.simulated, hostname: d.hostname ?? null } });
     this.booths.push([booth.id]);
     return { token, localSecret, booth, heartbeatIntervalSeconds: this.cfg.HEARTBEAT_INTERVAL_SECONDS };
+  }
+
+  private async enrollStation(station: { id: string; name: string; code: string }, codeHash: string, body: Enroll, ip?: string) {
+    if (!body.stations) throw new ApiError(HttpStatus.CONFLICT, "AGENT_TOO_OLD", "This is a station code. Install the latest agent, then try again");
+    const token = newDeviceToken();
+    const d = body.device;
+    const claimed = await this.db.$transaction(async (tx) => {
+      const { count } = await tx.station.updateMany({
+        where: { id: station.id, enrollmentCodeHash: codeHash, enrollmentExpiresAt: { gt: new Date() } },
+        data: { enrollmentCodeHash: null, enrollmentExpiresAt: null, tokenHash: hashToken(token), identifier: d.identifier, hostname: d.hostname ?? null, os: d.os ?? null, agentVersion: d.agentVersion ?? null, simulated: body.simulated, enrolledAt: new Date(), lastPollAt: null, ready: false, lastError: null },
+      });
+      if (count) await tx.printJob.updateMany({ where: { stationId: station.id, status: { in: ["CLAIMED", "PRINTING"] } }, data: { status: "FAILED", error: REPLACED } });
+      return count === 1;
+    });
+    if (!claimed) {
+      await this.audit.record({ actor: "anonymous", action: "device.enroll.failed", ip });
+      throw new ApiError(HttpStatus.UNAUTHORIZED, "INVALID_CODE", "Enrollment code is wrong, used or expired");
+    }
+    await this.audit.record({ actor: `station:${station.id}`, action: "station.enroll", entityType: "station", entityId: station.id, ip, metadata: { simulated: body.simulated, hostname: d.hostname ?? null } });
+    const booths = await this.db.boothStation.findMany({ where: { stationId: station.id }, select: { boothId: true } });
+    this.booths.push(booths.map((b) => b.boothId));
+    return { token, station };
   }
 
   async heartbeat(deviceId: string, boothId: string, hb: Heartbeat, ip?: string) {

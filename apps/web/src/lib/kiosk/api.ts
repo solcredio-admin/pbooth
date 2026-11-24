@@ -7,6 +7,8 @@ export interface KioskConfig {
   booth: { id: string; name: string; code: string };
   camera: import("./camera").CameraSettings;
   printer: { enabled: boolean; printerName: string | null; paperSize: string; orientation: string };
+  // where prints go: direct = the first station is on this booth's own computer; here = its name
+  printing?: { direct: boolean; stations: number; here: string | null };
   heartbeatIntervalSeconds: number;
   staffMenu?: boolean; // a PIN is set: the hidden staff menu exists
   event: null | {

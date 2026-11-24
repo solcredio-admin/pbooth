@@ -1,4 +1,5 @@
 import { run } from "../exec.js";
+import { NotPrinted } from "./types.js";
 import type { JobState, PrinterInfo, PrinterProvider, Submit } from "./types.js";
 
 // Linux/macOS printing through CUPS's command-line tools (lp, lpstat, cancel).
@@ -48,9 +49,10 @@ export class CupsPrinter implements PrinterProvider {
       "-o", `media=${media}`, "-o", "fit-to-page", "-o", `orientation-requested=${j.landscape ? 4 : 3}`,
       j.file,
     ];
-    const r = await run("lp", args, { timeoutMs: 30_000 });
+    const r = await run("lp", args, { timeoutMs: 30_000 }).catch((e: Error) => { throw new NotPrinted(e.message); }); // lp couldn't even start
     const id = parseRequestId(r.stdout);
-    if (r.code !== 0 || !id) throw new Error(r.stderr.trim() || "lp refused the job");
+    if (r.code) throw new NotPrinted(r.stderr.trim() || "lp refused the job");
+    if (r.code !== 0 || !id) throw new Error(r.stderr.trim() || "lp didn't answer");
     return { providerJobId: id };
   }
 

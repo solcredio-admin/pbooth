@@ -27,7 +27,7 @@ export function BoothCard({ b, action, stats }: { b: BoothDto; action?: ReactNod
         {stats && <><dt>Guests</dt><dd>{n(stats.completed, "session")} · {n(stats.photos, "photo")}</dd></>}
         <dt>Kiosk</dt><dd>{!b.kiosk ? "Not paired" : b.kiosk.online ? "On screen" : <>Last seen <Ago iso={b.kiosk.lastSeenAt} /></>}</dd>
         <dt>Camera</dt><dd>{kioskCam && b.camera.provider === "webcam" ? `${kioskCam.name ?? "Webcam"} · ${kioskCam.status}${kioskCam.resolution ? ` · ${kioskCam.resolution}` : ""}` : hw(t.camera)}</dd>
-        <dt>Printer</dt><dd>{b.printer.enabled ? hw(t.printer) : "Printing off"}</dd>
+        <dt>Prints at</dt><dd>{b.stations.length ? b.stations.map((s) => `${s.name}${s.ready ? "" : s.online ? " (printer problem)" : " (off)"}`).join(", ") : "No station linked"}</dd>
         <dt>Queue</dt><dd>{(t.pendingUploads ?? 0) + (kq?.pending ?? 0)} uploads · {t.pendingPrints ?? 0} prints waiting on the booth{(t.printJobs?.failed ?? 0) + (kq?.failed ?? 0) ? ` · ${(t.printJobs?.failed ?? 0) + (kq?.failed ?? 0)} failed` : ""}</dd>
         {kq && <><dt>Synced</dt><dd>{kq.lastSyncAt ? <Ago iso={kq.lastSyncAt} /> : "not yet"}</dd></>}
         <dt>Storage</dt><dd>{t.storage ? `${bytes(t.storage.freeBytes)} free` : "—"}</dd>

@@ -22,6 +22,7 @@ const NAV = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/events", label: "Events" },
   { href: "/booths", label: "Booths" },
+  { href: "/stations", label: "Stations" },
   { href: "/transactions", label: "Sales" },
   { href: "/settings", label: "Settings" },
 ];
@@ -99,7 +100,7 @@ export function Shell({ children, me }: { children: ReactNode; me: Me }) {
           <Marks className="brand-logo" />
         </Link>
         <nav className="nav" aria-label="Main">
-          {NAV.filter((n) => (n.href !== "/booths" || may.seeBooths) && (n.href !== "/dashboard" || me.role !== "CASHIER") && (n.href !== "/transactions" || may.seeSales)).map((n) => (
+          {NAV.filter((n) => (n.href !== "/booths" || may.seeBooths) && (n.href !== "/stations" || may.manageBooths) && (n.href !== "/dashboard" || me.role !== "CASHIER") && (n.href !== "/transactions" || may.seeSales)).map((n) => (
             <Link key={n.href} href={n.href} aria-current={path === n.href || (n.href !== "/dashboard" && path.startsWith(n.href)) || (n.href === "/transactions" && path === "/refunds") ? "page" : undefined}>
               {n.label}
             </Link>

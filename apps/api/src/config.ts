@@ -45,6 +45,8 @@ const schema = z.object({
   ALERT_SWEEP_SECONDS: z.coerce.number().int().min(1).default(30),
   // A paid session with no photos after this long is flagged for a refund.
   REFUND_FLAG_MINUTES: z.coerce.number().min(0).default(20),
+  PRINT_RELEASE_SECONDS: z.coerce.number().positive().default(30), // a station silent this long loses a print it hasn't started
+  PRINT_WAIT_MINUTES: z.coerce.number().positive().default(30), // a print no station takes by then expires
   PAYMONGO_QR_SECONDS: z.coerce.number().int().min(60).max(9000).default(600),
 });
 

@@ -6,7 +6,7 @@ import { send } from "@/lib/client-api";
 // Permanent delete, made deliberate: a button opens a dialog, and the delete button stays disabled
 // until the exact name is typed (the API checks the name again).
 export function DeleteZone({ what, name, path, back, lost, blocked }: {
-  what: "event" | "booth";
+  what: "event" | "booth" | "station";
   name: string;
   path: string; // API path, e.g. /events/<id>/delete
   back: string; // where to go afterwards

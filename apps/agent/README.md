@@ -41,6 +41,16 @@ Check the hardware any time with `node <agent folder>/dist/main.js doctor` (on L
 State (database, print files) lives in `%ProgramData%\pbooth-agent` (Windows),
 `/var/lib/pbooth-agent` (Linux service) or `~/.local/share/pbooth-agent`. Override with `PBOOTH_AGENT_DIR`.
 
+## Print stations
+
+The same agent runs a **print station**: a printer any booth can print to. In the admin, **Stations → your station →
+Generate station code**, then run the command on the computer the printer is plugged into. A booth's own computer
+can be a station too (run the command there; the booth keeps working). The agent asks the server for prints every
+2 seconds and never prints one without the server's yes; see [docs/DEVICE_API.md](../../docs/DEVICE_API.md).
+
+`node apps/agent/test/kill-drill.mjs http://localhost:3399` (after a build, against the dev stack) kills the agent
+over and over with several booths printing, and checks that nothing prints twice and the line empties.
+
 ## The kiosk and the agent
 
 - The kiosk finds the agent by itself and pairs with no code to type. It asks the cloud for a

@@ -16,7 +16,7 @@ export default defineConfig({
   projects: [
     {
       name: "kiosk",
-      testMatch: /(offline|peek|voucher|help|screen)\.spec\.ts/,
+      testMatch: /(offline|peek|voucher|help|stations|screen)\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 1280, height: 800 },
@@ -27,7 +27,7 @@ export default defineConfig({
     {
       // the same booth flow in Firefox, with its built-in fake camera
       name: "kiosk-firefox",
-      testMatch: /(offline|peek|voucher|help|screen)\.spec\.ts/,
+      testMatch: /(offline|peek|voucher|help|stations|screen)\.spec\.ts/,
       use: {
         ...devices["Desktop Firefox"],
         viewport: { width: 1280, height: 800 },

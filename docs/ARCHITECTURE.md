@@ -130,7 +130,17 @@ discovery, job-level sync lists (only counts today), uptime history.
     cloud-signed, booth-bound, 5-minute ticket (HMAC with the device's `localSecret`, shared only at
     enrollment), live 12 h, and are kept in memory. The live-view `<img>` passes its token in the URL;
     no other endpoint accepts that.
-- **Print jobs:** id = kiosk session id (idempotent). They're kept in SQLite, retried up to 3 times when
+- **Stations and the print line** (`apps/api/src/stations`): a station is a printer and its computer; booths link to
+  stations many to many, in order. One line, oldest first, whichever booth sent it; a station holds one job at a
+  time. `FIXED` booths use the first station that *can* print (a backup steps in when it's off, has a printer
+  error, or has held one print over 3 minutes; not when it's busy). `ROTATE` booths take turns.
+  `WAITING → CLAIMED` (being fetched, may still move by itself) `→ PRINTING` (the server said yes: only that station,
+  or staff, decide from here) `→ DONE | FAILED`. A job goes back in line by itself only from CLAIMED, or when the
+  agent is certain nothing printed. Every hand-over raises `attempt`, and a station only acts on the current one.
+  A job nobody can print for `PRINT_WAIT_MINUTES` (30) expires and a paid one is flagged for a refund; a long line
+  that still moves doesn't expire. The kiosk prints directly (no internet needed) when its booth's only station is
+  its own computer's and no other booth uses it; with no internet, whenever a linked station is on its computer.
+- **Print jobs on the agent:** id = kiosk session id (idempotent). They're kept in SQLite, retried up to 3 times when
   the hand-off fails, and polled every 3 s. A job caught mid-hand-off by a restart is failed rather than
   resent (no double prints). Print files are made at 300 dpi; 2×6 goes two-up on 4×6.
 - **Kiosk:** probes the agent only on booths that need it (DSLR or printing on), so webcam-only booths

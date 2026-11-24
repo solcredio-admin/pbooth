@@ -3,6 +3,9 @@ export interface PrinterInfo { name: string; isDefault: boolean; status: "idle" 
 export type JobState = { state: "queued" | "printing" | "completed" | "failed" | "unknown"; message?: string };
 export interface Submit { file: string; printer: string | null; copies: number; widthIn: number; heightIn: number; landscape: boolean; jobName: string }
 
+/** The printer system refused the job: nothing printed, so trying again (here or elsewhere) is safe. */
+export class NotPrinted extends Error {}
+
 export interface PrinterProvider {
   readonly kind: "cups" | "windows" | "simulated";
   discover(): Promise<PrinterInfo[]>;

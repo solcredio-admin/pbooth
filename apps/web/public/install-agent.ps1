@@ -33,9 +33,9 @@ Push-Location $dir
 & npm.cmd install --omit=dev --no-audit --no-fund
 if ($LASTEXITCODE) { throw 'Installing the agent failed (see above).' }
 
-Step 'Enroll this booth'
+Step 'Connect this computer'
 & node dist\main.js enroll --server $server --code $code
-if ($LASTEXITCODE) { throw 'Enrollment failed. Codes work once and last 30 minutes: make a new one on the booth page and run the new command.' }
+if ($LASTEXITCODE) { throw 'Enrollment failed. Codes work once and last 30 minutes: make a new one on the booth or station page and run the new command.' }
 
 Step 'Start with Windows'
 $action = New-ScheduledTaskAction -Execute (Get-Command node).Source -Argument "--disable-warning=ExperimentalWarning $dir\dist\main.js run" -WorkingDirectory $dir

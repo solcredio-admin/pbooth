@@ -11,16 +11,24 @@ import { WindowsPrinter } from "./printer/windows.js";
 import { SimulatedPrinter } from "./printer/simulated.js";
 import type { PrinterInfo, PrinterProvider } from "./printer/types.js";
 import { PrintQueue } from "./printer/queue.js";
+import { Station } from "./station.js";
 import { startLocalServer } from "./local/server.js";
 import { mkdirSync } from "node:fs";
 
-export const AGENT_VERSION = "0.4.0";
+export const AGENT_VERSION = "0.5.0";
+const STATION_POLL_MS = 2000;
 export const DEFAULT_PORT = 47800;
 const log = (m: string) => console.log(`${new Date().toISOString()} ${m}`);
 
 export function identity(store: Store) {
   const [server, token, localSecret, boothId, boothCode] = ["server", "token", "localSecret", "boothId", "boothCode"].map((k) => store.get(k));
   return server && token && localSecret && boothId && boothCode ? { server, token, localSecret, boothId, boothCode, simulated: store.get("simulated") === "true" } : null;
+}
+
+/** This computer's own station, if it was enrolled with a station code. */
+export function stationIdentity(store: Store) {
+  const [server, token, code] = ["server", "stationToken", "stationCode"].map((k) => store.get(k));
+  return server && token && code ? { server, token, code } : null;
 }
 
 export async function machineId(store: Store) {
@@ -35,19 +43,25 @@ export async function machineId(store: Store) {
 
 export const osName = () => `${platform() === "win32" ? "Windows" : platform() === "darwin" ? "macOS" : "Linux"} ${release()}`;
 
+/** A booth code makes this computer the booth's; a station code adds (or replaces) its print station. */
 export async function enroll(store: Store, server: string, code: string, simulated: boolean) {
   const origin = new URL(server).origin;
-  const r = await new Cloud(origin).enroll({ code, simulated, device: { identifier: await machineId(store), hostname: hostname(), os: osName(), agentVersion: AGENT_VERSION } });
-  for (const [k, v] of Object.entries({ server: origin, token: r.token, localSecret: r.localSecret, boothId: r.booth.id, boothCode: r.booth.code, boothName: r.booth.name, simulated: String(simulated) })) store.set(k, v);
-  return r.booth;
+  const r = await new Cloud(origin).enroll({ code, simulated, stations: true, device: { identifier: await machineId(store), hostname: hostname(), os: osName(), agentVersion: AGENT_VERSION } });
+  if (store.get("server") !== origin) for (const k of ["token", "stationToken"]) store.set(k, ""); // another server: start over
+  const values = "booth" in r
+    ? { token: r.token, localSecret: r.localSecret, boothId: r.booth.id, boothCode: r.booth.code, boothName: r.booth.name }
+    : { stationToken: r.token, stationCode: r.station.code };
+  for (const [k, v] of Object.entries({ server: origin, simulated: String(simulated), ...values })) store.set(k, v);
+  return "booth" in r ? { kind: "booth", ...r.booth } : { kind: "station", ...r.station };
 }
 
 /** The long-running agent: heartbeats, config sync, hardware, and the local API for the kiosk. */
 export async function runAgent(store: Store, dir: string, port: number) {
-  const id = identity(store);
-  if (!id) throw new Error("Not enrolled. Run: pbooth-agent enroll --server https://<your pbooth> --code XXXX-XXXX");
-  const cloud = new Cloud(id.server, id.token);
-  const sim = id.simulated;
+  const id = identity(store), own = stationIdentity(store);
+  const server = store.get("server");
+  if (!server || (!id && !own)) throw new Error("Not enrolled. Run: pbooth-agent enroll --server https://<your pbooth> --code XXXX-XXXX");
+  const cloud = new Cloud(server, id?.token);
+  const sim = store.get("simulated") === "true";
   const printsOut = join(dir, "simulated-prints");
   if (sim) mkdirSync(printsOut, { recursive: true });
   if (sim) log("SIMULATED agent: fake camera and printer. Never use this mode at a real event.");
@@ -59,9 +73,10 @@ export async function runAgent(store: Store, dir: string, port: number) {
   let printers: PrinterInfo[] = [];
   let printerError: string | null = null;
   const printer: PrinterProvider | null = sim ? new SimulatedPrinter(printsOut) : platform() === "win32" ? new WindowsPrinter() : new CupsPrinter();
+  let boothGone = false, ownGone = false;
   let beatNow: () => void = () => undefined;
 
-  const queue = new PrintQueue(store, () => (config?.printer.enabled ? printer : null), join(dir, "prints"), () => beatNow());
+  const queue = new PrintQueue(store, () => printer, join(dir, "prints"), () => beatNow());
   queue.start();
 
   async function applyConfig(c: DeviceConfig) {
@@ -115,15 +130,54 @@ export async function runAgent(store: Store, dir: string, port: number) {
     return r.heartbeatIntervalSeconds;
   }
 
+  // ---------- print station: its own token, or the booth's when that runs a station too ----------
+  let seenAt = 0;
+  let seen: { error: string | null; printers: { name: string; isDefault?: boolean }[] } = { error: null, printers: [] };
+  const printerState = async (s: { printerName: string | null }) => {
+    if (Date.now() - seenAt < 8000) return seen; // asking the OS is slow on Windows
+    try {
+      const all = printer ? await printer.discover() : [];
+      const p = all.find((x) => (s.printerName ? x.name === s.printerName : x.isDefault));
+      seen = { printers: all.map((x) => ({ name: x.name, isDefault: x.isDefault })), error: !p ? (s.printerName ? `Printer "${s.printerName}" not found` : "No default printer") : p.status === "stopped" ? `Printer stopped${p.message ? `: ${p.message}` : ""}` : null };
+    } catch (e) { seen = { printers: [], error: (e as Error).message }; }
+    seenAt = Date.now();
+    return seen;
+  };
+  const about = { agentVersion: AGENT_VERSION, os: osName(), hostname: hostname() };
+  const runStation = async (token: string) => {
+    const station = new Station(store, queue, new Cloud(server, token), printerState, about);
+    let name = "", problem = "";
+    for (;;) {
+      let moved = false;
+      try {
+        moved = await station.tick();
+        if (!name) log(`print station ${(name = station.settings!.name)} (${station.settings!.code})`);
+        problem = "";
+      } catch (e) {
+        if (e instanceof CloudError && e.status === 401) { log("this computer isn't a print station any more"); return; }
+        if (problem !== (e as Error).message) log(`station: ${(problem = (e as Error).message)}; retrying`);
+      }
+      await new Promise((r) => setTimeout(r, moved ? 300 : STATION_POLL_MS));
+    }
+  };
+  if (own) void runStation(own.token).then(() => { if (!id || boothGone) process.exit(2); ownGone = true; });
+  let shared = false;
+  const maybeShared = () => {
+    if (own || shared || !id || !config?.stationHere) return;
+    shared = true;
+    void runStation(id.token).then(() => { shared = false; });
+  };
+  if (!id) return; // a station only: no booth to check in for, no kiosk to serve
+
   await startLocalServer({
     port, version: AGENT_VERSION, simulated: sim, photosDir: join(dir, "photos"),
-    allowedOrigins: () => [id.server, ...(process.env.PBOOTH_AGENT_EXTRA_ORIGINS?.split(",").map((s) => s.trim()).filter(Boolean) ?? [])],
+    allowedOrigins: () => [server, ...(process.env.PBOOTH_AGENT_EXTRA_ORIGINS?.split(",").map((s) => s.trim()).filter(Boolean) ?? [])],
     identity: () => ({ boothId: id.boothId, boothCode: id.boothCode, localSecret: id.localSecret }),
     camera: () => camera, printer: () => printer, queue,
     getJob: (jid) => store.job(jid), queueSummary: () => store.summary(),
     printSettings: () => ({ enabled: !!config?.printer.enabled, printerName: config?.printer.printerName ?? null, paperSize: config?.printer.paperSize ?? "4x6", orientation: config?.printer.orientation ?? "portrait" }),
   });
-  log(`local API on http://127.0.0.1:${port} for ${id.server} (booth ${id.boothCode})`);
+  log(`local API on http://127.0.0.1:${port} for ${server} (booth ${id.boothCode})`);
 
   // Heartbeat loop: keeps going through outages; the booth keeps working offline.
   let wait = 20;
@@ -132,10 +186,16 @@ export async function runAgent(store: Store, dir: string, port: number) {
   const loop = async () => {
     try {
       wait = await heartbeat();
+      maybeShared();
       if (offline) log("cloud reachable again");
       offline = false;
     } catch (e) {
-      if (e instanceof CloudError && e.status === 401) { log("cloud rejected this agent's token: the booth was revoked or re-enrolled. Stopping."); process.exit(2); }
+      if (e instanceof CloudError && e.status === 401) { 
+        log("cloud rejected this agent's token: the booth was revoked or re-enrolled. Stopping.");
+        if (!own || ownGone) process.exit(2);
+        boothGone = true; // the print station carries on
+        return;
+      }
       if (!offline) log(`cloud unreachable (${(e as Error).message}); retrying, booth keeps working`);
       offline = true;
     }

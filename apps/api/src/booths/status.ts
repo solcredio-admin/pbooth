@@ -28,3 +28,7 @@ export function boothStatus(f: StatusFacts, offlineAfterSeconds: number, now = n
   if (f.lastError) return "ERROR";
   return f.hasLiveEvent ? "ACTIVE" : "ONLINE";
 }
+
+/** A station that hasn't asked for work for this long is not picked for prints. */
+export const STATION_READY_SECONDS = 10;
+export const stationOnline = (s: { lastPollAt: Date | null }, now = Date.now()) => !!s.lastPollAt && now - s.lastPollAt.getTime() <= STATION_READY_SECONDS * 1000;

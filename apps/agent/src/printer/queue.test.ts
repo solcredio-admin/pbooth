@@ -7,7 +7,7 @@ import { Store } from "../store.js";
 import { PrintQueue } from "./queue.js";
 import { preparePrint } from "./image.js";
 import { listedJobs, parsePrinters, parseRequestId } from "./cups.js";
-import type { PrinterProvider, Submit } from "./types.js";
+import { NotPrinted, type PrinterProvider, type Submit } from "./types.js";
 
 const jpeg = (w: number, h: number) => sharp({ create: { width: w, height: h, channels: 3, background: "#888" } }).jpeg().toBuffer();
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -19,7 +19,7 @@ class FakePrinter implements PrinterProvider {
   async discover() { return []; }
   async getStatus() { return null; }
   async submitPrint(j: Submit) {
-    if (this.failNext-- > 0) throw new Error("printer busy");
+    if (this.failNext-- > 0) throw new NotPrinted("printer busy");
     this.submitted.push(j);
     return { providerJobId: `p-${this.submitted.length}` };
   }

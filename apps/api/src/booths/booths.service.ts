@@ -7,14 +7,15 @@ import { CONFIG, type Config } from "../config.js";
 import { ApiError, notFound } from "../common/errors.js";
 import { hashToken } from "../auth/tokens.js";
 import { type Prisma } from "../generated/prisma/client.js";
-import { cameraSchema, DEFAULT_CAMERA, DEFAULT_PRINTER, printerSchema, type CreateBooth, type UpdateBooth } from "./booths.schemas.js";
+import { cameraSchema, DEFAULT_CAMERA, DEFAULT_PRINTER, type CreateBooth, type UpdateBooth } from "./booths.schemas.js";
 import { newBoothCode, newEnrollmentCode, normalizeEnrollmentCode } from "./codes.js";
-import { boothStatus, isOnline } from "./status.js";
+import { boothStatus, isOnline, stationOnline } from "./status.js";
 import { hashPassword } from "../auth/password.js";
 
 export const boothInclude = {
   device: true,
   kiosk: true,
+  stations: { include: { station: { include: { _count: { select: { booths: true } } } } }, orderBy: { position: "asc" } },
   events: { include: { event: { include: { config: true } } }, orderBy: { event: { startsAt: "asc" } } },
 } as const satisfies Prisma.BoothInclude;
 export type BoothRow = Prisma.BoothGetPayload<{ include: typeof boothInclude }>;
@@ -57,10 +58,17 @@ export class BoothsService implements OnModuleInit, OnModuleDestroy {
   deviceConfig(b: BoothRow) {
     const live = b.events.map((eb) => eb.event).find((e) => e.status === "ACTIVE") ?? null;
     const c = live?.config;
+    const stations = b.stations.map((x) => x.station).filter((s) => s.enabled);
+    // A linked station on this booth's own computer: the kiosk can print to it without the internet.
+    const here = b.device ? stations.find((s) => s.tokenHash && (s.tokenHash === b.device!.tokenHash || s.identifier === b.device!.identifier)) : undefined;
     const payload = {
       booth: { id: b.id, name: b.name, code: b.code },
       camera: cameraSchema.parse(b.camera ?? {}),
-      printer: printerSchema.parse(b.printer ?? {}),
+      printer: here ? { enabled: true, printerName: here.printerName, paperSize: here.paperSize, orientation: here.orientation } : DEFAULT_PRINTER,
+      // direct: the booth's only station is this computer's, and no other booth prints there, so nothing is
+      // in line before it. Otherwise prints go through the cloud's line; with no internet, here is the fallback. 
+      printing: { direct: !!here && stations.length === 1 && here._count.booths === 1, stations: stations.length, here: here?.name ?? null },
+      stationHere: !!b.device && b.stations.some((x) => x.station.tokenHash === b.device!.tokenHash),
       heartbeatIntervalSeconds: this.cfg.HEARTBEAT_INTERVAL_SECONDS,
       staffMenu: !!b.staffPinHash,
       event: live ? {
@@ -100,6 +108,8 @@ export class BoothsService implements OnModuleInit, OnModuleDestroy {
       simulated: d?.simulated ?? false,
       camera: config.camera,
       printer: config.printer,
+      printMode: b.printMode,
+      stations: b.stations.map(({ station: s }) => ({ id: s.id, name: s.name, code: s.code, enabled: s.enabled, online: stationOnline(s, now.getTime()), ready: s.enabled && s.ready && stationOnline(s, now.getTime()) })),
       staffMenu: config.staffMenu,
       configVersion: config.version,
       configApplied: !!d && d.appliedConfigVersion === config.version,
@@ -161,7 +171,6 @@ export class BoothsService implements OnModuleInit, OnModuleDestroy {
         ...(body.name !== undefined ? { name: body.name } : {}),
         ...(body.notes !== undefined ? { notes: body.notes || null } : {}),
         ...(body.camera ? { camera: body.camera } : {}),
-        ...(body.printer ? { printer: body.printer } : {}),
       },
       include: boothInclude,
     });
@@ -210,10 +219,21 @@ export class BoothsService implements OnModuleInit, OnModuleDestroy {
     return this.get(id);
   }
 
+  /** A station using this booth's own token loses it with the booth. */
+  private signOutStations(b: BoothRow) {
+    if (!b.device) return [];
+    const tokenHash = b.device.tokenHash;
+    return [
+      this.db.printJob.updateMany({ where: { station: { tokenHash }, status: { in: ["CLAIMED", "PRINTING"] } }, data: { status: "FAILED", error: "The station's computer was signed out. Check the printer before printing again." } }),
+      this.db.station.updateMany({ where: { tokenHash }, data: { tokenHash: null, identifier: null, ready: false } }),
+    ];
+  }
+
   /** Withdraws device access at once: the device's token stops working on its next request. */
   async revoke(id: string, actor: string, ip?: string) {
-    await this.row(id);
+    const b = await this.row(id);
     await this.db.$transaction([
+      ...this.signOutStations(b),
       this.db.device.deleteMany({ where: { boothId: id } }),
       this.db.kiosk.deleteMany({ where: { boothId: id } }),
       this.db.booth.update({ where: { id }, data: { state: "REVOKED", enrollmentCodeHash: null, enrollmentExpiresAt: null, kioskCodeHash: null, kioskCodeExpiresAt: null } }),
@@ -233,7 +253,7 @@ export class BoothsService implements OnModuleInit, OnModuleDestroy {
     if (confirmName.trim() !== b.name.trim()) throw new ApiError(HttpStatus.BAD_REQUEST, "CONFIRM_MISMATCH", "Type the booth's name exactly to delete it");
     const live = await this.db.eventBooth.findFirst({ where: { boothId: id, event: { status: "ACTIVE" } }, select: { event: { select: { name: true } } } });
     if (live) throw new ApiError(HttpStatus.CONFLICT, "BOOTH_LIVE", `This booth is serving "${live.event.name}" right now. Wrap up the event or take the booth off it first`);
-    await this.db.booth.delete({ where: { id } });
+    await this.db.$transaction([...this.signOutStations(b), this.db.booth.delete({ where: { id } })]);
     await this.audit.record({ actor, action: "booth.delete", entityType: "booth", entityId: id, ip, metadata: { name: b.name, code: b.code } });
     this.realtime.boothsChanged({ booths: [], removed: [id] });
     return { deleted: true };

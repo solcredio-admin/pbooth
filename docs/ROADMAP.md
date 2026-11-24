@@ -9,7 +9,13 @@ print on the Canon G1010; the lockdown steps tried on one real booth. Any of the
 
 ## Phase 11: the booth and the printer stop being one machine
 
-### 11.1 Stations (L)
+### 11.1 Stations (L) - built, not deployed
+
+Changed while building (owner's call): each booth is **fixed** (backups print only when the main one can't, not when
+it's busy) or **rotates**. The main case is many booths on one printer: one line, oldest first, that recovers by
+itself. A station asks before it prints, so a job it hadn't started can move by itself; after that only staff move
+it, unless the agent is certain nothing came out. Not built: refusing stations whose paper the event can't use.
+
 
 A **booth** is the camera side (kiosk, and the camera agent if it has a DSLR). A **station** is a print agent
 with its printer, in its own **Stations** tab. Any kiosk can print to a station, an iPad included.

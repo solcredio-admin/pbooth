@@ -32,12 +32,12 @@ function useThisOs() {
   return state;
 }
 
-export function AgentInstall({ origin, code }: { origin: string; code: string | null }) {
+export function AgentInstall({ origin, code, station = false }: { origin: string; code: string | null; station?: boolean }) {
   const [os, setOs] = useThisOs();
   const c = code ?? "XXXX-XXXX";
   const win = `[Net.ServicePointManager]::SecurityProtocol='Tls12'; $env:PBOOTH_SERVER='${origin}'; $env:PBOOTH_CODE='${c}'; irm ${origin}/install-agent.ps1 | iex`;
   const unix = `curl -fsSL ${origin}/install-agent.sh | bash -s -- ${origin} ${c}`;
-  const noCode = !code && <p className="cap">Generate an enrollment code above first: it goes into the command.</p>;
+  const noCode = !code && <p className="cap">Generate a code above first: it goes into the command.</p>;
   const printer = (how: string) => <Step title="Add the printer."><p>{how} Print a test page from the computer first.</p></Step>;
 
   return (
@@ -83,11 +83,11 @@ export function AgentInstall({ origin, code }: { origin: string; code: string | 
 
       <details className="cap">
         <summary>What the command does</summary>
-        <p>Installs Node.js 24 if it&apos;s missing, downloads the agent from this server, enrolls this booth with the code, starts the agent
+        <p>Installs Node.js 24 if it&apos;s missing, downloads the agent from this server, {station ? "connects this station with the code" : "enrolls this booth with the code"}, starts the agent
           whenever the computer starts, and lists the printers it can see. Running it again later updates the agent (with a new code).
           Agent folder: <code>C:\pbooth-agent</code>, <code>/Users/Shared/pbooth-agent</code> or <code>/opt/pbooth-agent</code>.</p>
-        <p>To try pbooth without any hardware instead, run the simulator from the agent folder:</p>
-        <Cmd>{`node tools/simulate-booth.mjs --url ${origin} --code ${c}`}</Cmd>
+        {!station && <><p>To try pbooth without any hardware instead, run the simulator from the agent folder:</p>
+        <Cmd>{`node tools/simulate-booth.mjs --url ${origin} --code ${c}`}</Cmd></>}
       </details>
     </div>
   );

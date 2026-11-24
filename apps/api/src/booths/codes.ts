@@ -7,6 +7,8 @@ const pick = (n: number) => Array.from({ length: n }, () => ALPHABET[randomInt(A
 /** Booth code, e.g. "PB-7K3M". Public-ish (it will appear in kiosk URLs), so not a secret. */
 export const newBoothCode = () => `PB-${pick(4)}`;
 
+export const newStationCode = () => `ST-${pick(4)}`;
+
 /** One-time enrollment code shown to the admin, e.g. "7K3M-Q9TX" (40 bits, expires, single use). */
 export const newEnrollmentCode = () => `${pick(4)}-${pick(4)}`;
 

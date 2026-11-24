@@ -32,7 +32,6 @@ export const updateBoothSchema = z.object({
   name: z.string().trim().min(1).max(80).optional(),
   notes: z.string().trim().max(500).nullable().optional(),
   camera: cameraSchema.optional(),
-  printer: printerSchema.optional(),
 });
 
 export const assignSchema = z.object({ boothId: z.string().uuid() });

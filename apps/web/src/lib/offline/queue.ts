@@ -2,7 +2,7 @@
 // once the cloud has confirmed it, so an outage, a reload or a crash loses nothing.
 // Pure logic: storage and sending are injected (IndexedDB + fetch in the kiosk, memory in tests).
 
-export type ItemKind = "session-start" | "session-finish" | "photo";
+export type ItemKind = "session-start" | "session-finish" | "photo" | "print";
 export interface QueueItem {
   id: string;            // unique and stable: retries reuse it, so the server sees one item, not many
   seq: number;           // order of creation; items are sent strictly in this order

@@ -68,3 +68,29 @@ POST /devices/config/ack   { "version": "ff348f88d7cb" }   → 200 { "ok": true 
 `event` is the booth's **live** event (status ACTIVE), or `null`. The version is a hash of
 everything in the payload, so any change (booth settings, event going live, guest settings on a
 live event) produces a new version. The admin sees "Up to date" once the booth acks it.
+
+`printer` is the booth's station when it's on the same computer (`enabled: false` otherwise), so agents before
+0.5.0 keep printing. `stationHere: true` means this booth's own token also runs a station (section 4).
+
+## 4. Print stations (agent 0.5.0 and later)
+
+A station is a printer and its computer. `POST /devices/enroll` with a **station** code and `"stations": true`
+returns `{ "token", "station": { "id", "name", "code" } }`. Calls below use that token (or the booth's, see above).
+
+```
+POST /station/poll   every 2 s
+{ "ready": true, "error": null, "printers": [{ "name": "DNP DS620", "isDefault": true }], "agentVersion", "os", "hostname" }
+→ 200 { "station": { "id", "name", "code", "enabled", "printerName", "paperSize", "orientation" },
+        "jobs": [{ "id", "attempt", "status": "CLAIMED|PRINTING", "copies", "strip", "backup", "sha256", "url" }] }
+
+POST /station/jobs/:id   { "attempt": 1, "status": "PRINTING|DONE|FAILED", "error": null, "safe": false }
+→ 200, or 409 NOT_YOURS (finished, moved, or another attempt)
+```
+
+- `jobs` is everything this station holds (at most one new job at a time), so a lost answer is just another poll.
+- **Report `PRINTING` and get a 200 before handing anything to the printer.** Until then the server may give the
+  job to another station (after `PRINT_RELEASE_SECONDS` of silence, default 30). A 409 means: don't print.
+- `FAILED` with `safe: true` only when certain nothing came out: the job goes back in line by itself (up to 6
+  times). Without `safe`, it waits for staff.
+- A higher `attempt` is a new permission to print; the same one never is.
+- `401 STATION_UNAUTHORIZED`: signed out or deleted.

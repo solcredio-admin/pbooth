@@ -129,7 +129,7 @@
 .k-print { margin: 0; font: 600 20px/1.4 var(--mono); }
 .k-print.done { color: var(--k-accent); }
 .k-print.failed, .k-print.unavailable { color: #ff8a70; }
-.k-print.sending, .k-print.queued, .k-print.printing { animation: k-breathe 1.6s ease-in-out infinite; }
+.k-print.sending, .k-print.waiting, .k-print.queued, .k-print.printing { animation: k-breathe 1.6s ease-in-out infinite; }
 
 /* QR to the guest's gallery, and the consent line */
 .k-qr { display: flex; align-items: center; gap: 22px; padding: 14px 22px 14px 14px; border-radius: 20px; background: #fff; color: #0b0c0a; box-shadow: 0 20px 60px -20px rgba(0, 0, 0, .6); }

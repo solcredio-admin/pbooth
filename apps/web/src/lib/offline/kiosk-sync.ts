@@ -21,6 +21,12 @@ async function send(item: QueueItem): Promise<Outcome> {
     if (r.status === 404) return { retry: true, limited: true }; // its start may still be on the way
     return transient(r.status) ? { retry: true } : { fatal: r.message };
   }
+  if (item.kind === "print") {
+    const r = await kioskFetch("POST", "/kiosk/prints", item.body);
+    if (r.ok) return { done: true };
+    if (r.code === "SESSION_UNKNOWN") return { retry: true, limited: true };
+    return transient(r.status) ? { retry: true } : { fatal: r.message }; // the photo went ahead of this: if it isn't there, it never will be
+  }
   // photo: signed link (bound to size + SHA-256) → bytes straight to storage → confirm
   const a = await kioskFetch<{ alreadyUploaded: boolean; url?: string; headers?: Record<string, string> }>("POST", "/photos/upload-authorize", item.body);
   if (!a.ok) {
@@ -65,6 +71,12 @@ export async function enqueuePhoto(sessionId: string, blob: Blob, kind: "DESIGN"
   await kioskQueue().add("photo", sessionId, {
     photoId, sessionId, kind, index, sha256: hex(await crypto.subtle.digest("SHA-256", bytes)), size: bytes.byteLength, contentType: "image/jpeg",
   }, blob, photoId);
+  return photoId;
+}
+
+/** Print this session's design at one of the booth's stations, once the photo before it has arrived. */
+export async function enqueuePrint(sessionId: string, photoId: string, strip: boolean) {
+  await kioskQueue().add("print", sessionId, { sessionId, photoId, strip }, undefined, `print-${sessionId}`);
 }
 
 // The last config this kiosk received, so it can start and keep serving guests while offline.

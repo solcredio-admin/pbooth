@@ -73,7 +73,7 @@ export class RefundsService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** Opens a request, or does nothing if that payment already has one open. Never opens a second one. */
-  private async open(e: { id: string; name: string }, boothId: string | null, paymentId: string | null, reason: RefundReason, ip?: string) {
+  async open(e: { id: string; name: string }, boothId: string | null, paymentId: string | null, reason: RefundReason, ip?: string) {
     try {
       const r = await this.db.refundRequest.create({ data: { eventId: e.id, boothId, paymentId, reason }, include });
       await this.audit.record({ actor: boothId && ip ? `booth:${boothId}` : "system", action: "refund.request", entityType: "refund", entityId: r.id, ip, metadata: { reason } });

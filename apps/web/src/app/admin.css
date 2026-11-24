@@ -514,3 +514,8 @@ main.detail.single .tabs { margin-inline: auto; } /* centred like the page title
 .alert-kinds { gap: 0 16px; }
 .claim-qr { width: 200px; height: 200px; background: #fff; border-radius: 10px; }
 .alert-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font: 400 12.5px/1.5 var(--mono); }
+
+/* stations */
+.move-to select { padding: 4px 10px; font: 500 11px/1.4 var(--mono); width: auto; }
+.print-mode { margin: 14px 0; display: grid; gap: 4px; }
+.plain-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }

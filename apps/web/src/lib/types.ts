@@ -30,13 +30,24 @@ export interface HwStatus { status: "connected" | "disconnected" | "error" | "un
 export interface CameraConfig { provider: "webcam" | "gphoto2"; deviceName: string | null; resolution: "auto" | "720p" | "1080p" | "4k"; orientation: "landscape" | "portrait"; rotation: 0 | 90 | 180 | 270; mirrorPreview: boolean }
 export interface PrinterConfig { enabled: boolean; printerName: string | null; paperSize: "4x6" | "2x6" | "5x7"; orientation: "portrait" | "landscape" }
 
+export interface StationDto {
+  id: string; name: string; code: string; enabled: boolean; printerName: string | null; paperSize: PrinterConfig["paperSize"]; orientation: PrinterConfig["orientation"];
+  online: boolean; ready: boolean; busy: boolean; lastPollAt: string | null; lastError: string | null;
+  computer: null | { hostname: string | null; os: string | null; agentVersion: string | null; simulated: boolean; enrolledAt: string | null };
+  printers: { name: string; isDefault?: boolean }[]; enrollmentExpiresAt: string | null; booths: { id: string; name: string }[];
+}
+export interface PrintJobDto {
+  id: string; status: "WAITING" | "CLAIMED" | "PRINTING" | "DONE" | "FAILED" | "EXPIRED"; copies: number; error: string | null; createdAt: string; doneAt: string | null;
+  stationId: string | null; targetStationId: string | null; booth: { name: string } | null; event: { name: string; timeZone: string }; station: { name: string } | null;
+}
+
 export interface SessionStats { sessions: number; completed: number; photos: number }
 export interface EventSessions { byBooth: Record<string, SessionStats>; total: SessionStats }
 
 export interface BoothDto {
   id: string; name: string; code: string; notes: string | null; state: "UNREGISTERED" | "READY" | "REVOKED";
   status: BoothStatus; online: boolean; simulated: boolean;
-  camera: CameraConfig; printer: PrinterConfig; staffMenu: boolean; configVersion: string; configApplied: boolean;
+  camera: CameraConfig; printer: PrinterConfig; printMode: "FIXED" | "ROTATE"; stations: { id: string; name: string; code: string; enabled: boolean; online: boolean; ready: boolean }[]; staffMenu: boolean; configVersion: string; configApplied: boolean;
   device: null | {
     hostname: string | null; os: string | null; agentVersion: string | null; identifier: string; enrolledAt: string;
     lastHeartbeatAt: string | null; lastError: string | null; appliedConfigVersion: string | null;

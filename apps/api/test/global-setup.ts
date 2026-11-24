@@ -67,7 +67,7 @@ export default async function setup(project: TestProject) {
   mock = fakePaymongo();
   await new Promise<void>((ok) => mock!.listen(PORT + 1, "127.0.0.1", ok));
   const paymongo = `http://127.0.0.1:${PORT + 1}`;
-  const env = { ...process.env, ...s3, PAYMONGO_SECRET_KEY: "sk_test_mock", PAYMONGO_API_BASE: `${paymongo}/v1`, PAYMONGO_QR_SECONDS: "60", TELEGRAM_BOT_TOKEN: `123456:${"x".repeat(35)}`, TELEGRAM_API_BASE: paymongo, ALERT_SWEEP_SECONDS: "1", ALERT_OFFLINE_SECONDS: "4", ALERT_PROBLEM_SECONDS: "0", REFUND_FLAG_MINUTES: "0.1", DATABASE_URL: url, APP_ORIGIN: "http://app.test", API_PORT: String(PORT), NODE_ENV: "test", TRUST_PROXY_HOPS: "1", ALLOW_SIMULATED_BOOTHS: "true", BOOTH_OFFLINE_AFTER_SECONDS: "30" };
+  const env = { ...process.env, ...s3, PAYMONGO_SECRET_KEY: "sk_test_mock", PAYMONGO_API_BASE: `${paymongo}/v1`, PAYMONGO_QR_SECONDS: "60", TELEGRAM_BOT_TOKEN: `123456:${"x".repeat(35)}`, TELEGRAM_API_BASE: paymongo, ALERT_SWEEP_SECONDS: "1", ALERT_OFFLINE_SECONDS: "4", ALERT_PROBLEM_SECONDS: "0", REFUND_FLAG_MINUTES: "0.1", PRINT_RELEASE_SECONDS: "3", PRINT_WAIT_MINUTES: "0.15", DATABASE_URL: url, APP_ORIGIN: "http://app.test", API_PORT: String(PORT), NODE_ENV: "test", TRUST_PROXY_HOPS: "1", ALLOW_SIMULATED_BOOTHS: "true", BOOTH_OFFLINE_AFTER_SECONDS: "30" };
 
   const db = new pg.Client({ connectionString: url });
   await db.connect();

@@ -9,6 +9,8 @@ import { KioskService } from "./kiosk.service.js";
 import { KIOSK_COOKIE, KIOSK_COOKIE_DAYS, KioskGuard, type KioskReq } from "./kiosk.guard.js";
 import { kioskHeartbeatSchema, pairSchema, type KioskHeartbeat, type Pair } from "./kiosk.schemas.js";
 import { SelfServiceService } from "../selfservice/selfservice.service.js";
+import { StationsService } from "../stations/stations.service.js";
+import { printSchema, type PrintRequest } from "../stations/stations.schemas.js";
 import { RefundsService } from "../selfservice/refunds.service.js";
 const helpSchema = z.object({ reason: z.enum(["NO_SESSION", "NO_PRINT", "OTHER"]), reference: z.string().trim().min(4).max(20).optional(), paymentId: z.string().uuid().optional() });
 const pinSchema = z.object({ pin: z.string().regex(/^\d{4,8}$/) });
@@ -19,7 +21,7 @@ const redeemSchema = z.object({ code: z.string().trim().min(4).max(20) });
 @Public()
 @Controller("kiosk")
 export class KioskController {
-  constructor(private readonly kiosk: KioskService, private readonly ss: SelfServiceService, private readonly refunds: RefundsService, @Inject(CONFIG) private readonly cfg: Config) {}
+  constructor(private readonly kiosk: KioskService, private readonly ss: SelfServiceService, private readonly refunds: RefundsService, private readonly stations: StationsService, @Inject(CONFIG) private readonly cfg: Config) {}
 
   @Post("pair") @HttpCode(200)
   @RouteConfig({ rateLimit: { max: 10, timeWindow: "15 minutes" } })
@@ -79,6 +81,15 @@ export class KioskController {
   @Post("help") @HttpCode(200)
   @RouteConfig({ rateLimit: { max: 10, timeWindow: "15 minutes" } })
   help(@Body({ schema: helpSchema }) body: z.infer<typeof helpSchema>, @Req() r: KioskReq) { return this.refunds.ask(r.kiosk!.boothId, body, r.ip); }
+
+  /** Prints a session's uploaded design at one of the booth's stations. */
+  @UseGuards(KioskGuard)
+  @Post("prints") @HttpCode(200)
+  print(@Body({ schema: printSchema }) body: PrintRequest, @Req() r: KioskReq) { return this.stations.request(r.kiosk!.boothId, body); }
+
+  @UseGuards(KioskGuard)
+  @Get("prints/:id")
+  printStatus(@Param("id", { schema: z.string().uuid() }) id: string, @Req() r: KioskReq) { return this.stations.status(r.kiosk!.boothId, id); }
 
   /** The hidden staff menu's PIN. */
   @UseGuards(KioskGuard)

@@ -50,7 +50,7 @@ export class Store {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued')`).run(j.id, now, now, j.printer, j.copies, j.paper, j.orientation, j.file);
     return r.changes === 1;
   }
-  updateJob(id: string, patch: Partial<Omit<PrintJob, "id" | "created_at">>) {
+  updateJob(id: string, patch: Partial<Omit<PrintJob, "id">>) {
     const keys = Object.keys(patch);
     if (!keys.length) return;
     this.db.prepare(`UPDATE print_jobs SET ${keys.map((k) => `${k} = ?`).join(", ")}, updated_at = ? WHERE id = ?`)

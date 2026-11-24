@@ -74,6 +74,22 @@ export class AlertsService implements OnModuleInit, OnModuleDestroy {
       if (now - first >= this.cfg.ALERT_PROBLEM_SECONDS * 1000) problems.set(key, { kind: "KIOSK", text: `🟠 ${name}: ${error}` });
     }
 
+    // A print nobody has taken for 2 minutes, one stuck at a station, or one that failed.
+    const ago = (m: number) => new Date(now - m * 60_000);
+    const stuck = await this.db.printJob.findMany({
+      where: { boothId: { in: rows.map((r) => r.boothId) }, OR: [
+        // waiting in a line that moves is fine
+        { status: "WAITING", createdAt: { lt: ago(2) }, booth: { stations: { none: { station: { enabled: true, ready: true, lastPollAt: { gt: new Date(now - 15_000) } } } } } }, { status: { in: ["CLAIMED", "PRINTING"] }, claimedAt: { lt: ago(12) } }, { status: "FAILED", createdAt: { gt: ago(60) } },
+      ] },
+      include: { booth: { select: { name: true } }, event: { select: { name: true } }, station: { select: { name: true } } }, orderBy: { createdAt: "asc" }, take: 200,
+    });
+    for (const j of stuck) {
+      const key = `print:${j.boothId}`;
+      if (quiet.has(j.boothId!) || problems.has(key)) continue;
+      const what = j.status === "WAITING" ? "a print is waiting and no station is ready" : j.status === "FAILED" ? `a print failed at ${j.station?.name ?? "its station"}${j.error ? `: ${j.error}` : ""}` : `a print is stuck at ${j.station?.name ?? "a station"}`;
+      problems.set(key, { kind: "KIOSK", text: `🖨 ${j.booth?.name} (${j.event.name}): ${what}.\n${this.cfg.APP_ORIGIN}/stations` });
+    }
+
     for (const e of new Map(rows.map((r) => [r.event.id, r.event])).values()) {
       if (quiet.has(e.id)) continue;
       const last = await this.db.payment.findMany({
