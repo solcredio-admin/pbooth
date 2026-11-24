@@ -23,7 +23,7 @@ async function bootstrap() {
     AppModule.forRoot(cfg),
     new FastifyAdapter({
       trustProxy: (_addr: string, hop: number) => hop < cfg.TRUST_PROXY_HOPS,
-      bodyLimit: 100 * 1024,
+      bodyLimit: 300 * 1024, // an event's logo (a small PNG) is the biggest thing sent
       // Fastify's request log has method, URL, status and IP; no headers, so no cookies or tokens.
       logger: { level: cfg.NODE_ENV === "test" ? "warn" : "info" },
     }),

@@ -21,6 +21,10 @@ export const configSchema = z.object({
   fontStyle: z.enum(["serif", "sans", "mono"]),
   footerText: text(60),
   showDate: z.boolean(),
+  // "iVBORw0KGgo" is the PNG signature in base64: anything else (SVG, HTML…) is refused
+  logo: z.string().max(200_000, "The logo is too big").regex(/^data:image\/png;base64,iVBORw0KGgo[A-Za-z0-9+/]+={0,2}$/, "The logo must be a PNG").nullable(),
+  logoPosition: z.enum(["left", "center", "right"]),
+  logoSize: z.number().int().min(10).max(100),
   printEnabled: z.boolean(),
   printCopies: z.number().int().min(1).max(5),
   galleryEnabled: z.boolean(),

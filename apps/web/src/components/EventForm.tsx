@@ -15,14 +15,14 @@ const TABS: { id: Tab; label: string }[] = [
 const TAB_OF: Record<string, Tab> = {
   name: "event", organizerName: "event", contactPhone: "event", contactEmail: "event", venueName: "event", venueAddress: "event", date: "event", startTime: "event", endTime: "event", timeZone: "event",
   welcomeTitle: "guest", welcomeMessage: "guest", primaryColor: "guest", accentColor: "guest", countdownSeconds: "guest", shotsPerSession: "guest", captureIntervalSeconds: "guest", previewSeconds: "guest",
-  layout: "design", pattern: "design", frameStyle: "design", photoStyle: "design", fontStyle: "design", footerText: "design", showDate: "design",
+  layout: "design", pattern: "design", frameStyle: "design", photoStyle: "design", fontStyle: "design", footerText: "design", showDate: "design", logo: "design", logoPosition: "design", logoSize: "design",
   printEnabled: "prints", printCopies: "prints", galleryEnabled: "prints", galleryRetentionDays: "prints", saveOriginals: "prints",
   kind: "event", priceCentavos: "selfservice", freeSessions: "selfservice", acceptVouchers: "selfservice", acceptQr: "selfservice", partnerName: "selfservice", partnerSharePercent: "selfservice",
 };
 
 const DEFAULTS: EventConfig = {
   welcomeTitle: "Strike a pose", welcomeMessage: "Tap anywhere to start", primaryColor: "#0b0c0a", accentColor: "#c6f36b",
-  countdownSeconds: 3, shotsPerSession: 3, captureIntervalSeconds: 3, previewSeconds: 3, layout: "landscape", pattern: "none", frameStyle: "line", photoStyle: "rounded", fontStyle: "serif", footerText: "", showDate: true, printEnabled: false, printCopies: 1, galleryEnabled: true, galleryRetentionDays: 30, saveOriginals: false,
+  countdownSeconds: 3, shotsPerSession: 3, captureIntervalSeconds: 3, previewSeconds: 3, layout: "landscape", pattern: "none", frameStyle: "line", photoStyle: "rounded", fontStyle: "serif", footerText: "", showDate: true, logo: null, logoPosition: "center", logoSize: 30, printEnabled: false, printCopies: 1, galleryEnabled: true, galleryRetentionDays: 30, saveOriginals: false,
 };
 
 function Field({ name, label, error, hint, wide, children }: { name: string; label: string; error?: string; hint?: string; wide?: boolean; children: ReactNode }) {
@@ -33,6 +33,22 @@ function Field({ name, label, error, hint, wide, children }: { name: string; lab
       {error ? <span className="err" id={`${name}-err`}>{error}</span> : hint ? <span className="hint">{hint}</span> : null}
     </label>
   );
+}
+
+/** The picked PNG, scaled down until it fits the server's limit; null if it can't be read. */
+async function shrinkPng(file: File): Promise<string | null> {
+  const bmp = file.type === "image/png" ? await createImageBitmap(file).catch(() => null) : null;
+  if (!bmp) return null;
+  for (let max = 1000; max >= 100; max = Math.round(max * 0.8)) {
+    const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(bmp.width * k));
+    c.height = Math.max(1, Math.round(bmp.height * k));
+    c.getContext("2d")!.drawImage(bmp, 0, 0, c.width, c.height);
+    const url = c.toDataURL("image/png");
+    if (url.length <= 200_000) return url;
+  }
+  return null;
 }
 
 // Create and edit share one form. Times are entered on the venue's clock; the API stores exact instants.
@@ -48,15 +64,23 @@ export function EventForm({ event, canEdit = true, lockMoney = false }: { event?
   const [colors, setColors] = useState({ primaryColor: cfg.primaryColor, accentColor: cfg.accentColor });
   // What the live design preview shows; follows the form as it's edited.
   const [look, setLook] = useState({ name: event?.name ?? "", date: event?.local.date ?? "", layout: cfg.layout, shots: cfg.shotsPerSession, footer: cfg.footerText, showDate: cfg.showDate,
-    pattern: cfg.pattern, frameStyle: cfg.frameStyle, photoStyle: cfg.photoStyle, fontStyle: cfg.fontStyle });
+    pattern: cfg.pattern, frameStyle: cfg.frameStyle, photoStyle: cfg.photoStyle, fontStyle: cfg.fontStyle, logoPosition: cfg.logoPosition, logoSize: cfg.logoSize });
+  const [logo, setLogo] = useState(cfg.logo);
+  const pickLogo = async (file: File | undefined) => {
+    if (!file) return;
+    const png = await shrinkPng(file);
+    setLogo((old) => png ?? old);
+    setErrors(({ logo: _, ...rest }) => (png ? rest : { ...rest, logo: "That file isn't a readable PNG" }));
+  };
   const onFormChange = (e: React.FormEvent<HTMLFormElement>) => {
     const f = new FormData(e.currentTarget);
-    setLook({
+    setLook((old) => ({
       name: String(f.get("name") ?? ""), date: String(f.get("date") ?? ""), layout: (f.get("layout") as EventConfig["layout"]) ?? "landscape",
       shots: Math.min(4, Math.max(1, Number(f.get("shotsPerSession")) || 1)), footer: String(f.get("footerText") ?? ""), showDate: f.get("showDate") === "on",
       pattern: f.get("pattern") as EventConfig["pattern"], frameStyle: f.get("frameStyle") as EventConfig["frameStyle"],
       photoStyle: f.get("photoStyle") as EventConfig["photoStyle"], fontStyle: f.get("fontStyle") as EventConfig["fontStyle"],
-    });
+      logoPosition: (f.get("logoPosition") as EventConfig["logoPosition"] | null) ?? old.logoPosition, logoSize: Number(f.get("logoSize")) || old.logoSize, // no fields without a logo
+    }));
   };
   const previewDate = look.date ? new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "long", day: "numeric", year: "numeric" }).format(new Date(`${look.date}T12:00:00Z`)) : "Event date";
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -83,6 +107,7 @@ export function EventForm({ event, canEdit = true, lockMoney = false }: { event?
         countdownSeconds: num("countdownSeconds"), shotsPerSession: num("shotsPerSession"),
         captureIntervalSeconds: num("captureIntervalSeconds"), previewSeconds: num("previewSeconds"), layout: str("layout"), footerText: str("footerText"),
         pattern: str("pattern"), frameStyle: str("frameStyle"), photoStyle: str("photoStyle"), fontStyle: str("fontStyle"), showDate: f.get("showDate") === "on",
+        ...(logo !== cfg.logo ? { logo } : {}), ...(logo ? { logoPosition: str("logoPosition"), logoSize: num("logoSize") } : {}),
         printEnabled: f.get("printEnabled") === "on", printCopies: num("printCopies"),
         galleryEnabled: f.get("galleryEnabled") === "on", galleryRetentionDays: num("galleryRetentionDays"),
         saveOriginals: f.get("saveOriginals") === "on",
@@ -196,7 +221,7 @@ export function EventForm({ event, canEdit = true, lockMoney = false }: { event?
               <Field name="layout" label="Layout" error={errors.layout} hint="Everything prints on 4×6 (4R) paper">
                 <select {...attrs("layout")} defaultValue={cfg.layout}>
                   <option value="landscape">4R landscape (main print)</option>
-                  <option value="strip">Photo strip 2×6, two per sheet to cut</option>
+                  {kind === "MANAGED" && <option value="strip">Photo strip 2×6, two per sheet to cut</option>}
                   <option value="grid">4R portrait grid</option>
                 </select>
               </Field>
@@ -207,7 +232,7 @@ export function EventForm({ event, canEdit = true, lockMoney = false }: { event?
                     <button key={pal.name} type="button" className={"palette" + (colors.primaryColor === pal.primaryColor && colors.accentColor === pal.accentColor ? " on" : "")}
                       title={pal.name} aria-label={pal.name} disabled={readOnly}
                       onClick={() => setColors({ primaryColor: pal.primaryColor, accentColor: pal.accentColor })}
-                      style={{ background: `linear-gradient(135deg, ${pal.primaryColor} 50%, ${pal.accentColor} 50%)` }} />
+                      ref={(el) => { if (el) el.style.background = `linear-gradient(135deg, ${pal.primaryColor} 50%, ${pal.accentColor} 50%)`; }} /* not style=: the CSP blocks inline styles in the page's HTML */ />
                   ))}
                 </div>
                 <span className="hint">Or pick any brand and accent colour above</span>
@@ -222,10 +247,24 @@ export function EventForm({ event, canEdit = true, lockMoney = false }: { event?
               <Field name="footerText" label="Footer text" error={errors.footerText} hint="Leave empty to use the event name">
                 <input {...attrs("footerText")} defaultValue={cfg.footerText} maxLength={60} placeholder={look.name || "Event name"} />
               </Field>
-              <label className="check"><input type="checkbox" name="showDate" defaultChecked={cfg.showDate} /><span>Show the date</span></label>
+              <label className="check" hidden={kind === "SELF_SERVICE" || !!logo}><input type="checkbox" name="showDate" defaultChecked={cfg.showDate} /><span>Show the date</span></label>
+              <Field name="logo" label="Logo (PNG)" error={errors.logo} hint={logo ? "Takes the date's place. A centred logo also replaces the footer text" : "Optional. A see-through background works best"}>
+                <input {...attrs("logo")} type="file" accept="image/png" onChange={(e) => { void pickLogo(e.target.files?.[0]); e.target.value = ""; }} />
+              </Field>
+              {logo && <button type="button" className="btn ghost" onClick={() => setLogo(null)}>Remove logo</button>}
+              {logo && <>
+                <Field name="logoPosition" label="Logo position" error={errors.logoPosition}>
+                  <select {...attrs("logoPosition")} defaultValue={look.logoPosition}>
+                    <option value="left">Left</option><option value="center">Center</option><option value="right">Right</option>
+                  </select>
+                </Field>
+                <Field name="logoSize" label={`Logo size (${look.logoSize}% of the print's width)`} error={errors.logoSize} hint="Bigger than the footer, it overlaps the photos above">
+                  <input {...attrs("logoSize")} type="range" min={10} max={100} defaultValue={look.logoSize} />
+                </Field>
+              </>}
             </div>
-            <TemplatePreview layout={look.layout} shots={look.shots} primaryColor={colors.primaryColor} accentColor={colors.accentColor}
-              footer={look.footer || look.name || "Event name"} dateText={look.showDate ? previewDate : null}
+            <TemplatePreview logo={logo ? { src: logo, position: look.logoPosition, size: look.logoSize } : null} layout={kind === "SELF_SERVICE" && look.layout === "strip" ? "landscape" : look.layout} shots={look.shots} primaryColor={colors.primaryColor} accentColor={colors.accentColor}
+              footer={look.footer || look.name || "Event name"} dateText={look.showDate && kind === "MANAGED" ? previewDate : null}
               pattern={look.pattern} frameStyle={look.frameStyle} photoStyle={look.photoStyle} fontStyle={look.fontStyle} />
           </div>
 

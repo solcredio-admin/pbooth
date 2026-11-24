@@ -180,12 +180,14 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   const rotation = config?.camera.rotation ?? 0;
   const shotIndex = Math.min(redo ?? shots.length, Math.max(0, needed - 1));
   const layout = (choice?.layout ?? guest?.template?.layout ?? "landscape") as Layout;
-  const slot = live ? plan(layout, needed, config?.camera.orientation ?? "landscape").slots[shotIndex] : null;
+  // the page follows the guest's pick (one photo prints either way); otherwise the booth's screen
+  const pageOrientation = choice?.layout ? (choice.layout === "grid" ? "portrait" : "landscape") : config?.camera.orientation ?? "landscape";
+  const slot = live ? plan(layout, needed, pageOrientation).slots[shotIndex] : null;
   const slotAspect = slot ? slot.w / slot.h : aspect;
   // The preview frame shows a photo the way the print will crop it: its own slot's shape, centre-cropped
   // (as composeTemplate does), so guests can see if anyone is cut off and retake.
   const previewSeconds = guest?.previewSeconds ?? 3;
-  const peekSlot = peek && live ? plan(layout, needed, config?.camera.orientation ?? "landscape").slots[peek.n - 1] : null;
+  const peekSlot = peek && live ? plan(layout, needed, pageOrientation).slots[peek.n - 1] : null;
   const peekCrop = peekSlot ? peekSlot.w / peekSlot.h : aspect;
   const [peekLeft, setPeekLeft] = useState(0); // the visible countdown while a photo is showing
   useEffect(() => {
@@ -352,7 +354,8 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
         layout,
         pattern: l?.pattern ?? guest?.template?.pattern, frameStyle: l?.frameStyle ?? guest?.template?.frameStyle,
         photoStyle: l?.photoStyle ?? guest?.template?.photoStyle, fontStyle: l?.fontStyle ?? guest?.template?.fontStyle,
-        orientation: config!.camera.orientation,
+        orientation: pageOrientation,
+        logo: guest?.template?.logo,
         primaryColor: l?.primaryColor ?? guest?.primaryColor ?? "#0b0c0a",
         accentColor: l?.accentColor ?? guest?.accentColor ?? "#c6f36b",
         footer: guest?.template?.footerText || ev.name,
@@ -369,7 +372,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
       setDesign(null); // the plain photos still show; the design is a bonus, never a blocker
     }
     if (!quiet) setScreen("review");
-  }, [config, guest, layout, look]);
+  }, [config, guest, layout, pageOrientation, look]);
 
   // The countdown ticks once a second, then the shutter fires. In a multi-shot sequence the next
   // shorter countdown starts by itself; after the last photo the design is composed.
@@ -436,6 +439,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     shots.forEach((x) => URL.revokeObjectURL(x.url));
     setShots([]);
     if (session.current) session.current.retakes += shots.length;
+    if (selfService) { setChoice(null); setScreen("choose"); return; } // back to how many photos and which layout
     shoot();
   };
   const retakeOne = (i: number) => {
@@ -712,7 +716,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
             <h1 className="k-title small">How many photos?</h1>
             <div className="k-choices">
               {[1, 2, 3, 4].map((n) => (
-                <button key={n} type="button" className="k-choice num" onClick={() => choose(n, n === 1 ? "landscape" : null)}>
+                <button key={n} type="button" className="k-choice num" onClick={() => choose(n, null)}>
                   <b>{n}</b><span>{n === 1 ? "photo" : "photos"}</span>
                 </button>
               ))}
@@ -720,9 +724,9 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
           </>) : (<>
             <h1 className="k-title small">Pick a layout</h1>
             <div className="k-choices">
-              {(["landscape", "strip", "grid"] as Layout[]).map((l) => (
+              {(["landscape", "grid"] as Layout[]).map((l) => (
                 <button key={l} type="button" className="k-choice" onClick={() => choose(choice.shots, l)}>
-                  <LayoutThumb layout={l} shots={choice.shots} orientation={config?.camera.orientation ?? "landscape"} />
+                  <LayoutThumb layout={l} shots={choice.shots} orientation={l === "grid" ? "portrait" : "landscape"} />
                   <span>{LAYOUT_NAME[l]}</span>
                 </button>
               ))}

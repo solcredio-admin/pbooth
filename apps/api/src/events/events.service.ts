@@ -45,10 +45,10 @@ export class EventsService {
       ...(q.q ? { OR: ["name", "organizerName", "venueName"].map((f) => ({ [f]: { contains: q.q, mode: "insensitive" } })) } : {}),
     };
     const [items, total] = await this.db.$transaction([
-      this.db.event.findMany({ where, include: withConfig, orderBy: { startsAt: q.order }, skip: (q.page - 1) * q.pageSize, take: q.pageSize }),
+      this.db.event.findMany({ where, include: { ...withConfig, config: { omit: { logo: true } } }, orderBy: { startsAt: q.order }, skip: (q.page - 1) * q.pageSize, take: q.pageSize }),
       this.db.event.count({ where }),
     ]);
-    return { items: items.map(toDto), page: q.page, pageSize: q.pageSize, total };
+    return { items: items.map((e) => toDto({ ...e, config: e.config && { ...e.config, logo: null } })), page: q.page, pageSize: q.pageSize, total };
   }
 
   async summary(scope?: EventScope) {

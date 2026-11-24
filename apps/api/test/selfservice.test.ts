@@ -169,4 +169,29 @@ describe.skipIf(!url)("self-service events: vouchers, payments, cashiers", () =>
     expect((await K("/kiosk/payments/qr", { method: "POST" })).body.error.code).toBe("QR_OFF");
     expect((await K("/kiosk/redeem", { method: "POST", body: { code: v.codes[0] } })).status).toBe(200);
   });
+
+  it("self-service prints have no strips and no date; a PNG logo reaches the kiosk, anything else is refused", async () => {
+    const IP = "10.0.30.12";
+    const owner = await login(IP);
+    const O = async (path: string, init: Parameters<typeof call>[1] = {}) => call(path, { cookie: owner, ip: IP, ...init });
+    const stamp = Date.now();
+    const logo = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+    const ev = (await O("/events", { method: "POST", body: { ...newEvent, name: `Logo ${stamp}`, kind: "SELF_SERVICE", config: { layout: "strip", showDate: true } } })).body;
+    const booth = (await O("/booths", { method: "POST", body: { name: `Logo booth ${stamp}` } })).body;
+    await O(`/events/${ev.id}/booths`, { method: "POST", body: { boothId: booth.id } });
+    await O(`/events/${ev.id}/activate`, { method: "POST" });
+    const { code } = (await O(`/booths/${booth.id}/kiosk-code`, { method: "POST" })).body;
+    const kiosk = (await call("/kiosk/pair", { method: "POST", ip: IP, body: { boothCode: booth.code, code } })).setCookie!.split(";")[0];
+    const template = async () => (await call(`/kiosk/config?booth=${booth.code}`, { cookie: kiosk, ip: IP })).body.event.guest.template;
+    expect(await template()).toMatchObject({ layout: "landscape", showDate: false, logo: null });
+
+    for (const bad of ["data:image/svg+xml;base64,PHN2Zz4=", "data:image/png;base64,PHN2Zz4=", "https://example.com/a.png", `${logo.slice(0, -2)}${"A".repeat(200_000)}`])
+      expect((await O(`/events/${ev.id}`, { method: "PATCH", body: { config: { logo: bad } } })).status).toBe(400);
+    expect((await O(`/events/${ev.id}`, { method: "PATCH", body: { config: { logo, logoPosition: "right", logoSize: 45 } } })).status).toBe(200);
+    expect((await template()).logo).toEqual({ src: logo, position: "right", size: 45 });
+    expect((await O(`/events?q=Logo ${stamp}`)).body.items[0].config.logo).toBeNull(); // lists stay light
+    expect((await O(`/events/${ev.id}`)).body.config.logo).toBe(logo);
+    await O(`/events/${ev.id}`, { method: "PATCH", body: { config: { logo: null } } });
+    expect((await template()).logo).toBeNull();
+  });
 });

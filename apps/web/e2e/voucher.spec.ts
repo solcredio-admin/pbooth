@@ -39,13 +39,23 @@ test("a guest enters a voucher at a self-service booth", async ({ browser }) => 
   // paid: the guest picks how many photos and the layout
   await expect(page.locator(".kiosk.ks-choose")).toBeVisible();
   await page.locator(".k-choice.num").filter({ hasText: "2" }).click();
-  await expect(page.locator(".k-choice .k-thumb")).toHaveCount(3);
-  await page.getByRole("button", { name: /Photo strips/ }).click();
+  await expect(page.locator(".k-choice .k-thumb")).toHaveCount(2); // landscape and portrait; no strips, nobody is there to cut them
+  await page.getByRole("button", { name: /4R portrait/ }).click();
   await expect(page.locator(".kiosk.ks-ready")).toBeVisible();
   await expect(page.locator(".k-ready .k-eyebrow")).toHaveText("2 photos in a row");
   await page.getByRole("button", { name: "Start now" }).click();
   await expect(page.locator(".kiosk.ks-review")).toBeVisible({ timeout: 30_000 });
   await expect(page.locator(".k-pick")).toHaveCount(2);
+
+  // "Retake all" starts again from how many photos and which layout
+  await page.getByRole("button", { name: "Retake all" }).click();
+  await expect(page.locator(".kiosk.ks-choose")).toBeVisible();
+  await page.locator(".k-choice.num").filter({ hasText: "1" }).click();
+  await page.getByRole("button", { name: /4R portrait/ }).click();
+  await page.getByRole("button", { name: "Start now" }).click();
+  await expect(page.locator(".kiosk.ks-review")).toBeVisible({ timeout: 30_000 });
+  const page1 = await page.locator(".k-design").evaluate((i: HTMLImageElement) => [i.naturalWidth, i.naturalHeight]);
+  expect(page1).toEqual([1200, 1800]); // one photo, portrait, on a landscape booth
 
   // ...and the design after shooting: each tap redraws the print
   const before = await page.locator(".k-design").getAttribute("src");

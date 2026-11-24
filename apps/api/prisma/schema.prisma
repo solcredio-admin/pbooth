@@ -135,6 +135,12 @@ model EventConfig {
   // Footer line on the design; empty means the event name.
   footerText           String   @default("")
   showDate             Boolean  @default(true)
+  // The client's logo on the design: a small PNG as a data URI (kiosks have it offline, and it can be
+  // drawn on a canvas without CORS). Replaces the date. Size is % of the page width.
+  // shortcut: lives in the config row, capped at 200 KB; move to storage if logos must get bigger
+  logo                 String?
+  logoPosition         String   @default("center")
+  logoSize             Int      @default(30)
   printEnabled         Boolean  @default(false)
   printCopies          Int      @default(1)
   galleryEnabled       Boolean  @default(true)

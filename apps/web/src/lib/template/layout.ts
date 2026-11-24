@@ -51,3 +51,16 @@ function landscape(n: number): Plan {
 /** What the printer gets, always one 4x6 sheet: a strip is placed twice side by side, to cut in half. */
 export const printSheet = (layout: Layout, shots: number) =>
   layout === "strip" && shots > 1 ? { width: 1200, height: 1800, copies: 2 } : null;
+
+export type LogoPosition = "left" | "center" | "right";
+
+/**
+ * Where the event's logo goes: in the footer band, `size` % of the page wide. Taller than the band, it
+ * stays on the band's bottom edge and grows up over the photos. Always inside the page's frame.
+ */
+export function logoBox(p: Plan, ratio: number, size: number, position: LogoPosition): Rect {
+  const f = p.footer, maxW = p.width - 2 * p.inset, maxH = f.y + f.h - p.inset;
+  const w = Math.min((p.width * size) / 100, maxW, maxH * ratio), h = w / ratio;
+  const x = position === "left" ? f.x : position === "right" ? f.x + f.w - w : f.x + (f.w - w) / 2;
+  return { x: Math.max(p.inset, Math.min(x, p.width - p.inset - w)), y: h <= f.h ? f.y + (f.h - h) / 2 : f.y + f.h - h, w, h };
+}

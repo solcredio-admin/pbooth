@@ -1,10 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
-import { composeTemplate, printCanvas, type FontStyle, type FrameStyle, type Pattern, type PhotoStyle } from "@/lib/template/compose";
+import { composeTemplate, printCanvas, type FontStyle, type FrameStyle, type Logo, type Pattern, type PhotoStyle } from "@/lib/template/compose";
 import type { Layout } from "@/lib/template/layout";
 
 export interface PreviewProps {
-  layout: Layout; shots: number; primaryColor: string; accentColor: string; footer: string; dateText: string | null;
+  layout: Layout; shots: number; primaryColor: string; accentColor: string; footer: string; dateText: string | null; logo: Logo | null;
   pattern: Pattern; frameStyle: FrameStyle; photoStyle: PhotoStyle; fontStyle: FontStyle;
 }
 
@@ -36,7 +36,7 @@ export function TemplatePreview(p: PreviewProps) {
       if (alive) setSrc(printCanvas(design, p.layout, p.shots).toDataURL("image/jpeg", 0.85));
     }, 120); // redraw once typing pauses
     return () => { alive = false; clearTimeout(t); };
-  }, [p.layout, p.shots, p.primaryColor, p.accentColor, p.footer, p.dateText, p.pattern, p.frameStyle, p.photoStyle, p.fontStyle]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [p.layout, p.shots, p.primaryColor, p.accentColor, p.footer, p.dateText, p.logo?.src, p.logo?.position, p.logo?.size, p.pattern, p.frameStyle, p.photoStyle, p.fontStyle]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <figure className="template-preview">
       {src ? <img src={src} alt="Preview of the event's photo design" /> : <div className="skeleton" />}

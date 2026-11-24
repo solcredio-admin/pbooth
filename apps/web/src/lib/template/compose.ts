@@ -1,10 +1,12 @@
 "use client";
-import { plan, printSheet, type Layout, type Rect } from "./layout";
+import { logoBox, plan, printSheet, type Layout, type LogoPosition, type Rect } from "./layout";
 
 export type Pattern = "none" | "dots" | "stripes" | "grid" | "confetti" | "waves" | "gradient";
 export type FrameStyle = "line" | "double" | "corners" | "none";
 export type PhotoStyle = "rounded" | "square" | "white";
 export type FontStyle = "serif" | "sans" | "mono";
+
+export interface Logo { src: string; position: LogoPosition; size: number }
 
 export interface TemplateInput {
   layout: Layout;
@@ -13,6 +15,7 @@ export interface TemplateInput {
   accentColor: string;  // frame line, pattern and footer title
   footer: string;       // event name or custom text
   dateText: string | null;
+  logo?: Logo | null;   // takes the date's place
   pattern?: Pattern;
   frameStyle?: FrameStyle;
   photoStyle?: PhotoStyle;
@@ -59,24 +62,33 @@ export async function composeTemplate(photos: CanvasImageSource[], t: TemplateIn
     g.fill();
     g.restore();
   }
+  const logo = t.logo ? await loadImage(t.logo.src) : null; // unreadable: the plain footer still prints
+  const box = logo && t.logo ? logoBox(p, logo.naturalWidth / logo.naturalHeight, t.logo.size, t.logo.position) : null;
+  if (logo && box) g.drawImage(logo, box.x, box.y, box.w, box.h); // after the photos, so it can overlap them
+  // the name goes beside a left or right logo if there's room; a centred logo stands alone
+  const nameW = !box ? f.w : t.logo!.position === "center" ? 0 : f.w - box.w;
+  if (nameW < f.w * 0.25) return canvas;
+  const nameX = box && t.logo!.position === "left" ? f.x + f.w - nameW : f.x;
+  const dateText = box ? null : t.dateText;
+
   const font = FONTS[t.fontStyle ?? "serif"];
   await document.fonts?.load(`${font.weight} 80px ${font.family}`).catch(() => undefined);
-  const cx = f.x + f.w / 2;
+  const cx = nameX + nameW / 2;
   let size = Math.round(f.h * (t.fontStyle === "serif" || !t.fontStyle ? 0.34 : 0.26));
   const setFont = () => { g.font = `${font.weight} ${size}px ${font.family}`; };
   setFont();
-  while (size > 18 && g.measureText(t.footer).width > f.w * 0.9) { size -= 2; setFont(); }
+  while (size > 18 && g.measureText(t.footer).width > nameW * 0.9) { size -= 2; setFont(); }
   g.fillStyle = t.accentColor;
   g.textAlign = "center";
   g.textBaseline = "middle";
-  const titleY = f.y + f.h * (t.dateText ? 0.4 : 0.5);
-  g.fillText(t.footer, cx, titleY, f.w * 0.9);
-  if (t.dateText) {
+  const titleY = f.y + f.h * (dateText ? 0.4 : 0.5);
+  g.fillText(t.footer, cx, titleY, nameW * 0.9);
+  if (dateText) {
     g.fillRect(cx - f.w * 0.06, titleY + size * 0.62, f.w * 0.12, Math.max(2, p.width / 600));
     g.font = `500 ${Math.round(f.h * 0.085)}px ${MONO}`;
     g.fillStyle = ink;
     g.globalAlpha = 0.75;
-    g.fillText(t.dateText.toUpperCase(), cx, titleY + size * 0.62 + f.h * 0.16);
+    g.fillText(dateText.toUpperCase(), cx, titleY + size * 0.62 + f.h * 0.16);
     g.globalAlpha = 1;
   }
   return canvas;
@@ -103,6 +115,13 @@ export function printCanvas(design: HTMLCanvasElement, layout: Layout, shots: nu
 
 export const toJpeg = (c: HTMLCanvasElement) =>
   new Promise<Blob>((resolve, reject) => c.toBlob((b) => (b ? resolve(b) : reject(new Error("Encoding failed"))), "image/jpeg", 0.92));
+
+const loadImage = (src: string) => new Promise<HTMLImageElement | null>((resolve) => {
+  const img = new Image();
+  img.onload = () => resolve(img.naturalWidth ? img : null);
+  img.onerror = () => resolve(null);
+  img.src = src;
+});
 
 function drawPhoto(g: CanvasRenderingContext2D, img: CanvasImageSource, slot: Rect, style: PhotoStyle, unit: number) {
   let r = slot;

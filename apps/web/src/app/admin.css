@@ -338,7 +338,7 @@ main.detail { max-width: 1240px; display: grid; grid-template-columns: minmax(0,
 .tabs button[aria-selected="true"] { background: var(--ink); color: var(--bg); }
 .tabs button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .tabs .has-err::after { content: ""; position: absolute; top: 6px; right: 7px; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); }
-.fields[hidden], .tab-pane[hidden] { display: none !important; }
+.fields[hidden], .tab-pane[hidden], .check[hidden] { display: none !important; }
 /* sections inside a tab: spaced apart, with compact headings (cards on a dashboard, not page titles) */
 .tab-pane { display: grid; gap: 18px; }
 .detail-main .host { padding: 22px 20px 20px; gap: 16px; border-radius: 22px; }

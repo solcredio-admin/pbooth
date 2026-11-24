@@ -69,7 +69,9 @@ export class BoothsService implements OnModuleInit, OnModuleDestroy {
           countdownSeconds: c.countdownSeconds, shotsPerSession: c.shotsPerSession, captureIntervalSeconds: c.captureIntervalSeconds, previewSeconds: c.previewSeconds,
           // a free self-service session is QR only: never printed
           printEnabled: c.printEnabled && !(live.kind === "SELF_SERVICE" && live.freeSessions), printCopies: c.printCopies, galleryEnabled: c.galleryEnabled, saveOriginals: c.saveOriginals,
-          template: { layout: c.layout, footerText: c.footerText || live.name, showDate: c.showDate, pattern: c.pattern, frameStyle: c.frameStyle, photoStyle: c.photoStyle, fontStyle: c.fontStyle },
+          // self-service prints whole sheets with no date: nobody's there to cut strips, and it runs for months
+          template: { layout: live.kind === "SELF_SERVICE" && c.layout === "strip" ? "landscape" : c.layout, footerText: c.footerText || live.name, showDate: c.showDate && live.kind !== "SELF_SERVICE" && !c.logo,
+            logo: c.logo ? { src: c.logo, position: c.logoPosition, size: c.logoSize } : null, pattern: c.pattern, frameStyle: c.frameStyle, photoStyle: c.photoStyle, fontStyle: c.fontStyle },
         } : null,
       } : null,
     };

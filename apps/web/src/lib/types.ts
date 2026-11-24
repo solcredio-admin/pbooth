@@ -7,7 +7,7 @@ export interface EventConfig {
   countdownSeconds: number; shotsPerSession: number; captureIntervalSeconds: number; previewSeconds: number;
   layout: "landscape" | "strip" | "grid"; footerText: string;
   pattern: "none" | "dots" | "stripes" | "grid" | "confetti" | "waves" | "gradient";
-  frameStyle: "line" | "double" | "corners" | "none"; photoStyle: "rounded" | "square" | "white"; fontStyle: "serif" | "sans" | "mono"; showDate: boolean; printEnabled: boolean; printCopies: number;
+  frameStyle: "line" | "double" | "corners" | "none"; photoStyle: "rounded" | "square" | "white"; fontStyle: "serif" | "sans" | "mono"; showDate: boolean; logo: string | null; logoPosition: "left" | "center" | "right"; logoSize: number; printEnabled: boolean; printCopies: number;
   galleryEnabled: boolean; galleryRetentionDays: number; saveOriginals: boolean;
 }
 
