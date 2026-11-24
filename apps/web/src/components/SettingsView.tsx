@@ -4,22 +4,23 @@ import { Tabs } from "./Tabs";
 import { PasswordForm } from "./PasswordForm";
 import { StorageCheck } from "./StorageCheck";
 import { Backups, type BackupList } from "./Backups";
+import { AlertsAdmin, type AlertsStatus } from "./AlertsAdmin";
 import { UsersAdmin, type UserRow } from "./UsersAdmin";
 import { ROLE_HELP, ROLE_LABEL, useMe } from "@/lib/roles";
 
-type Tab = "account" | "users" | "backups" | "storage" | "about";
+type Tab = "account" | "users" | "alerts" | "backups" | "storage" | "about";
 
 // Settings in tabs. Users, backups and storage are for admins only (and the API enforces it).
 const builtAt = process.env.PBOOTH_BUILT_AT;
 
-export function SettingsView({ storage, backups, users, version }: {
-  storage: { enabled: boolean; bucket: string | null } | null; backups: BackupList | null; users: UserRow[] | null; version: string;
+export function SettingsView({ storage, backups, users, alerts, version }: {
+  storage: { enabled: boolean; bucket: string | null } | null; backups: BackupList | null; users: UserRow[] | null; alerts: AlertsStatus | null; version: string;
 }) {
   const me = useMe();
   const admin = me.role === "OWNER";
   const tabs: { id: Tab; label: string }[] = [
     { id: "account", label: "Account" },
-    ...(admin ? [{ id: "users" as const, label: "Users" }, { id: "backups" as const, label: "Backups" }, { id: "storage" as const, label: "Storage" }] : []),
+    ...(admin ? [{ id: "users" as const, label: "Users" }, { id: "alerts" as const, label: "Alerts" }, { id: "backups" as const, label: "Backups" }, { id: "storage" as const, label: "Storage" }] : []),
     { id: "about", label: "About" },
   ];
   const [tab, setTab] = useState<Tab>("account");
@@ -43,6 +44,14 @@ export function SettingsView({ storage, backups, users, version }: {
           <section className="host" aria-labelledby="usr">
             <div className="host-head"><span className="cap">Who can sign in, and what they can do</span><h2 id="usr">Users</h2></div>
             <div className="panel"><UsersAdmin users={users} /></div>
+          </section>
+        </div>
+      )}
+      {admin && alerts && (
+        <div className="tab-pane" hidden={tab !== "alerts"}>
+          <section className="host" aria-labelledby="al">
+            <div className="host-head"><span className="cap">Self-service booths, sent to Telegram</span><h2 id="al">Alerts</h2></div>
+            <div className="panel"><AlertsAdmin data={alerts} /></div>
           </section>
         </div>
       )}

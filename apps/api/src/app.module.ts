@@ -33,6 +33,13 @@ import { UsersController } from "./users/users.controller.js";
 import { SelfServiceController } from "./selfservice/selfservice.controller.js";
 import { SelfServiceService } from "./selfservice/selfservice.service.js";
 import { PaymentsController } from "./selfservice/payments.controller.js";
+import { RefundsController } from "./selfservice/refunds.controller.js";
+import { RefundsService } from "./selfservice/refunds.service.js";
+import { TransactionsController } from "./selfservice/transactions.controller.js";
+import { TransactionsService } from "./selfservice/transactions.service.js";
+import { AlertsController } from "./alerts/alerts.controller.js";
+import { AlertsService } from "./alerts/alerts.service.js";
+import { TelegramService } from "./alerts/telegram.service.js";
 import { PaymongoService } from "./selfservice/paymongo.service.js";
 import { UsersService } from "./users/users.service.js";
 import { BackupsService } from "./backups/backups.service.js";
@@ -43,10 +50,10 @@ export class AppModule {
   static forRoot(cfg: Config): DynamicModule {
     return {
       module: AppModule,
-      controllers: [HealthController, AuthController, EventsController, BoothsController, EventBoothsController, DevicesController, KioskController, SessionsController, PhotosController, EventPhotosController, StorageController, GalleriesController, BackupsController, UsersController, SelfServiceController, PaymentsController],
+      controllers: [HealthController, AuthController, EventsController, BoothsController, EventBoothsController, DevicesController, KioskController, SessionsController, PhotosController, EventPhotosController, StorageController, GalleriesController, BackupsController, UsersController, SelfServiceController, PaymentsController, RefundsController, TransactionsController, AlertsController],
       providers: [
         { provide: CONFIG, useValue: cfg },
-        PrismaService, AuditService, AuthService, EventsService, BoothsService, DevicesService, DeviceGuard, RealtimeGateway, KioskService, KioskGuard, SessionsService, StorageService, PhotosService, BoothAuthGuard, GalleriesService, BackupsService, UsersService, SelfServiceService, PaymongoService,
+        PrismaService, AuditService, AuthService, EventsService, BoothsService, DevicesService, DeviceGuard, RealtimeGateway, KioskService, KioskGuard, SessionsService, StorageService, PhotosService, BoothAuthGuard, GalleriesService, BackupsService, UsersService, SelfServiceService, PaymongoService, RefundsService, TransactionsService, TelegramService, AlertsService,
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_FILTER, useClass: ErrorFilter },
       ],

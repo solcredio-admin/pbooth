@@ -7,6 +7,7 @@ import { send } from "@/lib/client-api";
 import { useLiveBooths } from "@/lib/live";
 import { DeleteZone } from "./DeleteZone";
 import { Tabs } from "./Tabs";
+import { Lockdown } from "./Lockdown";
 import { AgentInstall, AgentRemove } from "./AgentInstall";
 import { OpenKioskHere } from "./OpenKioskHere";
 import { can, useMe } from "@/lib/roles";
@@ -58,6 +59,7 @@ export function BoothDetail({ initial, events, origin }: { initial: BoothDto; ev
               <>
                 <KioskPairing booth={b} origin={origin} />
                 <Enroll booth={b} origin={origin} />
+                <Lockdown booth={b} origin={origin} />
               </>
             ) : (
               <section className="host" aria-labelledby="open-here">

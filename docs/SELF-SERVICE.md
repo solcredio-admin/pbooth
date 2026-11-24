@@ -1,7 +1,7 @@
 # Self-service booths: design draft
 
 Status: **phase 8 built** (self-service events, vouchers, free sessions, revenue share, cashiers).
-**Phase 9 built**: PayMongo QR payments (thermal receipt printing dropped). **Phase 10 planned**: unattended reliability, see section 11. Decisions so far: ₱150 per
+**Phase 9 built**: PayMongo QR payments (thermal receipt printing dropped). **Phase 10 built** (2026-11-25): unattended reliability, see section 11. Decisions so far: ₱150 per
 paid session (includes prints); vouchers belong to one event and are managed in its Vouchers tab;
 free-session events print nothing (QR only); the owner makes unlimited free-session codes; cashiers
 log in and run only their assigned events; boot/shutdown is handled by your RMM tool (no opening
@@ -159,7 +159,14 @@ Attract screen ─tap→ Choose a package ─→ Pay ─→ Get ready (10 s) ─
 8. **Opening hours**: follow the café's hours, or always on?
 9. **Digital copies**: always included via the QR gallery, or a paid add-on?
 
-## 11. Phase 10 plan: unattended reliability (planned, not built)
+## 11. Phase 10: unattended reliability (built 2026-11-25; the plan below, with these decisions)
+
+- References look like `7K3M-Q9TX` (8 characters, so the booth's code keyboard fits them).
+- Only the owner refunds money; cashiers can give a replacement voucher (₱0 in reports) for their own events.
+- No guest contact details are collected. A PayMongo QR Ph refund is claimed through a link (3 days) that staff show as a QR.
+- Telegram: self-service events only. System-wide alerts are for phase 11. The token is `TELEGRAM_BOT_TOKEN` in the server's `.env`.
+- One staff PIN per booth, checked by the server (so it needs internet).
+- Lockdown is a checklist per system; its commands haven't been run on every system version.
 
 Decided 2026-11-24: no thermal printing. Remote desktop/RMM can be installed on booth computers
 for hands-on fixes; pbooth covers alerts, guest problem reports, lockdown and reports.
@@ -253,12 +260,22 @@ A **Transactions** page per self-service event (and an all-locations view for th
 4. Transactions page and CSV export.
 5. Lockdown protocol (checklist + kiosk staff exit and hardening), then optional setup scripts.
 
-### 11g. Open questions
+## 12. Phase 11 (logged 2026-11-25, not started)
 
-1. Refunds: may **cashiers** issue PayMongo refunds, or only you (cashiers can still give a
-   replacement voucher)?
-2. Should the guest be asked for a **mobile number** on the help screen (to reach them), or
-   keep it anonymous with the reference only?
-3. Alerts for **managed events** too (booth offline during a wedding), or self-service only?
-4. Staff exit PIN: one per event, or one per booth?
+Resolves the major open issues first.
 
+1. **Stations.** Booths become the camera side (kiosk + camera agent); **stations** are print agents with
+   their own tab. A kiosk (an iPad too) sends its prints through the server to a station, so the kiosk and
+   the printer no longer have to be on the same computer.
+   - Links: events ↔ booths (as today), booths ↔ stations. Many to many: an event has several booths, a
+     booth can have several stations, and a station can be shared by several booths.
+   - To settle when designing it: which of a booth's stations prints (first free, or a fixed order with a
+     fallback), what happens when every station is down, and moving today's booths, whose one agent does
+     both jobs, without re-enrolling them.
+2. **Remote booth control**: pause/resume, reload the kiosk, retry a stuck print, update the agent, screen snapshot.
+3. **Animated GIF / boomerang** delivered along with the photo.
+4. **Telegram alerts for the whole system** (managed events too); phase 10 covers self-service only.
+
+## 13. Phase 12 (logged 2026-11-25, not started)
+
+Packages and extra prints, paper and ink tracking, and the location dashboard with monthly venue statements.

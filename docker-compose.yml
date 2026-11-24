@@ -31,6 +31,8 @@ services:
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
       # QR payments (PayMongo). Empty = vouchers only.
       PAYMONGO_SECRET_KEY: ${PAYMONGO_SECRET_KEY:-}
+      # Telegram alerts for self-service booths. Empty = alerts are only listed in the admin.
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
     ports:
       - "${PBOOTH_BIND:-127.0.0.1}:${PBOOTH_PORT:-3000}:3000"
     networks: [internal]

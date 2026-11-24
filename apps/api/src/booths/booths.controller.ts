@@ -14,6 +14,7 @@ import { clientMeta } from "../common/request.js";
 const uuid = (what: string) => ({ schema: z.string().uuid(`Not a valid ${what} id`) });
 const actor = (r: Request) => `admin:${r.admin!.id}`;
 // Deleting needs the name typed back, so a stray click or replayed request can't do it.
+const staffPinSchema = z.object({ pin: z.string().regex(/^\d{4,8}$/, "4 to 8 digits").nullable() });
 const deleteSchema = z.object({ confirmName: z.string().min(1).max(200) });
 
 @Allow("BOOTHS")
@@ -53,6 +54,12 @@ export class BoothsController {
   @Post(":id/kiosk/unpair") @HttpCode(200)
   unpairKiosk(@Param("id", uuid("booth")) id: string, @Req() r: Request) {
     return this.booths.unpairKiosk(id, actor(r), r.ip);
+  }
+
+  /** The PIN for the kiosk's hidden staff menu; null removes it. */
+  @Post(":id/staff-pin") @HttpCode(200)
+  staffPin(@Param("id", uuid("booth")) id: string, @Body({ schema: staffPinSchema }) body: z.infer<typeof staffPinSchema>, @Req() r: Request) {
+    return this.booths.setStaffPin(id, body.pin, actor(r), r.ip);
   }
 
   @Post(":id/revoke") @HttpCode(200)

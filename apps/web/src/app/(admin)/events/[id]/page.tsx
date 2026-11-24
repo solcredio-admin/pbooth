@@ -76,7 +76,7 @@ export default async function EventPage({ params }: Props) {
               </dl>
             </section>
           )}
-          {revenue && <EventRevenue revenue={revenue} />}
+          {revenue && <EventRevenue revenue={revenue} eventId={e.id} />}
           {users && <EventCashiers event={e} cashiers={users} />}
           {!cashier && <section className="side-card" aria-labelledby="side-booths">
             <h2 id="side-booths">Booths · {online} of {booths.items.length} online</h2>

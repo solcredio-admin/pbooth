@@ -28,7 +28,9 @@ export class GalleriesService {
       this.db.photo.count({ where: { ...where, status: { in: ["PENDING", "UPLOADED", "PROCESSING"] } } }),
     ]);
     const c = g.event.config;
+    const payment = g.scope === "SESSION" && g.event.kind === "SELF_SERVICE" ? await this.db.payment.findUnique({ where: { sessionId: g.sessionId! }, select: { reference: true, amountCentavos: true } }) : null;
     return {
+      reference: payment?.amountCentavos ? payment.reference : null, // what to quote when asking for help
       scope: g.scope,
       event: {
         name: g.event.name,

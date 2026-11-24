@@ -133,12 +133,12 @@ export class SelfServiceService {
     }
     const p = await this.db.payment.create({
       data: {
-        eventId: e.id, boothId, method: "VOUCHER", status: "PAID", voucherId: v.id, currency: e.currency, paidAt: new Date(),
-        amountCentavos: v.kind === "ONE_TIME" ? e.priceCentavos : 0, // one-time = sold at the counter; unlimited = complimentary
+        eventId: e.id, boothId, reference: newEnrollmentCode(), method: "VOUCHER", status: "PAID", voucherId: v.id, currency: e.currency, paidAt: new Date(),
+        amountCentavos: v.kind === "ONE_TIME" && !v.complimentary ? e.priceCentavos : 0, // sold at the counter; unlimited and replacement codes are complimentary
       },
     });
     await this.audit.record({ actor: `booth:${boothId}`, action: "voucher.redeem", entityType: "voucher", entityId: v.id, ip, metadata: { paymentId: p.id } });
-    return { paymentId: p.id, complimentary: v.kind === "UNLIMITED" };
+    return { paymentId: p.id, reference: p.reference, complimentary: p.amountCentavos === 0 };
   }
 
   /**
@@ -149,7 +149,7 @@ export class SelfServiceService {
     const e = await this.db.event.findUniqueOrThrow({ where: { id: eventId } });
     if (e.kind !== "SELF_SERVICE") return;
     if (e.freeSessions) {
-      await this.db.payment.create({ data: { eventId, boothId, sessionId, method: "FREE", status: "PAID", amountCentavos: 0, currency: e.currency, paidAt: new Date() } });
+      await this.db.payment.create({ data: { eventId, boothId, sessionId, reference: newEnrollmentCode(), method: "FREE", status: "PAID", amountCentavos: 0, currency: e.currency, paidAt: new Date() } });
       return;
     }
     const required = () => new ApiError(HttpStatus.PAYMENT_REQUIRED, "PAYMENT_REQUIRED", "This session hasn't been paid for");
@@ -170,10 +170,10 @@ export class SelfServiceService {
     if (!this.paymongo.enabled) throw new ApiError(HttpStatus.SERVICE_UNAVAILABLE, "QR_NOT_CONFIGURED", "QR payment isn't set up on the server");
     const qr = await this.paymongo.createQr(e.priceCentavos, `pbooth · ${e.name}`.slice(0, 200));
     const p = await this.db.payment.create({
-      data: { eventId: e.id, boothId, method: "QR", status: "PENDING", amountCentavos: e.priceCentavos, currency: e.currency, provider: "paymongo", providerRef: qr.intentId, expiresAt: qr.expiresAt },
+      data: { eventId: e.id, boothId, reference: newEnrollmentCode(), method: "QR", status: "PENDING", amountCentavos: e.priceCentavos, currency: e.currency, provider: "paymongo", providerRef: qr.intentId, expiresAt: qr.expiresAt },
     });
     await this.audit.record({ actor: `booth:${boothId}`, action: "payment.qr.create", entityType: "payment", entityId: p.id, ip, metadata: { amount: e.priceCentavos } });
-    return { paymentId: p.id, qr: qr.qr, expiresAt: qr.expiresAt, amountCentavos: e.priceCentavos, currency: e.currency };
+    return { paymentId: p.id, reference: p.reference, qr: qr.qr, expiresAt: qr.expiresAt, amountCentavos: e.priceCentavos, currency: e.currency };
   }
 
   /** At the booth: is this booth's QR payment paid yet? (checks with PayMongo while pending) */
@@ -191,6 +191,15 @@ export class SelfServiceService {
     const p = await this.db.payment.findUnique({ where: { providerRef: intentId } });
     if (p) await this.confirm(p).catch(() => undefined); // PayMongo retries webhooks; the booth's polling also confirms
     return { received: true };
+  }
+
+  /** QR payments nobody is polling any more (the guest left): settle them, so late payers are noticed. */
+  async settleStale() {
+    const now = Date.now();
+    const stale = await this.db.payment.findMany({
+      where: { method: "QR", status: "PENDING", expiresAt: { lt: new Date(now - 60_000), gt: new Date(now - 86_400_000) } }, take: 20, orderBy: { createdAt: "asc" },
+    });
+    for (const p of stale) await this.confirm(p).catch(() => undefined); // PayMongo down: next time
   }
 
   /** The one place a QR payment becomes PAID: PayMongo says succeeded, for exactly our amount. */

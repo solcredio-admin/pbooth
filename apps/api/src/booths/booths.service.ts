@@ -10,6 +10,7 @@ import { type Prisma } from "../generated/prisma/client.js";
 import { cameraSchema, DEFAULT_CAMERA, DEFAULT_PRINTER, printerSchema, type CreateBooth, type UpdateBooth } from "./booths.schemas.js";
 import { newBoothCode, newEnrollmentCode, normalizeEnrollmentCode } from "./codes.js";
 import { boothStatus, isOnline } from "./status.js";
+import { hashPassword } from "../auth/password.js";
 
 export const boothInclude = {
   device: true,
@@ -61,6 +62,7 @@ export class BoothsService implements OnModuleInit, OnModuleDestroy {
       camera: cameraSchema.parse(b.camera ?? {}),
       printer: printerSchema.parse(b.printer ?? {}),
       heartbeatIntervalSeconds: this.cfg.HEARTBEAT_INTERVAL_SECONDS,
+      staffMenu: !!b.staffPinHash,
       event: live ? {
         id: live.id, name: live.name, timeZone: live.timeZone, startsAt: live.startsAt.toISOString(), endsAt: live.endsAt.toISOString(),
         selfService: live.kind === "SELF_SERVICE" ? { priceCentavos: live.priceCentavos, currency: live.currency, freeSessions: live.freeSessions, vouchers: live.acceptVouchers, qr: live.acceptQr && !!this.cfg.PAYMONGO_SECRET_KEY } : null,
@@ -98,6 +100,7 @@ export class BoothsService implements OnModuleInit, OnModuleDestroy {
       simulated: d?.simulated ?? false,
       camera: config.camera,
       printer: config.printer,
+      staffMenu: config.staffMenu,
       configVersion: config.version,
       configApplied: !!d && d.appliedConfigVersion === config.version,
       device: d ? {
@@ -165,6 +168,14 @@ export class BoothsService implements OnModuleInit, OnModuleDestroy {
     await this.audit.record({ actor, action: "booth.update", entityType: "booth", entityId: id, ip, metadata: { fields: Object.keys(body) } });
     this.push([id]);
     return this.toDto(b);
+  }
+
+  async setStaffPin(id: string, pin: string | null, actor: string, ip?: string) {
+    await this.row(id);
+    await this.db.booth.update({ where: { id }, data: { staffPinHash: pin ? await hashPassword(pin) : null } });
+    await this.audit.record({ actor, action: pin ? "booth.staffPin.set" : "booth.staffPin.remove", entityType: "booth", entityId: id, ip });
+    this.push([id]);
+    return { staffMenu: !!pin };
   }
 
   /** New one-time code; shown once, stored hashed. Replaces any earlier unused code. */

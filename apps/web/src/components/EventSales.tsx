@@ -1,8 +1,9 @@
 "use client";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { send } from "@/lib/client-api";
-import { peso } from "./EventVouchers";
+import { peso } from "@/lib/peso";
 import type { EventDto } from "@/lib/types";
 import type { UserRow } from "./UsersAdmin";
 
@@ -10,7 +11,7 @@ interface Totals { sessions: number; complimentary: number; amountCentavos: numb
 export interface Revenue { currency: string; priceCentavos: number; all: Totals; today: Totals; partner: { name: string | null; percent: number } | null; unusedOneTimeVouchers: number; qrEnabled?: boolean }
 
 // Sidebar: sessions and money for a self-service event, today and since it opened.
-export function EventRevenue({ revenue: r }: { revenue: Revenue }) {
+export function EventRevenue({ revenue: r, eventId }: { revenue: Revenue; eventId: string }) {
   const line = (t: Totals) => `${t.sessions} session${t.sessions === 1 ? "" : "s"}${t.complimentary ? ` (${t.complimentary} free)` : ""}`;
   return (
     <section className="side-card" aria-labelledby="side-sales">
@@ -22,6 +23,7 @@ export function EventRevenue({ revenue: r }: { revenue: Revenue }) {
         <dt>By method</dt><dd>QR {peso(r.all.byMethod.QR?.amountCentavos ?? 0, r.currency)} · vouchers {peso(r.all.byMethod.VOUCHER?.amountCentavos ?? 0, r.currency)}<br /><span className="cap">{r.qrEnabled ? "Scan to pay is on" : "Scan to pay is off (no PayMongo key on the server)"}</span></dd>
         <dt>Vouchers</dt><dd>{r.unusedOneTimeVouchers} one-time unused</dd>
       </dl>
+      <Link className="plain cap" href={`/transactions?eventId=${eventId}`}>All transactions →</Link>
     </section>
   );
 }

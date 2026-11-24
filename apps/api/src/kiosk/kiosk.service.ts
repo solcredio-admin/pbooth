@@ -6,6 +6,7 @@ import { ApiError } from "../common/errors.js";
 import { hashToken, newToken } from "../auth/tokens.js";
 import { normalizeEnrollmentCode } from "../booths/codes.js";
 import type { KioskHeartbeat, Pair } from "./kiosk.schemas.js";
+import { verifyPassword } from "../auth/password.js";
 import { signTicket } from "../devices/ticket.js";
 import { StorageService } from "../storage/storage.service.js";
 
@@ -54,6 +55,14 @@ export class KioskService {
     if (!device) throw new ApiError(HttpStatus.NOT_FOUND, "NO_AGENT", "No agent is enrolled for this booth");
     if (!device.localSecret) throw new ApiError(HttpStatus.CONFLICT, "AGENT_TOO_OLD", "Re-enroll this booth's agent to enable kiosk pairing");
     return { ...signTicket(boothId, device.localSecret), boothId };
+  }
+
+  async staff(boothId: string, pin: string, ip?: string) {
+    const b = await this.db.booth.findUniqueOrThrow({ where: { id: boothId }, select: { staffPinHash: true } });
+    const ok = !!b.staffPinHash && await verifyPassword(b.staffPinHash, pin);
+    await this.audit.record({ actor: `booth:${boothId}`, action: ok ? "kiosk.staff" : "kiosk.staff.failed", entityType: "booth", entityId: boothId, ip });
+    if (!ok) throw new ApiError(HttpStatus.FORBIDDEN, "WRONG_PIN", "That PIN isn't right");
+    return { ok: true };
   }
 
   async config(boothId: string) {

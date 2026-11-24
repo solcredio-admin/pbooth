@@ -15,11 +15,20 @@ let mock: Server | undefined;
 function fakePaymongo() {
   const intents = new Map<string, { amount: number; currency: string; status: string }>();
   let n = 0, methods = 0;
-  const intent = (id: string) => { const i = intents.get(id)!; return { data: { id, attributes: { ...i, client_key: `${id}_client`, next_action: i.status === "awaiting_next_action" ? { type: "consume_qr", code: { image_url: "iVBORw0KGgo=" } } : null } } }; };
+  const refunds = new Map<string, { status: string; key: string; amount: number; payment: string }>();
+  const telegram: { chat: string; text: string }[] = [];
+  let refuse = 0; // the next refund answers with this status
+  const intent = (id: string) => { const i = intents.get(id)!; return { data: { id, attributes: { ...i, client_key: `${id}_client`, payments: i.status === "succeeded" ? [{ id: `pay_${id}`, attributes: { status: "paid" } }] : [], next_action: i.status === "awaiting_next_action" ? { type: "consume_qr", code: { image_url: "iVBORw0KGgo=" } } : null } } }; };
   return createServer(async (req, res) => {
     let raw = ""; for await (const c of req) raw += c;
     const body = raw ? JSON.parse(raw) : {};
     const send = (status: number, json: unknown) => { res.writeHead(status, { "content-type": "application/json" }); res.end(JSON.stringify(json)); };
+    // a fake Telegram on the same server
+    const tg = /^\/bot\d+:[\w-]+\/(\w+)$/.exec(req.url ?? "");
+    if (tg?.[1] === "sendMessage") { if (body.chat_id === "666") return send(403, { ok: false, description: "Forbidden: bot was blocked by the user" }); telegram.push({ chat: body.chat_id, text: body.text }); return send(200, { ok: true, result: {} }); }
+    if (tg?.[1] === "getMe") return send(200, { ok: true, result: { username: "pbooth_test_bot" } });
+    if (tg?.[1] === "getUpdates") return send(200, { ok: true, result: [{ message: { chat: { id: 4242, first_name: "Owner", type: "private" } } }, { message: { chat: { id: -100777, title: "Café staff", type: "group" } } }] });
+    if (req.url === "/test/telegram") return send(200, telegram);
     if (req.headers.authorization !== `Basic ${Buffer.from("sk_test_mock:").toString("base64")}`) return send(401, { errors: [{ detail: "bad key" }] });
     const u = req.url ?? ""; let m: RegExpMatchArray | null;
     if (req.method === "POST" && u === "/v1/payment_intents") { const id = `pi_${++n}`; intents.set(id, { amount: body.data.attributes.amount, currency: body.data.attributes.currency, status: "awaiting_payment_method" }); return send(200, intent(id)); }
@@ -27,6 +36,18 @@ function fakePaymongo() {
     if (req.method === "POST" && (m = u.match(/^\/v1\/payment_intents\/(pi_\d+)\/attach$/)) && intents.has(m[1])) { intents.get(m[1])!.status = "awaiting_next_action"; return send(200, intent(m[1])); }
     if (req.method === "GET" && (m = u.match(/^\/v1\/payment_intents\/(pi_\d+)$/)) && intents.has(m[1])) return send(200, intent(m[1]));
     if (req.method === "POST" && (m = u.match(/^\/test\/pay\/(pi_\d+)$/)) && intents.has(m[1])) { const i = intents.get(m[1])!; i.status = "succeeded"; if (body.amount) i.amount = body.amount; return send(200, {}); }
+    if (req.method === "POST" && u === "/v1/refunds") {
+      if (refuse) { const s = refuse; refuse = 0; return send(s, { errors: [{ detail: "insufficient balance" }] }); }
+      const a = body.data.attributes, key = String(req.headers["idempotency-key"]);
+      const again = [...refunds].find(([, r]) => r.key === key);
+      const id = again?.[0] ?? `ref_${refunds.size + 1}`;
+      if (!again) refunds.set(id, { status: "processing", key, amount: a.amount, payment: a.payment_id });
+      return send(200, { data: { id, attributes: { status: refunds.get(id)!.status, transfer_link: "https://pm.example/claim/" + id } } });
+    }
+    if (req.method === "GET" && (m = u.match(/^\/v1\/refunds\/(ref_\d+)$/)) && refunds.has(m[1])) return send(200, { data: { id: m[1], attributes: { status: refunds.get(m[1])!.status, transfer_link: null } } });
+    if (u === "/test/refunds") return send(200, [...refunds].map(([id, r]) => ({ id, ...r })));
+    if (req.method === "POST" && (m = u.match(/^\/test\/refund\/(ref_\d+)\/(\w+)$/))) { refunds.get(m[1])!.status = m[2]; return send(200, {}); }
+    if (req.method === "POST" && (m = u.match(/^\/test\/refuse\/(\d+)$/))) { refuse = Number(m[1]); return send(200, {}); }
     send(404, { errors: [{ detail: "not found" }] });
   });
 }
@@ -46,7 +67,7 @@ export default async function setup(project: TestProject) {
   mock = fakePaymongo();
   await new Promise<void>((ok) => mock!.listen(PORT + 1, "127.0.0.1", ok));
   const paymongo = `http://127.0.0.1:${PORT + 1}`;
-  const env = { ...process.env, ...s3, PAYMONGO_SECRET_KEY: "sk_test_mock", PAYMONGO_API_BASE: `${paymongo}/v1`, PAYMONGO_QR_SECONDS: "60", DATABASE_URL: url, APP_ORIGIN: "http://app.test", API_PORT: String(PORT), NODE_ENV: "test", TRUST_PROXY_HOPS: "1", ALLOW_SIMULATED_BOOTHS: "true", BOOTH_OFFLINE_AFTER_SECONDS: "30" };
+  const env = { ...process.env, ...s3, PAYMONGO_SECRET_KEY: "sk_test_mock", PAYMONGO_API_BASE: `${paymongo}/v1`, PAYMONGO_QR_SECONDS: "60", TELEGRAM_BOT_TOKEN: `123456:${"x".repeat(35)}`, TELEGRAM_API_BASE: paymongo, ALERT_SWEEP_SECONDS: "1", ALERT_OFFLINE_SECONDS: "4", ALERT_PROBLEM_SECONDS: "0", REFUND_FLAG_MINUTES: "0.1", DATABASE_URL: url, APP_ORIGIN: "http://app.test", API_PORT: String(PORT), NODE_ENV: "test", TRUST_PROXY_HOPS: "1", ALLOW_SIMULATED_BOOTHS: "true", BOOTH_OFFLINE_AFTER_SECONDS: "30" };
 
   const db = new pg.Client({ connectionString: url });
   await db.connect();

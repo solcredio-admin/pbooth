@@ -17,7 +17,7 @@ const TAB_OF: Record<string, Tab> = {
   welcomeTitle: "guest", welcomeMessage: "guest", primaryColor: "guest", accentColor: "guest", countdownSeconds: "guest", shotsPerSession: "guest", captureIntervalSeconds: "guest", previewSeconds: "guest",
   layout: "design", pattern: "design", frameStyle: "design", photoStyle: "design", fontStyle: "design", footerText: "design", showDate: "design", logo: "design", logoPosition: "design", logoSize: "design",
   printEnabled: "prints", printCopies: "prints", galleryEnabled: "prints", galleryRetentionDays: "prints", saveOriginals: "prints",
-  kind: "event", priceCentavos: "selfservice", freeSessions: "selfservice", acceptVouchers: "selfservice", acceptQr: "selfservice", partnerName: "selfservice", partnerSharePercent: "selfservice",
+  kind: "event", priceCentavos: "selfservice", freeSessions: "selfservice", acceptVouchers: "selfservice", acceptQr: "selfservice", alertFrom: "selfservice", alertTo: "selfservice", partnerName: "selfservice", partnerSharePercent: "selfservice",
 };
 
 const DEFAULTS: EventConfig = {
@@ -117,6 +117,7 @@ export function EventForm({ event, canEdit = true, lockMoney = false }: { event?
         ...(str("kind") === "SELF_SERVICE" ? {
           priceCentavos: Math.round(Number(f.get("price")) * 100), freeSessions: f.get("freeSessions") === "on",
           acceptVouchers: f.get("acceptVouchers") === "on", acceptQr: f.get("acceptQr") === "on",
+          alertFrom: str("alertFrom") || null, alertTo: str("alertTo") || null,
           partnerName: str("partnerName"), partnerSharePercent: str("partnerSharePercent") === "" ? null : num("partnerSharePercent"),
         } : {}),
       }),
@@ -280,6 +281,12 @@ export function EventForm({ event, canEdit = true, lockMoney = false }: { event?
           <label className="check"><input type="checkbox" name="acceptQr" defaultChecked={event?.acceptQr ?? true} disabled={lockMoney} />
             <span>Guests can scan to pay (PayMongo QR: GCash, Maya, banks)</span></label>
           {errors.acceptVouchers && <span className="err wide" role="alert">{errors.acceptVouchers}</span>}
+          <Field name="alertFrom" label="Telegram alerts from" error={errors.alertFrom} hint="Set both to mute alerts while the booth is off on purpose">
+            <input {...attrs("alertFrom")} type="time" defaultValue={event?.alertFrom ?? ""} disabled={lockMoney} />
+          </Field>
+          <Field name="alertTo" label="Telegram alerts until" error={errors.alertTo}>
+            <input {...attrs("alertTo")} type="time" defaultValue={event?.alertTo ?? ""} disabled={lockMoney} />
+          </Field>
           <Field name="partnerName" label="Revenue shared with" error={errors.partnerName} hint="The venue, e.g. the café. Leave empty if not shared">
             <input {...attrs("partnerName")} defaultValue={event?.partnerName ?? ""} maxLength={120} placeholder="Kape Tayo Café" disabled={lockMoney} />
           </Field>

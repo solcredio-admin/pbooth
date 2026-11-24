@@ -9,6 +9,9 @@ import { KioskService } from "./kiosk.service.js";
 import { KIOSK_COOKIE, KIOSK_COOKIE_DAYS, KioskGuard, type KioskReq } from "./kiosk.guard.js";
 import { kioskHeartbeatSchema, pairSchema, type KioskHeartbeat, type Pair } from "./kiosk.schemas.js";
 import { SelfServiceService } from "../selfservice/selfservice.service.js";
+import { RefundsService } from "../selfservice/refunds.service.js";
+const helpSchema = z.object({ reason: z.enum(["NO_SESSION", "NO_PRINT", "OTHER"]), reference: z.string().trim().min(4).max(20).optional(), paymentId: z.string().uuid().optional() });
+const pinSchema = z.object({ pin: z.string().regex(/^\d{4,8}$/) });
 const redeemSchema = z.object({ code: z.string().trim().min(4).max(20) });
 
 
@@ -16,7 +19,7 @@ const redeemSchema = z.object({ code: z.string().trim().min(4).max(20) });
 @Public()
 @Controller("kiosk")
 export class KioskController {
-  constructor(private readonly kiosk: KioskService, private readonly ss: SelfServiceService, @Inject(CONFIG) private readonly cfg: Config) {}
+  constructor(private readonly kiosk: KioskService, private readonly ss: SelfServiceService, private readonly refunds: RefundsService, @Inject(CONFIG) private readonly cfg: Config) {}
 
   @Post("pair") @HttpCode(200)
   @RouteConfig({ rateLimit: { max: 10, timeWindow: "15 minutes" } })
@@ -66,6 +69,22 @@ export class KioskController {
   qrStatus(@Param("paymentId", { schema: z.string().uuid() }) paymentId: string, @Req() r: KioskReq) {
     return this.ss.qrStatus(r.kiosk!.boothId, paymentId);
   }
+
+  /** "Need help or a refund?": this booth's recent payments, and asking for help. */
+  @UseGuards(KioskGuard)
+  @Get("help")
+  recentPayments(@Req() r: KioskReq) { return this.refunds.recent(r.kiosk!.boothId); }
+
+  @UseGuards(KioskGuard)
+  @Post("help") @HttpCode(200)
+  @RouteConfig({ rateLimit: { max: 10, timeWindow: "15 minutes" } })
+  help(@Body({ schema: helpSchema }) body: z.infer<typeof helpSchema>, @Req() r: KioskReq) { return this.refunds.ask(r.kiosk!.boothId, body, r.ip); }
+
+  /** The hidden staff menu's PIN. */
+  @UseGuards(KioskGuard)
+  @Post("staff") @HttpCode(200)
+  @RouteConfig({ rateLimit: { max: 8, timeWindow: "15 minutes" } })
+  staff(@Body({ schema: pinSchema }) body: z.infer<typeof pinSchema>, @Req() r: KioskReq) { return this.kiosk.staff(r.kiosk!.boothId, body.pin, r.ip); }
 
   @UseGuards(KioskGuard)
   @Post("heartbeat") @HttpCode(200)

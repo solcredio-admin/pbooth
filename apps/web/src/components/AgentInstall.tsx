@@ -6,7 +6,7 @@ import { Tabs } from "./Tabs";
 type Os = "windows" | "mac" | "linux";
 const OS_TABS: { id: Os; label: string }[] = [{ id: "windows", label: "Windows" }, { id: "mac", label: "macOS" }, { id: "linux", label: "Linux" }];
 
-function Cmd({ children }: { children: string }) {
+export function Cmd({ children }: { children: string }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     try { await navigator.clipboard.writeText(children); setCopied(true); setTimeout(() => setCopied(false), 1500); }

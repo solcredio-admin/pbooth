@@ -9,13 +9,17 @@ import { composeTemplate, printCanvas, toJpeg } from "@/lib/template/compose";
 import { plan, type Layout } from "@/lib/template/layout";
 import { PALETTES, STYLE_LABEL, STYLE_OPTIONS, type Look, type StyleKey } from "@/lib/template/styles";
 import { boothAspect, frameShot, snapshot } from "@/lib/kiosk/frame";
+import { peso } from "@/lib/peso";
+import { Help } from "./Help";
+import { Keypad } from "./Keypad";
+import { Staff } from "./Staff";
 import { newGalleryToken } from "@/lib/kiosk/upload";
 import { countdownBeep, readyDing, shutterSound, unlockSound, warningTick } from "@/lib/kiosk/sound";
 import QRCode from "qrcode";
 
 type Screen =
   | "loading" | "unpaired" | "wrong-booth" | "idle" | "agent" | "camera"
-  | "welcome" | "pay" | "choose" | "ready" | "countdown" | "composing" | "review" | "done";
+  | "welcome" | "help" | "pay" | "choose" | "ready" | "countdown" | "composing" | "review" | "done";
 
 const INACTIVITY_MS = 60_000; // a guest who walks away mid-session
 const DONE_RESET_S = 20;      // the thank-you screen clears itself
@@ -52,12 +56,10 @@ function CameraHelp() {
   );
 }
 
-const peso = (centavos: number, currency: string) =>
-  new Intl.NumberFormat("en-PH", { style: "currency", currency, maximumFractionDigits: centavos % 100 ? 2 : 0 }).format(centavos / 100);
 
 // One tap on the welcome screen is enough: instructions show this long, then the countdown starts.
 const READY_SECONDS = 10;
-const GUEST = new Set<Screen>(["pay", "choose", "ready", "countdown", "composing", "review", "done"]);
+const GUEST = new Set<Screen>(["help", "pay", "choose", "ready", "countdown", "composing", "review", "done"]);
 
 interface Shot { blob: Blob; url: string; printBlob?: Blob } // printBlob: the 4R sheet when it differs from the design
 
@@ -96,6 +98,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   // shooting; managed events use the event's own settings.
   const [choice, setChoice] = useState<{ shots: number; layout: Layout | null } | null>(null);
   const [look, setLook] = useState<Look | null>(null);
+  const [reference, setReference] = useState<string | null>(null); // what this guest quotes if something goes wrong
   const needed = choice?.layout ? choice.shots : guest?.shotsPerSession ?? 1;
 
   // ---------- config + heartbeat ----------
@@ -268,7 +271,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     if (designRef.current) URL.revokeObjectURL(designRef.current.url);
     session.current = null;
     setShots([]); setDesign(null); setRedo(null); setPeek(null); setCaptureError(""); setPrint(null); setQr(null); setSaving(null);
-    setChoice(null); setLook(null);
+    setChoice(null); setLook(null); setReference(null);
     history.replaceState(null, "", `/kiosk/${boothCode}`);
     setScreen("loading"); // the resting-screen effect picks welcome / idle / camera
   }, [boothCode]);
@@ -278,7 +281,8 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   const mustPay = !!selfService && !selfService.freeSessions;
   const payQrOn = !!selfService?.qr, payVoucherOn = selfService?.vouchers ?? true;
 
-  const startSession = (paymentId?: string) => {
+  const startSession = (paymentId?: string, ref?: string) => {
+    setReference(ref ?? null);
     const id = crypto.randomUUID();
     const galleryToken = newGalleryToken();
     session.current = { id, retakes: 0, finished: false, galleryToken };
@@ -287,6 +291,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     setChoice(null); setLook(null);
     setScreen(selfService ? "choose" : "ready");
   };
+  const closeHelp = useCallback(() => setScreen("loading"), []); // the resting-screen effect picks the right one
   const begin = () => {
     document.documentElement.requestFullscreen?.().catch(() => undefined);
     if (mustPay) { setVoucher(""); setPayError(""); setPayQr(null); setScreen("pay"); return; }
@@ -298,23 +303,23 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   const redeem = async () => {
     if (!voucher.trim() || paying) return;
     setPaying(true); setPayError("");
-    const r = await kioskFetch<{ paymentId: string }>("POST", "/kiosk/redeem", { code: voucher });
+    const r = await kioskFetch<{ paymentId: string; reference: string }>("POST", "/kiosk/redeem", { code: voucher });
     setPaying(false);
-    if (r.ok) { startSession(r.data.paymentId); return; }
+    if (r.ok) { startSession(r.data.paymentId, r.data.reference); return; }
     setPayError(r.status === 0 ? "No internet right now. Vouchers need a connection; please try again in a moment."
       : r.status === 429 ? "Too many tries. Please ask the staff for help."
       : "That code isn't valid here, or it's already been used.");
   };
 
   // Scan to pay (PayMongo QR Ph): the server makes the QR and confirms with PayMongo; the booth just polls.
-  const [payQr, setPayQr] = useState<{ paymentId: string; img: string; expiresAt: number } | null>(null);
+  const [payQr, setPayQr] = useState<{ paymentId: string; reference: string; img: string; expiresAt: number } | null>(null);
   const [qrLeft, setQrLeft] = useState(0);
   const startQr = async () => {
     if (paying) return;
     setPaying(true); setPayError("");
-    const r = await kioskFetch<{ paymentId: string; qr: string; expiresAt: string }>("POST", "/kiosk/payments/qr");
+    const r = await kioskFetch<{ paymentId: string; reference: string; qr: string; expiresAt: string }>("POST", "/kiosk/payments/qr");
     setPaying(false);
-    if (r.ok) { setPayQr({ paymentId: r.data.paymentId, img: r.data.qr, expiresAt: Date.parse(r.data.expiresAt) }); return; }
+    if (r.ok) { setPayQr({ paymentId: r.data.paymentId, reference: r.data.reference, img: r.data.qr, expiresAt: Date.parse(r.data.expiresAt) }); return; }
     setPayError(r.status === 0 ? "No internet right now. QR payment needs a connection; please try again in a moment."
       : "QR payment isn't available right now. Please use a voucher from the counter.");
   };
@@ -329,7 +334,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
       const r = await kioskFetch<{ status: string }>("GET", `/kiosk/payments/${payQr.paymentId}`);
       busy = false;
       const st = r.ok ? r.data.status : left > 0 ? "PENDING" : "EXPIRED";
-      if (st === "PAID") { setPayQr(null); startSession(payQr.paymentId); }
+      if (st === "PAID") { setPayQr(null); startSession(payQr.paymentId, payQr.reference); }
       else if (st !== "PENDING") { setPayQr(null); setPayError(st === "EXPIRED" ? "That QR code expired. Tap Scan to pay for a new one." : "That payment didn't go through. Please ask the staff for help."); }
     };
     void tick();
@@ -493,6 +498,19 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   // photos saved: the QR link now has them, a soft ding (only when there's a QR to scan)
   const savedAll = screen === "done" && !!qr && !!saving && saving.total > 0 && saving.pending === 0;
   useEffect(() => { if (savedAll) readyDing(); }, [savedAll]);
+  // Lockdown: no zoom by touch, wheel or keyboard, and no mouse pointer once it's been still.
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout>;
+    const move = () => { root.current?.classList.remove("k-nocursor"); clearTimeout(t); t = setTimeout(() => root.current?.classList.add("k-nocursor"), 4000); };
+    const stop = (e: Event) => e.preventDefault();
+    const wheel = (e: WheelEvent) => { if (e.ctrlKey) e.preventDefault(); };
+    const key = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && ["+", "-", "=", "0"].includes(e.key)) e.preventDefault(); };
+    window.addEventListener("mousemove", move);
+    document.addEventListener("gesturestart", stop);
+    window.addEventListener("wheel", wheel, { passive: false });
+    window.addEventListener("keydown", key);
+    return () => { clearTimeout(t); window.removeEventListener("mousemove", move); document.removeEventListener("gesturestart", stop); window.removeEventListener("wheel", wheel); window.removeEventListener("keydown", key); };
+  }, []);
   // Browsers allow sound only after a touch: the first tap anywhere turns it on.
   useEffect(() => {
     window.addEventListener("pointerdown", unlockSound);
@@ -554,7 +572,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
 
   // Walked away? Abandon the session after a minute of no touches (never during the countdown).
   useEffect(() => {
-    if (screen !== "ready" && screen !== "pay") return; // review saves itself after a minute instead
+    if (screen !== "ready" && screen !== "pay" && screen !== "help") return; // review saves itself after a minute instead
     let t = setTimeout(() => reset("ABANDONED"), INACTIVITY_MS);
     const poke = () => { clearTimeout(t); t = setTimeout(() => reset("ABANDONED"), INACTIVITY_MS); };
     window.addEventListener("pointerdown", poke);
@@ -582,7 +600,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     loadConfig();
   }
 
-  const previewing = ["welcome", "pay", "choose", "ready", "countdown", "camera"].includes(screen) && camReady;
+  const previewing = ["welcome", "help", "pay", "choose", "ready", "countdown", "camera"].includes(screen) && camReady;
   const showVideo = !dslr && previewing;
   const showLive = dslr && previewing && !!agent.liveUrl;
 
@@ -682,6 +700,13 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
         </button>
       )}
 
+      {/* also when the camera is down: that's exactly when a guest who paid needs it */}
+      {selfService && !selfService.freeSessions && ["welcome", "camera", "agent"].includes(screen) && (
+        <button type="button" className="k-helplink" onClick={() => setScreen("help")}>Need help or a refund?</button>
+      )}
+      {screen === "help" && <Help onClose={closeHelp} />}
+      {config?.staffMenu && <Staff />}
+
       {screen === "pay" && selfService && (
         <form className="k-panel k-ready k-pay" onSubmit={(e) => { e.preventDefault(); void redeem(); }}>
           <p className="k-cap k-eyebrow">{config?.event?.name}</p>
@@ -733,6 +758,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
             </div>
             <button type="button" className="k-btn ghost" onClick={() => setChoice(null)}>Back</button>
           </>)}
+          {reference && <p className="k-ref">Your reference: <b>{reference}</b></p>}
           <p className="k-cap">Starting with the usual settings in {chooseLeft}s</p>
         </div>
       )}
@@ -856,6 +882,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
             <div className="k-actions">
               <button className="k-btn big" type="button" onClick={() => reset("COMPLETED")}>Done</button>
             </div>
+            {reference && <p className="k-ref">Your reference: <b>{reference}</b></p>}
             <p className="k-cap">Clearing in {doneLeft}s</p>
           </div>
         </div>
@@ -877,30 +904,6 @@ function printState(j: AgentJob): { state: "queued" | "printing" | "done" | "fai
   if (j.status === "completed") return { state: "done" };
   if (j.status === "failed" || j.status === "cancelled") return { state: "failed", message: j.error ?? undefined };
   return { state: j.status === "printing" ? "printing" : "queued" };
-}
-
-// On-screen QWERTY keyboard for voucher codes: touch-screen booths often have no keyboard. Codes skip
-// I, L, O and U (they read as 1, 1, 0); those keys type what they mean, U is greyed out. The dash goes
-// in by itself.
-const KEY_ROWS = ["1234567890", "QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
-const KEY_MEANS: Record<string, string> = { O: "0", I: "1", L: "1" };
-function Keypad({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const raw = value.replace(/[^0-9A-Z]/g, "");
-  const set = (r: string) => onChange(r.length > 4 ? `${r.slice(0, 4)}-${r.slice(4, 8)}` : r);
-  const full = raw.length >= 8;
-  return (
-    <div className="k-keypad" role="group" aria-label="Keyboard">
-      {KEY_ROWS.map((row, n) => (
-        <div className="k-keyrow" key={row}>
-          {row.split("").map((k) => (
-            <button key={k} type="button" className="k-key" disabled={full || k === "U"} onClick={() => set(raw + (KEY_MEANS[k] ?? k))}>{k}</button>
-          ))}
-          {n === 3 && <button type="button" className="k-key wide" onClick={() => set(raw.slice(0, -1))} aria-label="Delete">⌫</button>}
-        </div>
-      ))}
-      <div className="k-keyrow"><button type="button" className="k-key space" onClick={() => set("")}>Clear</button></div>
-    </div>
-  );
 }
 
 /** A small picture of where the photos go on the print, for choosing a layout. */

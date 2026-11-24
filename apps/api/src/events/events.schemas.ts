@@ -53,6 +53,8 @@ const fields = {
   freeSessions: z.boolean().optional(),
   acceptVouchers: z.boolean().optional(),
   acceptQr: z.boolean().optional(),
+  alertFrom: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM").nullish(),
+  alertTo: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM").nullish(),
   partnerName: optionalText(120),
   partnerSharePercent: z.number().int().min(0).max(100).nullish(),
 };

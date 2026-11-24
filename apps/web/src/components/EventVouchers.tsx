@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { send } from "@/lib/client-api";
+import { peso } from "@/lib/peso";
 import { useMe } from "@/lib/roles";
 import type { EventDto } from "@/lib/types";
 
@@ -10,8 +11,6 @@ interface VoucherRow {
 }
 interface NewCodes { kind: VoucherRow["kind"]; batch: string | null; label: string | null; expiresAt: string | null; codes: string[] }
 
-export const peso = (centavos: number, currency = "PHP") =>
-  new Intl.NumberFormat("en-PH", { style: "currency", currency, maximumFractionDigits: centavos % 100 ? 2 : 0 }).format(centavos / 100);
 
 const status = (v: VoucherRow) =>
   v.voidedAt ? "Void" : v.expiresAt && new Date(v.expiresAt) <= new Date() ? "Expired" : v.kind === "ONE_TIME" && v.uses > 0 ? "Used" : "Active";

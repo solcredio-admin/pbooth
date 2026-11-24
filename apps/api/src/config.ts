@@ -36,6 +36,15 @@ const schema = z.object({
   PAYMONGO_SECRET_KEY: blank(z.string().regex(/^sk_(test|live)_/, "Use your PayMongo secret key (sk_test_… or sk_live_…)")),
   PAYMONGO_API_BASE: z.string().url().default("https://api.paymongo.com/v1"), // overridden only by tests
   // How long a payment QR stays valid at the booth (PayMongo allows 60–9000 s).
+  // Telegram alerts for self-service booths (a bot from @BotFather). Unset = alerts are only listed in the admin.
+  TELEGRAM_BOT_TOKEN: blank(z.string().regex(/^\d+:[\w-]{30,}$/, "Use the token @BotFather gave you (123456:ABC…)")),
+  TELEGRAM_API_BASE: z.string().url().default("https://api.telegram.org"), // overridden only by tests
+  // A self-service booth silent for this long raises an alert; a camera/printer/screen problem must last this long.
+  ALERT_OFFLINE_SECONDS: z.coerce.number().int().min(1).default(180),
+  ALERT_PROBLEM_SECONDS: z.coerce.number().int().min(0).default(60),
+  ALERT_SWEEP_SECONDS: z.coerce.number().int().min(1).default(30),
+  // A paid session with no photos after this long is flagged for a refund.
+  REFUND_FLAG_MINUTES: z.coerce.number().min(0).default(20),
   PAYMONGO_QR_SECONDS: z.coerce.number().int().min(60).max(9000).default(600),
 });
 

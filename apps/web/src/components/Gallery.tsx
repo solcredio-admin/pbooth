@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-interface Meta { scope: "SESSION" | "EVENT"; event: { name: string; date: string; primaryColor: string; accentColor: string }; expiresAt: string; retentionDays: number; ready: number; pending: number }
+interface Meta { reference: string | null; scope: "SESSION" | "EVENT"; event: { name: string; date: string; primaryColor: string; accentColor: string }; expiresAt: string; retentionDays: number; ready: number; pending: number }
 interface Item { id: string; kind: "DESIGN" | "ORIGINAL"; index: number; width: number | null; height: number | null; thumbUrl: string; previewUrl: string; downloadUrl: string }
 
 const luminance = (hex: string) => {
@@ -76,6 +76,7 @@ export function Gallery({ token }: { token: string }) {
           </main>
           {meta.pending > 0 && items.length > 0 && <p className="gal-note pulse">{meta.pending} more on the way…</p>}
           <footer className="gal-foot">
+            {meta.reference && <p>Your reference: <b>{meta.reference}</b></p>}
             Private link: only people who have it can see these photos. They&apos;re deleted after {expires}.
           </footer>
         </>

@@ -8,6 +8,7 @@ export interface KioskConfig {
   camera: import("./camera").CameraSettings;
   printer: { enabled: boolean; printerName: string | null; paperSize: string; orientation: string };
   heartbeatIntervalSeconds: number;
+  staffMenu?: boolean; // a PIN is set: the hidden staff menu exists
   event: null | {
     id: string; name: string; timeZone: string; startsAt: string; endsAt: string;
     // self-service locations: a paid session needs a voucher (QR payment comes later); free mode skips it

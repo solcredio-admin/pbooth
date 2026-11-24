@@ -22,6 +22,7 @@ export const can = (role: Role) => ({
   bookBooths: role !== "KIOSK" && role !== "CASHIER",
   seeBooths: role !== "EVENTS" && role !== "CASHIER",
   openKiosk: role !== "EVENTS" && role !== "CASHIER",
+  seeSales: role === "OWNER" || role === "EVENTS" || role === "CASHIER", // transactions and refund requests (cashiers: their own events)
   admin: role === "OWNER",
 });
 

@@ -14,13 +14,14 @@ export class PaymongoService {
 
   get enabled() { return !!this.cfg.PAYMONGO_SECRET_KEY; }
 
-  private async call<T>(method: "GET" | "POST", path: string, body?: unknown): Promise<T> {
+  private async call<T>(method: "GET" | "POST", path: string, body?: unknown, idempotencyKey?: string): Promise<T> {
     if (!this.cfg.PAYMONGO_SECRET_KEY) throw new ApiError(HttpStatus.SERVICE_UNAVAILABLE, "QR_NOT_CONFIGURED", "QR payment isn't set up on the server");
     const res = await fetch(`${this.cfg.PAYMONGO_API_BASE}${path}`, {
       method,
       headers: {
         authorization: `Basic ${Buffer.from(`${this.cfg.PAYMONGO_SECRET_KEY}:`).toString("base64")}`,
         "content-type": "application/json", accept: "application/json",
+        ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: AbortSignal.timeout(15_000),
@@ -28,7 +29,9 @@ export class PaymongoService {
     const json = await res.json().catch(() => null) as { data?: unknown; errors?: { detail?: string }[] } | null;
     if (!res.ok) {
       this.log.warn(`${method} ${path} → ${res.status} ${json?.errors?.[0]?.detail ?? ""}`);
-      throw new ApiError(HttpStatus.BAD_GATEWAY, "PAYMENT_PROVIDER_ERROR", "PayMongo refused the request");
+      // 5xx: it may or may not have happened. 4xx: it definitely didn't.
+      if (res.status >= 500) throw new ApiError(HttpStatus.BAD_GATEWAY, "PAYMENT_PROVIDER_DOWN", "PayMongo had a problem; try again");
+      throw new ApiError(HttpStatus.BAD_GATEWAY, "PAYMENT_PROVIDER_ERROR", `PayMongo refused the request${json?.errors?.[0]?.detail ? `: ${json.errors[0].detail.slice(0, 200)}` : ""}`);
     }
     return json as T;
   }
@@ -59,4 +62,29 @@ export class PaymongoService {
     const r = await this.call<{ data: { attributes: { status: string; amount: number; currency: string } } }>("GET", `/payment_intents/${encodeURIComponent(intentId)}`);
     return r.data.attributes;
   }
+
+  /**
+   * Sends a full refund. Safe to repeat with the same key (PayMongo's Idempotency-Key), and PayMongo
+   * never refunds more than was paid. A QR Ph refund comes with a link the guest opens to get the money.
+   */
+  async refund(intentId: string, amountCentavos: number, key: string) {
+    const intent = await this.call<{ data: { attributes: { payments?: { id: string; attributes?: { status?: string } }[] } } }>("GET", `/payment_intents/${encodeURIComponent(intentId)}`);
+    const pays = intent.data.attributes.payments ?? [];
+    const pay = pays.find((p) => p.attributes?.status === "paid") ?? pays[0];
+    if (!pay) throw new ApiError(HttpStatus.BAD_GATEWAY, "PAYMENT_PROVIDER_ERROR", "PayMongo has no payment to refund");
+    const r = await this.call<RefundReply>("POST", "/refunds", { data: { attributes: { amount: amountCentavos, payment_id: pay.id, reason: "others" } } }, key);
+    return this.readRefund(r);
+  }
+
+  async refundStatus(refundId: string) {
+    return this.readRefund(await this.call<RefundReply>("GET", `/refunds/${encodeURIComponent(refundId)}`));
+  }
+
+  private readRefund(r: RefundReply) {
+    const link = r.data.attributes.transfer_link;
+    // only an https link is ever shown to a guest
+    return { id: r.data.id, status: r.data.attributes.status, link: link?.startsWith("https://") ? link : null };
+  }
 }
+
+interface RefundReply { data: { id: string; attributes: { status: string; transfer_link?: string | null } } }

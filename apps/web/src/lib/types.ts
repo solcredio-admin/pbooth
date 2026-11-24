@@ -14,7 +14,7 @@ export interface EventConfig {
 export interface EventDto {
   id: string; name: string; organizerName: string | null; contactPhone: string | null; contactEmail: string | null; venueName: string | null; venueAddress: string | null;
   status: EventStatus; timeZone: string; startsAt: string; endsAt: string;
-  kind: "MANAGED" | "SELF_SERVICE"; priceCentavos: number; currency: string; freeSessions: boolean; acceptVouchers: boolean; acceptQr: boolean;
+  kind: "MANAGED" | "SELF_SERVICE"; priceCentavos: number; currency: string; freeSessions: boolean; acceptVouchers: boolean; acceptQr: boolean; alertFrom: string | null; alertTo: string | null;
   partnerName: string | null; partnerSharePercent: number | null; cashiers: { id: string; username: string }[];
   local: { date: string; startTime: string; endTime: string };
   activatedAt: string | null; completedAt: string | null; createdAt: string; updatedAt: string;
@@ -36,7 +36,7 @@ export interface EventSessions { byBooth: Record<string, SessionStats>; total: S
 export interface BoothDto {
   id: string; name: string; code: string; notes: string | null; state: "UNREGISTERED" | "READY" | "REVOKED";
   status: BoothStatus; online: boolean; simulated: boolean;
-  camera: CameraConfig; printer: PrinterConfig; configVersion: string; configApplied: boolean;
+  camera: CameraConfig; printer: PrinterConfig; staffMenu: boolean; configVersion: string; configApplied: boolean;
   device: null | {
     hostname: string | null; os: string | null; agentVersion: string | null; identifier: string; enrolledAt: string;
     lastHeartbeatAt: string | null; lastError: string | null; appliedConfigVersion: string | null;
