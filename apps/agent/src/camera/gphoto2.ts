@@ -65,6 +65,8 @@ export class GPhoto2Camera implements CameraProvider {
   private state: CameraState = { status: "disconnected" };
   private port: string | null = null;
   private live: ChildProcessWithoutNullStreams | null = null;
+  // who's watching live view; kept while a capture pauses it, so the same stream resumes after
+  private watcher: { onFrame: (jpeg: Buffer) => void; onEnd: (error?: string) => void } | null = null;
   private busy: Promise<unknown> = Promise.resolve();
 
   private exclusive<T>(fn: () => Promise<T>): Promise<T> {
@@ -95,25 +97,30 @@ export class GPhoto2Camera implements CameraProvider {
     return (this.state = { status: "connected", name: cam.name, model: cam.name, compatibility: compat.tested });
   }
 
-  async disconnect() { await this.stopLive(); this.port = null; this.state = { status: "disconnected" }; }
+  async disconnect() { this.watcher = null; await this.stopLive(); this.port = null; this.state = { status: "disconnected" }; }
   getStatus() { return this.state; }
   getCapabilities() { return { liveView: true, capture: true, settings: SETTINGS }; }
 
   capture(dir: string): Promise<Captured> {
     return this.exclusive(async () => {
-      await this.stopLive(); // wait for live view to let go of the USB, or the capture finds the camera busy
-      const shoot = () => run("gphoto2", this.args("--capture-image-and-download", "--force-overwrite", "--filename", `${dir}/capture-%Y%m%d-%H%M%S-%n.%C`), { timeoutMs: 30_000 });
-      let r = await shoot();
-      if (r.code !== 0 && /claim the USB|Device Busy|I\/O in progress/i.test(r.stderr)) { await freeOnMac(); await sleep(400); r = await shoot(); }
-      const files = parseSaved(r.stdout);
-      if (r.code !== 0 || !files.length) {
-        const error = explain(r.stderr);
-        this.state = { ...this.state, status: /No camera/.test(error) ? "disconnected" : "error", error };
-        throw new Error(error);
-      }
-      this.state = { ...this.state, status: "connected", error: undefined }; // live view restarts when the kiosk asks for it again
-      return { path: files[0] };
+      await this.stopLive(); // pause live view and wait for it to let go of the USB, or the capture finds the camera busy
+      try { return await this.shoot(dir); }
+      finally { if (this.watcher) this.startLive(); } // the kiosk's live view carries on on the same stream
     });
+  }
+
+  private async shoot(dir: string): Promise<Captured> {
+    const shoot = () => run("gphoto2", this.args("--capture-image-and-download", "--force-overwrite", "--filename", `${dir}/capture-%Y%m%d-%H%M%S-%n.%C`), { timeoutMs: 30_000 });
+    let r = await shoot();
+    if (r.code !== 0 && /claim the USB|Device Busy|I\/O in progress/i.test(r.stderr)) { await freeOnMac(); await sleep(400); r = await shoot(); }
+    const files = parseSaved(r.stdout);
+    if (r.code !== 0 || !files.length) {
+      const error = explain(r.stderr);
+      this.state = { ...this.state, status: /No camera/.test(error) ? "disconnected" : "error", error };
+      throw new Error(error);
+    }
+    this.state = { ...this.state, status: "connected", error: undefined };
+    return { path: files[0] };
   }
 
   downloadImage(c: Captured) { return readFile(c.path); }
@@ -140,16 +147,28 @@ export class GPhoto2Camera implements CameraProvider {
     await this.busy;
     await this.stopLive();
     await freeOnMac();
+    const watcher = { onFrame, onEnd };
+    this.watcher = watcher;
+    this.startLive();
+    return () => { if (this.watcher === watcher) { this.watcher = null; void this.stopLive(); } };
+  }
+
+  private startLive() {
+    const w = this.watcher;
+    if (!w) return;
     const p = spawn("gphoto2", this.args("--capture-movie", "--stdout"));
     this.live = p;
     let last = 0;
-    const split = new JpegSplitter((f) => { const now = Date.now(); if (now - last >= 1000 / LIVE_FPS) { last = now; onFrame(f); } });
+    const split = new JpegSplitter((f) => { const now = Date.now(); if (now - last >= 1000 / LIVE_FPS) { last = now; w.onFrame(f); } });
     let stderr = "";
     p.stdout.on("data", (d: Buffer) => split.push(d));
     p.stderr.on("data", (d) => (stderr += d));
-    p.on("error", () => onEnd("gPhoto2 is not installed"));
-    p.on("close", (code) => { if (this.live === p) this.live = null; onEnd(code && code !== 0 && !p.killed ? explain(stderr) : undefined); });
-    return () => { if (this.live === p) void this.stopLive(); };
+    p.on("error", () => { if (this.watcher === w) { this.watcher = null; w.onEnd("gPhoto2 is not installed"); } });
+    p.on("close", (code) => {
+      if (this.live !== p) return; // we stopped it (a capture pausing it, or the viewer left): not an end
+      this.live = null;
+      if (this.watcher === w) { this.watcher = null; w.onEnd(code ? explain(stderr) : undefined); }
+    });
   }
 
   /** Stops live view and waits until gPhoto2 has exited (released the camera), killing it after 3 s. */
@@ -161,7 +180,7 @@ export class GPhoto2Camera implements CameraProvider {
       if (p.exitCode !== null || p.signalCode !== null) return done();
       const force = setTimeout(() => p.kill("SIGKILL"), 3000);
       p.once("close", () => { clearTimeout(force); done(); });
-      p.kill("SIGTERM");
+      p.kill("SIGINT"); // like Ctrl-C: gPhoto2 ends live view on the camera properly (a hard kill can leave it stuck)
     });
   }
 }

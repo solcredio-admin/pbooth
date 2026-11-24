@@ -157,6 +157,7 @@ function readBody(req: IncomingMessage, limit: number): Promise<Buffer> {
 // One camera feed shared by every viewer (normally just the kiosk). Stops when nobody watches.
 const viewers = new Set<ServerResponse>();
 let stopFeed: (() => void) | null = null;
+const FEED_RETRY_MS = 1000;
 
 async function liveView(cam: CameraProvider | null, req: IncomingMessage, res: ServerResponse, origin: string | undefined) {
   if (!cam || cam.getStatus().status !== "connected" || !cam.getCapabilities().liveView) {
@@ -169,10 +170,17 @@ async function liveView(cam: CameraProvider | null, req: IncomingMessage, res: S
     viewers.delete(res);
     if (!viewers.size && stopFeed) { stopFeed(); stopFeed = null; }
   });
-  if (!stopFeed) {
-    stopFeed = await cam.liveView(
-      (jpeg) => { for (const v of viewers) v.write(`--frame\r\nContent-Type: image/jpeg\r\nContent-Length: ${jpeg.length}\r\n\r\n`), v.write(jpeg), v.write("\r\n"); },
-      () => { for (const v of viewers) v.end(); viewers.clear(); stopFeed = null; },
-    );
-  }
+  if (!stopFeed) await startFeed(cam);
+}
+
+// One camera feed shared by every viewer. If it drops (camera hiccup, cable), the kiosk's stream
+// stays open and the feed restarts every few seconds while anyone is watching.
+async function startFeed(cam: CameraProvider) {
+  stopFeed = await cam.liveView(
+    (jpeg) => { for (const v of viewers) v.write(`--frame\r\nContent-Type: image/jpeg\r\nContent-Length: ${jpeg.length}\r\n\r\n`), v.write(jpeg), v.write("\r\n"); },
+    () => {
+      stopFeed = null;
+      setTimeout(() => { if (viewers.size && !stopFeed) startFeed(cam).catch(() => undefined); }, FEED_RETRY_MS);
+    },
+  );
 }
