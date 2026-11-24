@@ -31,8 +31,13 @@ if [ "$(uname -s)" = Darwin ]; then
 
   step "Start when you log in"
   mkdir -p "$HOME/Library/LaunchAgents"
-  cp "$DIR/deploy/net.pbooth.agent.plist" "$PLIST"
+  # use this Mac's node (nodejs.org installs /usr/local/bin/node, Homebrew /opt/homebrew/bin/node)
+  sed "s#<string>/usr/local/bin/node</string>#<string>$(command -v node)</string>#" "$DIR/deploy/net.pbooth.agent.plist" > "$PLIST"
   launchctl load -w "$PLIST"
+  sleep 3
+  if ! launchctl list net.pbooth.agent 2>/dev/null | grep -q '"PID"'; then
+    echo "The agent didn't start. See /tmp/pbooth-agent.log, or run: node $DIR/dist/main.js run" >&2; exit 1
+  fi
   node "$DIR/dist/main.js" doctor || true
   echo "Tip: turn on automatic login for this account so the agent starts after a reboot."
 else
@@ -55,7 +60,7 @@ else
   sudo -u pbooth PBOOTH_AGENT_DIR=/var/lib/pbooth-agent node "$DIR/dist/main.js" enroll --server "$SERVER" --code "$CODE" || enroll_failed
 
   step "Start with the computer"
-  sudo cp "$DIR/deploy/pbooth-agent.service" /etc/systemd/system/
+  sed "s#ExecStart=/usr/bin/node #ExecStart=$(command -v node) #" "$DIR/deploy/pbooth-agent.service" | sudo tee /etc/systemd/system/pbooth-agent.service >/dev/null
   sudo systemctl daemon-reload && sudo systemctl enable --now pbooth-agent
   sudo -u pbooth PBOOTH_AGENT_DIR=/var/lib/pbooth-agent node "$DIR/dist/main.js" doctor || true
 fi

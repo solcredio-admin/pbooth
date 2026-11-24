@@ -1,7 +1,7 @@
 # Self-service booths: design draft
 
 Status: **phase 8 built** (self-service events, vouchers, free sessions, revenue share, cashiers).
-**Phase 9 next**: PayMongo QR payments and thermal receipt printing. Decisions so far: ₱150 per
+**Phase 9 built**: PayMongo QR payments (thermal receipt printing dropped). **Phase 10 planned**: unattended reliability, see section 11. Decisions so far: ₱150 per
 paid session (includes prints); vouchers belong to one event and are managed in its Vouchers tab;
 free-session events print nothing (QR only); the owner makes unlimited free-session codes; cashiers
 log in and run only their assigned events; boot/shutdown is handled by your RMM tool (no opening
@@ -158,3 +158,107 @@ Attract screen ─tap→ Choose a package ─→ Pay ─→ Get ready (10 s) ─
    them printed batches?
 8. **Opening hours**: follow the café's hours, or always on?
 9. **Digital copies**: always included via the QR gallery, or a paid add-on?
+
+## 11. Phase 10 plan: unattended reliability (planned, not built)
+
+Decided 2026-11-24: no thermal printing. Remote desktop/RMM can be installed on booth computers
+for hands-on fixes; pbooth covers alerts, guest problem reports, lockdown and reports.
+
+### 11a. Payment references
+
+Every self-service payment gets a short, human reference the guest can read out or photograph,
+e.g. **`R-7K3M-Q9`** (unambiguous letters and digits, like booth codes).
+
+- New `Payment.reference` (unique). Made when the payment is created (QR, voucher, free).
+- Shown to the guest: on the "Get ready" screen right after paying and on the thank-you screen
+  ("Your reference: R-7K3M-Q9"), and on their QR gallery page.
+- Searchable in the admin (event's Sales/Transactions) and included in alerts and the CSV.
+- PayMongo's own payment id is kept too (`providerRef`), so a GCash/Maya receipt can be matched.
+
+### 11b. "Need help or a refund?" at the booth
+
+A small, always-visible link on the **standby (welcome) screen of self-service events only**
+(managed events never show it).
+
+1. Guest taps it → picks what happened: *Paid but no session started*, *Photos didn't print*,
+   *Something else*.
+2. Enters their **reference** (or picks from this booth's paid payments in the last 30 minutes,
+   shown by time and amount only, no names) and an optional note / mobile number.
+3. pbooth records a **RefundRequest** (payment, booth, reason, note, contact, status `OPEN`) and
+   sends an alert (11c). The screen shows: "Thanks. Staff have been notified. Your reference is
+   R-7K3M-Q9." Rate-limited per booth so it can't be spammed.
+4. Automatic flagging: a **paid session that never completed** (abandoned, crashed, camera
+   error) creates a RefundRequest by itself (reason `SESSION_FAILED`), no tap needed.
+
+Handling it (owner, and cashiers for their own events), in a new **Refunds** list:
+- **QR payment** → *Refund* sends a refund through PayMongo's refunds API (full amount), then
+  marks the payment `REFUNDED`. Or *Reject* with a reason.
+- **Voucher payment** → *Issue a new voucher* (one-time, same event) or mark refunded in cash.
+- **Give another session** → issues a complimentary one-time voucher shown on screen / sent.
+- Every action is audited; reports subtract refunds.
+
+### 11c. Alerts (Telegram)
+
+- Settings → **Alerts** tab (owner): bot token (from @BotFather) kept in the server `.env`
+  (`TELEGRAM_BOT_TOKEN`), and one or more chat ids (you, a group with the café staff). A
+  **Send test** button. Per-chat choice of which alerts it gets.
+- Alerts (self-service live events; managed events optional):
+  - **Booth offline** for more than N minutes (default 3), and **back online**. Uses the existing
+    15-second heartbeat sweep, so no new polling.
+  - **Kiosk problem**: camera lost/permission denied, agent disconnected, printer error or
+    out of paper (what the agent reports).
+  - **Refund request** (11b), with reference, amount, method, booth, reason and a link.
+  - **Payments failing**: several QR payments expired/failed in a row (possible outage).
+- No spam: one alert per problem until it clears ("still offline" reminders at most hourly),
+  quiet hours optional, and all alerts also listed in the admin.
+- Booths are booted/shut down by your RMM schedule, so an alert during the scheduled off hours
+  is suppressed by a per-event "expected hours" setting (simple daily window), not opening hours.
+
+### 11d. Lockdown protocol (booth computers)
+
+A written protocol in the booth page (tabbed per OS, like the agent install) plus small kiosk
+features:
+
+- **Per OS**: a dedicated local user that logs in automatically; Chrome in kiosk mode on login
+  (`--kiosk --noerrdialogs --disable-session-crashed-bubble`, the booth's kiosk URL); sleep and
+  screen saver off; OS updates scheduled outside hours; notifications off.
+  - Windows: Assigned Access / Shell Launcher (or a startup task), disable Edge swipe gestures.
+  - macOS: auto-login, Chrome as a login item, Guided Access-like restrictions via a managed
+    profile where possible, energy settings.
+  - Ubuntu: auto-login, `cage` or a GNOME kiosk session running Chrome.
+  - iPad: Guided Access (Settings → Accessibility), auto-lock never.
+- **Kiosk features**: a staff exit (long-press a corner + staff PIN, set per event) instead of
+  reaching the browser; auto-reload if the page errors or loses the server for long; block
+  right-click, text selection, pinch zoom and back-swipe; cursor hidden when idle.
+- A one-command **lockdown setup** script per OS can follow later (like the agent installer);
+  the first version is the checklist, tested on Windows and macOS.
+- Remote desktop (your RMM) stays the escape hatch.
+
+### 11e. Transaction reports and CSV
+
+A **Transactions** page per self-service event (and an all-locations view for the owner):
+- Filters: date range (venue time zone), booth, method (QR / voucher / free), status
+  (paid, refunded, failed, expired), search by reference or voucher hint.
+- Totals for the range: sessions, revenue, refunds, net, partner share.
+- **Export CSV** of exactly what's filtered: date/time (venue time), reference, booth, method,
+  status, amount, currency, voucher hint, PayMongo id, session id, refund status and amount,
+  partner share. Cashiers export only their own events.
+- Daily summary rows option (one line per day) for the café's accounting.
+
+### 11f. Build order
+
+1. Payment references (small, everything else uses them).
+2. Telegram alerts: settings, offline/online, kiosk problems.
+3. Refund requests: booth screen, auto-flagging, Refunds list, PayMongo refunds.
+4. Transactions page and CSV export.
+5. Lockdown protocol (checklist + kiosk staff exit and hardening), then optional setup scripts.
+
+### 11g. Open questions
+
+1. Refunds: may **cashiers** issue PayMongo refunds, or only you (cashiers can still give a
+   replacement voucher)?
+2. Should the guest be asked for a **mobile number** on the help screen (to reach them), or
+   keep it anonymous with the reference only?
+3. Alerts for **managed events** too (booth offline during a wedding), or self-service only?
+4. Staff exit PIN: one per event, or one per booth?
+
