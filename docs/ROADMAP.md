@@ -1,4 +1,4 @@
-# Roadmap: phases 11 to 13 (plans only, nothing here is built)
+# Roadmap: phases 11 to 13 (plans; what's built says so)
 
 Written 2026-11-25. Sizes: S = a day or so, M = a few days, L = a week or more.
 
@@ -9,7 +9,7 @@ print on the Canon G1010; the lockdown steps tried on one real booth. Any of the
 
 ## Phase 11: the booth and the printer stop being one machine
 
-### 11.1 Stations (L) - built, not deployed
+### 11.1 Stations (L) - built and deployed 2026-11-25
 
 Changed while building (owner's call): each booth is **fixed** (backups print only when the main one can't, not when
 it's busy) or **rotates**. The main case is many booths on one printer: one line, oldest first, that recovers by
@@ -88,7 +88,25 @@ errors. Server up/down stays with Gatus, since pbooth can't report its own outag
 One address in Settings, shown on "Thanks" with the reference. Nothing is collected; the guest writes first.
 Needs the address.
 
-**Order:** 11.5 -> 11.4 -> 11.1 -> 11.2 -> 11.3. The two small ones are useful on day one; the GIF is last because
+### 11.6 Audit log in Settings (S-M)
+
+Who changed what, and when. The server has recorded most changes since phase 1 (the `AuditLog` table: account, action,
+what it was done to, IP); nothing shows it yet.
+
+- **Settings -> Audit log**, owner only, read-only: nobody can edit or delete entries from the app.
+- Each line: time, **account name and role**, a plain sentence ("edited booth Booth A"), IP. Booths, stations,
+  kiosks, guests and the system are named too. Accounts are stored by id today: keep the username with each new entry,
+  so a deleted or renamed account still reads correctly.
+- **What changed:** entries list only the changed fields today. Store old -> new values for events, booths, stations,
+  users, prices and alert settings. Never passwords, PINs, codes, tokens or a logo's image.
+- Filters: account, kind (events, booths, stations, users, money, sign-ins), date, and "this item"; CSV download.
+  Event, booth and station pages link to their own history.
+- Check every change is recorded (backups, restore, storage, photo deletions, galleries, retention) and add a test
+  that fails when a new change endpoint records nothing.
+- Guest actions (voucher tries, pairing) are noisy: hidden until asked for.
+- To decide: how long to keep it (proposed: 1 year; money and user changes for good).
+
+**Order:** 11.1 is done; then 11.5 -> 11.4 -> 11.6 -> 11.2 -> 11.3. The two small ones are useful on day one; the GIF is last because
 nothing depends on it.
 
 ---
