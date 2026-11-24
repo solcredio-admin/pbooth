@@ -7,18 +7,21 @@ import { cachedConfig, enqueuePhoto, kioskQueue, saveConfig } from "@/lib/offlin
 import type { QueueStatus } from "@/lib/offline/queue";
 import { composeTemplate, printCanvas, toJpeg } from "@/lib/template/compose";
 import { plan, type Layout } from "@/lib/template/layout";
+import { PALETTES, STYLE_LABEL, STYLE_OPTIONS, type Look, type StyleKey } from "@/lib/template/styles";
 import { boothAspect, frameShot, snapshot } from "@/lib/kiosk/frame";
 import { newGalleryToken } from "@/lib/kiosk/upload";
 import QRCode from "qrcode";
 
 type Screen =
   | "loading" | "unpaired" | "wrong-booth" | "idle" | "agent" | "camera"
-  | "welcome" | "pay" | "ready" | "countdown" | "composing" | "review" | "done";
+  | "welcome" | "pay" | "choose" | "ready" | "countdown" | "composing" | "review" | "done";
 
 const INACTIVITY_MS = 60_000; // a guest who walks away mid-session
 const DONE_RESET_S = 20;      // the thank-you screen clears itself
 const DONE_RESET_QR_S = 35;   // longer when there's a QR code to scan
 const REVIEW_AUTO_S = 60;     // the review screen saves by itself after this (a guest who walks away)
+const CHOOSE_AUTO_S = 45;     // a self-service guest who doesn't choose gets the event's own shots and layout
+const LAYOUT_NAME: Record<Layout, string> = { landscape: "4R landscape", strip: "Photo strips", grid: "4R portrait" };
 // How to allow the camera, in the words of the browser the kiosk is running in.
 function CameraHelp() {
   const ua = typeof navigator === "undefined" ? "" : navigator.userAgent;
@@ -53,7 +56,7 @@ const peso = (centavos: number, currency: string) =>
 
 // One tap on the welcome screen is enough: instructions show this long, then the countdown starts.
 const READY_SECONDS = 10;
-const GUEST = new Set<Screen>(["pay", "ready", "countdown", "composing", "review", "done"]);
+const GUEST = new Set<Screen>(["pay", "choose", "ready", "countdown", "composing", "review", "done"]);
 
 interface Shot { blob: Blob; url: string; printBlob?: Blob } // printBlob: the 4R sheet when it differs from the design
 
@@ -88,7 +91,11 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   const [flash, setFlash] = useState(false);
   const [doneLeft, setDoneLeft] = useState(DONE_RESET_S);
   const [captureError, setCaptureError] = useState("");
-  const needed = guest?.shotsPerSession ?? 1;
+  // Self-service guests choose their number of photos and layout after paying, and the design after
+  // shooting; managed events use the event's own settings.
+  const [choice, setChoice] = useState<{ shots: number; layout: Layout | null } | null>(null);
+  const [look, setLook] = useState<Look | null>(null);
+  const needed = choice?.layout ? choice.shots : guest?.shotsPerSession ?? 1;
 
   // ---------- config + heartbeat ----------
   const loadConfig = useCallback(async () => {
@@ -171,7 +178,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   const aspect = screenAspect ?? boothAspect(portrait);
   const rotation = config?.camera.rotation ?? 0;
   const shotIndex = Math.min(redo ?? shots.length, Math.max(0, needed - 1));
-  const layout = (guest?.template?.layout ?? "landscape") as Layout;
+  const layout = (choice?.layout ?? guest?.template?.layout ?? "landscape") as Layout;
   const slot = live ? plan(layout, needed, config?.camera.orientation ?? "landscape").slots[shotIndex] : null;
   const slotAspect = slot ? slot.w / slot.h : aspect;
   // The preview frame shows a photo the way the print will crop it: its own slot's shape, centre-cropped
@@ -258,6 +265,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     if (designRef.current) URL.revokeObjectURL(designRef.current.url);
     session.current = null;
     setShots([]); setDesign(null); setRedo(null); setPeek(null); setCaptureError(""); setPrint(null); setQr(null); setSaving(null);
+    setChoice(null); setLook(null);
     history.replaceState(null, "", `/kiosk/${boothCode}`);
     setScreen("loading"); // the resting-screen effect picks welcome / idle / camera
   }, [boothCode]);
@@ -273,7 +281,8 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     session.current = { id, retakes: 0, finished: false, galleryToken };
     void kioskQueue().add("session-start", id, { id, startedAt: new Date().toISOString(), galleryToken, eventId: config?.event?.id, ...(paymentId ? { paymentId } : {}) });
     history.replaceState(null, "", `/kiosk/${boothCode}/session/${id}`);
-    setScreen("ready");
+    setChoice(null); setLook(null);
+    setScreen(selfService ? "choose" : "ready");
   };
   const begin = () => {
     document.documentElement.requestFullscreen?.().catch(() => undefined);
@@ -333,18 +342,18 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   }, [guest?.countdownSeconds]);
 
   // All photos inside the event template: what the guest approves (and, later, what gets printed).
-  const compose = useCallback(async (list: Shot[]) => {
-    setScreen("composing");
+  const compose = useCallback(async (list: Shot[], l: Look | null = look, quiet = false) => {
+    if (!quiet) setScreen("composing");
     try {
       const bitmaps = await Promise.all(list.map((x) => createImageBitmap(x.blob)));
       const ev = config!.event!;
       const canvas = await composeTemplate(bitmaps, {
         layout,
-        pattern: guest?.template?.pattern, frameStyle: guest?.template?.frameStyle,
-        photoStyle: guest?.template?.photoStyle, fontStyle: guest?.template?.fontStyle,
+        pattern: l?.pattern ?? guest?.template?.pattern, frameStyle: l?.frameStyle ?? guest?.template?.frameStyle,
+        photoStyle: l?.photoStyle ?? guest?.template?.photoStyle, fontStyle: l?.fontStyle ?? guest?.template?.fontStyle,
         orientation: config!.camera.orientation,
-        primaryColor: guest?.primaryColor ?? "#0b0c0a",
-        accentColor: guest?.accentColor ?? "#c6f36b",
+        primaryColor: l?.primaryColor ?? guest?.primaryColor ?? "#0b0c0a",
+        accentColor: l?.accentColor ?? guest?.accentColor ?? "#c6f36b",
         footer: guest?.template?.footerText || ev.name,
         dateText: guest?.template?.showDate === false ? null
           : new Intl.DateTimeFormat("en-US", { timeZone: ev.timeZone, month: "long", day: "numeric", year: "numeric" }).format(new Date(ev.startsAt)),
@@ -358,8 +367,8 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     } catch {
       setDesign(null); // the plain photos still show; the design is a bonus, never a blocker
     }
-    setScreen("review");
-  }, [config, guest, layout]);
+    if (!quiet) setScreen("review");
+  }, [config, guest, layout, look]);
 
   // The countdown ticks once a second, then the shutter fires. In a multi-shot sequence the next
   // shorter countdown starts by itself; after the last photo the design is composed.
@@ -431,6 +440,37 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     if (session.current) session.current.retakes++;
     shoot();
   };
+  // Choosing: a guest who walks away after paying still gets a session, with the event's own settings.
+  const [chooseLeft, setChooseLeft] = useState(CHOOSE_AUTO_S);
+  const choose = (shots: number, l: Layout | null) => {
+    setChoice({ shots, layout: l });
+    if (l) setScreen("ready");
+  };
+  useEffect(() => {
+    if (screen !== "choose") return;
+    setChooseLeft(CHOOSE_AUTO_S);
+    const t = setInterval(() => setChooseLeft((n) => Math.max(0, n - 1)), 1000);
+    const poke = () => setChooseLeft(CHOOSE_AUTO_S);
+    window.addEventListener("pointerdown", poke);
+    return () => { clearInterval(t); window.removeEventListener("pointerdown", poke); };
+  }, [screen]);
+  useEffect(() => {
+    if (screen === "choose" && chooseLeft === 0) choose(guest?.shotsPerSession ?? 1, (guest?.template?.layout ?? "landscape") as Layout);
+  }, [screen, chooseLeft]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The guest's design: starts from the event's, each tap redraws the print in place.
+  const baseLook: Look = {
+    primaryColor: guest?.primaryColor ?? "#0b0c0a", accentColor: guest?.accentColor ?? "#c6f36b",
+    pattern: guest?.template?.pattern ?? "none", frameStyle: guest?.template?.frameStyle ?? "line",
+    photoStyle: guest?.template?.photoStyle ?? "rounded", fontStyle: guest?.template?.fontStyle ?? "serif",
+  };
+  const restyle = (change: Partial<Look>) => {
+    const next = { ...(look ?? baseLook), ...change };
+    setLook(next);
+    setReviewLeft(REVIEW_AUTO_S); // still choosing: don't save out from under them
+    void compose(shotsRef.current, next, true);
+  };
+
   // Nobody taps "Looks great"? Save after a minute anyway, so a guest who walks away still gets their photos.
   const [reviewLeft, setReviewLeft] = useState(REVIEW_AUTO_S);
   const approveRef = useRef<() => void>(() => undefined);
@@ -443,7 +483,8 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   useEffect(() => { if (screen === "review" && reviewLeft === 0) approveRef.current(); }, [screen, reviewLeft]);
 
   const approve = () => {
-    const sharing = !!config?.storage && guest?.galleryEnabled !== false;
+    // free self-service sessions: photos on screen only (still saved for the owner), no QR, no print
+    const sharing = !!config?.storage && guest?.galleryEnabled !== false && !selfService?.freeSessions;
     setDoneLeft(sharing ? DONE_RESET_QR_S : DONE_RESET_S);
     setScreen("done");
     const s = session.current;
@@ -496,7 +537,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
 
   // Walked away? Abandon the session after a minute of no touches (never during the countdown).
   useEffect(() => {
-    if (screen !== "ready" && screen !== "review" && screen !== "pay") return;
+    if (screen !== "ready" && screen !== "pay") return; // review saves itself after a minute instead
     let t = setTimeout(() => reset("ABANDONED"), INACTIVITY_MS);
     const poke = () => { clearTimeout(t); t = setTimeout(() => reset("ABANDONED"), INACTIVITY_MS); };
     window.addEventListener("pointerdown", poke);
@@ -524,7 +565,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     loadConfig();
   }
 
-  const previewing = ["welcome", "pay", "ready", "countdown", "camera"].includes(screen) && camReady;
+  const previewing = ["welcome", "pay", "choose", "ready", "countdown", "camera"].includes(screen) && camReady;
   const showVideo = !dslr && previewing;
   const showLive = dslr && previewing && !!agent.liveUrl;
 
@@ -640,8 +681,9 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
           {payVoucherOn && <label className="k-voucher">
             <span className="k-cap">Voucher code</span>
             <input value={voucher} onChange={(e) => setVoucher(e.target.value.toUpperCase())} autoComplete="off" autoCapitalize="characters"
-              spellCheck={false} inputMode="text" maxLength={12} placeholder="XXXX-XXXX" autoFocus={!payQrOn} aria-invalid={payError ? true : undefined} />
+              spellCheck={false} inputMode="none" maxLength={12} placeholder="XXXX-XXXX" autoFocus={!payQrOn} aria-invalid={payError ? true : undefined} />
           </label>}
+          {payVoucherOn && <Keypad value={voucher} onChange={setVoucher} />}
           {payError && <p className="k-error" role="alert">{payError}</p>}
           <div className="k-actions">
             {payVoucherOn && <button className={payQrOn ? "k-btn" : "k-btn big"} type="submit" disabled={paying || voucher.trim().length < 4}>{paying ? "Checking…" : "Use voucher"}</button>}
@@ -649,6 +691,33 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
           </div>
           </>)}
         </form>
+      )}
+      {screen === "choose" && (
+        <div className="k-panel k-choose">
+          <p className="k-cap k-eyebrow">{config?.event?.name}</p>
+          {!choice ? (<>
+            <h1 className="k-title small">How many photos?</h1>
+            <div className="k-choices">
+              {[1, 2, 3, 4].map((n) => (
+                <button key={n} type="button" className="k-choice num" onClick={() => choose(n, n === 1 ? "landscape" : null)}>
+                  <b>{n}</b><span>{n === 1 ? "photo" : "photos"}</span>
+                </button>
+              ))}
+            </div>
+          </>) : (<>
+            <h1 className="k-title small">Pick a layout</h1>
+            <div className="k-choices">
+              {(["landscape", "strip", "grid"] as Layout[]).map((l) => (
+                <button key={l} type="button" className="k-choice" onClick={() => choose(choice.shots, l)}>
+                  <LayoutThumb layout={l} shots={choice.shots} orientation={config?.camera.orientation ?? "landscape"} />
+                  <span>{LAYOUT_NAME[l]}</span>
+                </button>
+              ))}
+            </div>
+            <button type="button" className="k-btn ghost" onClick={() => setChoice(null)}>Back</button>
+          </>)}
+          <p className="k-cap">Starting with the usual settings in {chooseLeft}s</p>
+        </div>
       )}
       {screen === "ready" && (
         // Priority, top to bottom: what's happening, how long until it starts, what to do, the fine print.
@@ -715,6 +784,30 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
                 </div>
               </>
             )}
+            {selfService && design && (
+              <div className="k-design-picks" aria-label="Design">
+                <div className="k-swatches">
+                  {PALETTES.map((p) => {
+                    const cur = look ?? baseLook;
+                    const on = cur.primaryColor === p.primaryColor && cur.accentColor === p.accentColor;
+                    return (
+                      <button key={p.name} type="button" className={"k-swatch" + (on ? " on" : "")} aria-label={p.name} aria-pressed={on}
+                        ref={(el) => { el?.style.setProperty("--a", p.primaryColor); el?.style.setProperty("--b", p.accentColor); }}
+                        onClick={() => restyle({ primaryColor: p.primaryColor, accentColor: p.accentColor })} />
+                    );
+                  })}
+                </div>
+                {(Object.keys(STYLE_OPTIONS) as StyleKey[]).map((k) => (
+                  <div key={k} className="k-chips" role="group" aria-label={STYLE_LABEL[k]}>
+                    <span className="k-cap">{STYLE_LABEL[k]}</span>
+                    {STYLE_OPTIONS[k].map(([v, label]) => {
+                      const on = (look ?? baseLook)[k] === v;
+                      return <button key={v} type="button" className={"k-chip" + (on ? " on" : "")} aria-pressed={on} onClick={() => restyle({ [k]: v } as Partial<Look>)}>{label}</button>;
+                    })}
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="k-actions col">
               <button className="k-btn big" type="button" onClick={approve}>Looks great</button>
               <button className="k-btn ghost" type="button" onClick={retakeAll}>{shots.length > 1 ? "Retake all" : "Retake"}</button>
@@ -767,6 +860,34 @@ function printState(j: AgentJob): { state: "queued" | "printing" | "done" | "fai
   if (j.status === "completed") return { state: "done" };
   if (j.status === "failed" || j.status === "cancelled") return { state: "failed", message: j.error ?? undefined };
   return { state: j.status === "printing" ? "printing" : "queued" };
+}
+
+// On-screen keys for voucher codes: touch-screen booths often have no keyboard. Only the characters
+// codes use (no I, L, O, U); the dash goes in by itself.
+const CODE_KEYS = "0123456789ABCDEFGHJKMNPQRSTVWXYZ".split("");
+function Keypad({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const raw = value.replace(/[^0-9A-Z]/g, "");
+  const set = (r: string) => onChange(r.length > 4 ? `${r.slice(0, 4)}-${r.slice(4, 8)}` : r);
+  return (
+    <div className="k-keypad" role="group" aria-label="Keypad">
+      {CODE_KEYS.map((k) => <button key={k} type="button" className="k-key" disabled={raw.length >= 8} onClick={() => set(raw + k)}>{k}</button>)}
+      <button type="button" className="k-key wide" onClick={() => set(raw.slice(0, -1))} aria-label="Delete">⌫</button>
+      <button type="button" className="k-key wide" onClick={() => set("")}>Clear</button>
+    </div>
+  );
+}
+
+/** A small picture of where the photos go on the print, for choosing a layout. */
+function LayoutThumb({ layout, shots, orientation }: { layout: Layout; shots: number; orientation: "landscape" | "portrait" }) {
+  const p = plan(layout, shots, orientation);
+  const pct = (v: number, of: number) => `${((v / of) * 100).toFixed(2)}%`;
+  return (
+    <span className="k-thumb" ref={(el) => el?.style.setProperty("--r", (p.width / p.height).toFixed(4))} aria-hidden="true">
+      {p.slots.map((s, i) => (
+        <i key={i} ref={(el) => { if (!el) return; el.style.left = pct(s.x, p.width); el.style.top = pct(s.y, p.height); el.style.width = pct(s.w, p.width); el.style.height = pct(s.h, p.height); }} />
+      ))}
+    </span>
+  );
 }
 
 function Center({ children }: { children: React.ReactNode }) {

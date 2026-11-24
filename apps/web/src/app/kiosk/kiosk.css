@@ -62,7 +62,7 @@
 /* Words over the live camera stay readable whatever is in the picture (a white wall, a bright window):
    light text on a translucent glass panel just behind the words; the rest of the preview stays clear. */
 .ks-welcome, .ks-ready, .ks-camera, .ks-pay { --k-ink: #f6f5f0; }
-.ks-ready .k-panel, .ks-camera .k-panel, .ks-camera .k-center, .ks-pay .k-panel {
+.ks-ready .k-panel, .ks-camera .k-panel, .ks-camera .k-center, .ks-pay .k-panel, .ks-choose .k-panel {
   background: rgba(8, 9, 8, .5); border: 1px solid rgba(255, 255, 255, .14); border-radius: 28px;
   -webkit-backdrop-filter: blur(14px) saturate(1.1); backdrop-filter: blur(14px) saturate(1.1);
   box-shadow: 0 20px 60px -20px rgba(0, 0, 0, .5);
@@ -78,7 +78,7 @@
 /* Over the camera, words are always light (on glass or a deep shadow), whatever the event's brand
    colour: a light brand colour makes the kiosk's own screens dark-on-light, which would put dark
    words on the dark glass and dark titles over a dark room. */
-:is(.ks-welcome, .ks-ready, .ks-camera, .ks-pay, .ks-countdown) :is(.k-tap, .k-panel, .k-center, .k-peek-bar) { --k-ink: #f6f5f0; color: #f6f5f0; }
+:is(.ks-welcome, .ks-ready, .ks-camera, .ks-pay, .ks-choose, .ks-countdown) :is(.k-tap, .k-panel, .k-center, .k-peek-bar) { --k-ink: #f6f5f0; color: #f6f5f0; }
 .ks-welcome .k-hero { text-shadow: 0 2px 6px rgba(0, 0, 0, .8), 0 6px 50px rgba(0, 0, 0, .65), 0 0 120px rgba(0, 0, 0, .5); }
 
 .k-tap { position: relative; z-index: 2; inset: 0; width: 100%; height: 100%; border: 0; background: transparent; color: inherit; display: grid; place-content: center; justify-items: center; gap: 26px; text-align: center; cursor: pointer; padding: 32px; }
@@ -201,3 +201,31 @@
 }
 .k-voucher input:focus { border-color: var(--k-accent); }
 .k-voucher input[aria-invalid="true"] { border-color: #ff8a6a; }
+
+/* Self-service: choose photos and layout (over the camera, on glass) */
+.k-choices { display: flex; flex-wrap: wrap; justify-content: center; gap: 22px; }
+.k-choice { display: grid; justify-items: center; align-content: center; gap: 12px; min-width: 170px; min-height: 170px; padding: 22px 24px; touch-action: manipulation; border-radius: 22px; border: 2px solid rgba(255, 255, 255, .22); background: rgba(255, 255, 255, .06); color: inherit; font: 500 16px/1.2 var(--mono); text-transform: uppercase; letter-spacing: .05em; cursor: pointer; }
+.k-choice:active, .k-choice:focus-visible { border-color: var(--k-accent); background: color-mix(in srgb, var(--k-accent) 18%, transparent); outline: none; }
+.k-choice.num b { font: 300 clamp(64px, 9vw, 110px)/1 var(--serif); }
+.k-thumb { position: relative; display: block; height: clamp(110px, 18vh, 170px); aspect-ratio: var(--r); background: #f6f5f0; border-radius: 6px; box-shadow: 0 10px 30px -10px rgba(0, 0, 0, .6); }
+.k-thumb i { position: absolute; background: #9aa092; border-radius: 3px; }
+
+/* Self-service: the guest's design, on the review screen */
+.k-design-picks { display: grid; gap: 18px; width: 100%; justify-items: center; }
+.k-swatches { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; }
+.k-swatch { width: 60px; height: 60px; touch-action: manipulation; border-radius: 50%; border: 3px solid transparent; background: linear-gradient(135deg, var(--a) 50%, var(--b) 50%); box-shadow: 0 0 0 1px rgba(255, 255, 255, .25); cursor: pointer; padding: 0; }
+.k-swatch.on { border-color: var(--k-accent); box-shadow: 0 0 0 2px var(--k-bg), 0 0 0 4px var(--k-accent); }
+.k-chips { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; }
+.k-chips .k-cap { width: 100%; text-align: center; }
+.k-chip { min-height: 56px; padding: 0 20px; touch-action: manipulation; border-radius: 999px; border: 1.5px solid color-mix(in srgb, var(--k-ink) 35%, transparent); background: transparent; color: var(--k-ink); font: 500 16px/1 var(--mono); cursor: pointer; }
+.k-chip:active { transform: scale(.96); }
+.k-chip.on { border-color: var(--k-accent); background: color-mix(in srgb, var(--k-accent) 22%, transparent); }
+.ks-review .k-side { max-height: 92vh; overflow-y: auto; }
+
+/* On-screen keypad for voucher codes */
+.k-keypad { display: grid; grid-template-columns: repeat(8, minmax(52px, 64px)); gap: 8px; justify-content: center; }
+.k-key { min-height: 56px; border-radius: 14px; border: 1.5px solid rgba(255, 255, 255, .25); background: rgba(255, 255, 255, .08); color: #f6f5f0; font: 600 20px/1 var(--mono); cursor: pointer; touch-action: manipulation; }
+.k-key:active { background: color-mix(in srgb, var(--k-accent) 35%, transparent); transform: scale(.95); }
+.k-key[disabled] { opacity: .35; }
+.k-key.wide { grid-column: span 4; font-size: 16px; text-transform: uppercase; letter-spacing: .05em; }
+@media (max-width: 640px) { .k-keypad { grid-template-columns: repeat(6, minmax(44px, 1fr)); } .k-key.wide { grid-column: span 3; } }

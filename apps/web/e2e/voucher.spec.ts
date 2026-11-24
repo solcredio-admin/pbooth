@@ -30,11 +30,29 @@ test("a guest enters a voucher at a self-service booth", async ({ browser }) => 
   await page.getByRole("button", { name: "Use voucher" }).click();
   await expect(page.locator(".k-pay .k-error")).toContainText("isn't valid");
 
-  await page.locator(".k-voucher input").fill(codes[0]);
+  // typed on the on-screen keypad (touch screens may have no keyboard); the dash goes in by itself
+  await page.getByRole("button", { name: "Clear" }).click();
+  for (const ch of codes[0].replace("-", "")) await page.locator(".k-keypad").getByRole("button", { name: ch, exact: true }).click();
+  await expect(page.locator(".k-voucher input")).toHaveValue(codes[0]);
   await page.getByRole("button", { name: "Use voucher" }).click();
-  await expect(page.locator(".kiosk.ks-ready")).toBeVisible(); // paid: on to "Get ready"
+
+  // paid: the guest picks how many photos and the layout
+  await expect(page.locator(".kiosk.ks-choose")).toBeVisible();
+  await page.locator(".k-choice.num").filter({ hasText: "2" }).click();
+  await expect(page.locator(".k-choice .k-thumb")).toHaveCount(3);
+  await page.getByRole("button", { name: /Photo strips/ }).click();
+  await expect(page.locator(".kiosk.ks-ready")).toBeVisible();
+  await expect(page.locator(".k-ready .k-eyebrow")).toHaveText("2 photos in a row");
   await page.getByRole("button", { name: "Start now" }).click();
   await expect(page.locator(".kiosk.ks-review")).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator(".k-pick")).toHaveCount(2);
+
+  // ...and the design after shooting: each tap redraws the print
+  const before = await page.locator(".k-design").getAttribute("src");
+  await page.getByRole("button", { name: "Blush" }).click();
+  await page.getByRole("group", { name: "Background" }).getByRole("button", { name: "Dots" }).click();
+  await expect(page.locator(".k-design")).not.toHaveAttribute("src", before!);
+  await expect(page.getByRole("button", { name: "Blush" })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Looks great" }).click();
   await expect(page.locator(".kiosk.ks-done")).toBeVisible();
 

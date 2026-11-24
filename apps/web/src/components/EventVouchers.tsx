@@ -114,13 +114,23 @@ export function EventVouchers({ event }: { event: EventDto }) {
 function NewCodesCard({ event, made, onClose }: { event: EventDto; made: NewCodes; onClose: () => void }) {
   const sheet = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
+  // A cut-ready sheet: business-card-size cards (89 x 51 mm) edge to edge, 10 per page (fits A4 and
+  // Letter), so every straight cut separates two cards. Print at 100% ("Actual size").
   const print = () => {
-    const w = window.open("", "_blank", "width=800,height=900");
+    const w = window.open("", "_blank", "width=820,height=960");
     if (!w || !sheet.current) return;
-    w.document.write(`<!doctype html><title>Vouchers · ${event.name}</title><style>
-      body{font:14px ui-monospace,Menlo,monospace;margin:16px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-      .card{border:1px dashed #999;border-radius:8px;padding:12px;text-align:center;break-inside:avoid}
-      .code{font-size:20px;font-weight:700;letter-spacing:.1em;margin:6px 0}.small{font-size:11px;color:#555}</style>${sheet.current.innerHTML}`);
+    w.document.write(`<!doctype html><meta charset="utf-8"><title>Vouchers · ${event.name.replace(/</g, "&lt;")}</title><style>
+      @page{margin:12mm}*{box-sizing:border-box}body{margin:0;font:12px ui-monospace,Menlo,Consolas,monospace;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      .note{margin:0 0 6mm;font-size:11px;color:#666}@media print{.note{display:none}}
+      .page{display:grid;grid-template-columns:repeat(2,89mm);grid-auto-rows:51mm;justify-content:center;break-after:page}
+      .page:last-child{break-after:auto}
+      .card{position:relative;border:.2mm solid #9a9a9a;margin:0 -.1mm -.1mm 0;padding:4mm 5mm 4mm 7mm;display:grid;grid-template-rows:auto auto 1fr auto;overflow:hidden}
+      .card:before{content:"";position:absolute;left:0;top:0;bottom:0;width:2.5mm;background:#111}
+      .ev{font-size:8.5pt;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .kind{font:600 7.5pt ui-sans-serif,system-ui,Arial,sans-serif;letter-spacing:.14em;text-transform:uppercase;margin-top:1mm}
+      .code{align-self:center;font-size:19pt;font-weight:700;letter-spacing:.12em;white-space:nowrap}
+      .small{font-size:7.5pt;line-height:1.35;color:#333}</style>
+      <p class="note">Print at 100% (turn off "Fit to page"), then cut along the grey lines. 10 cards per page.</p>${sheet.current.innerHTML}`);
     w.document.close(); w.focus(); w.print();
   };
   return (
@@ -133,15 +143,22 @@ function NewCodesCard({ event, made, onClose }: { event: EventDto; made: NewCode
         <button className="plain" type="button" onClick={onClose}>Done</button>
       </div>
       <div ref={sheet} hidden>
-        <div className="grid">
-          {made.codes.map((c) => (
-            <div className="card" key={c}>
-              <div className="small">{event.name}</div>
-              <div className="code">{c}</div>
-              <div className="small">{made.kind === "UNLIMITED" ? "Free sessions" : `One photobooth session · ${peso(event.priceCentavos, event.currency)} value`}{made.expiresAt ? ` · until ${new Date(made.expiresAt).toLocaleDateString()}` : ""}</div>
-            </div>
-          ))}
-        </div>
+        {Array.from({ length: Math.ceil(made.codes.length / 10) }, (_, page) => (
+          <div className="page" key={page}>
+            {made.codes.slice(page * 10, page * 10 + 10).map((c) => (
+              <div className="card" key={c}>
+                <div className="ev">{event.name}</div>
+                <div className="kind">{made.kind === "UNLIMITED" ? "Free sessions code" : "Photobooth voucher"}</div>
+                <div className="code">{c}</div>
+                <div className="small">
+                  {made.kind === "UNLIMITED" ? "Unlimited free sessions" : `One session with prints · ${peso(event.priceCentavos, event.currency)}`}<br />
+                  {made.expiresAt && <>Valid until {new Date(made.expiresAt).toLocaleDateString(undefined, { dateStyle: "medium" })}<br /></>}
+                  Tap the booth screen, then enter this code.
+                </div>
+              </div>
+            ))}
+          </div>
+        ))}
       </div>
     </section>
   );
