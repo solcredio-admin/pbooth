@@ -276,6 +276,9 @@ Resolves the major open issues first.
 3. **Animated GIF / boomerang** delivered along with the photo.
 4. **Telegram alerts for the whole system** (managed events too); phase 10 covers self-service only.
 
+5. **Support email on the kiosk's help screen** (the owner will give the address): guests email their
+   reference themselves, so they can be contacted without pbooth collecting anything from them.
+
 ## 13. Phase 12 (logged 2026-11-25, not started)
 
 Packages and extra prints, paper and ink tracking, and the location dashboard with monthly venue statements.
