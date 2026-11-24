@@ -10,6 +10,8 @@ import { ROLE_HELP, ROLE_LABEL, useMe } from "@/lib/roles";
 type Tab = "account" | "users" | "backups" | "storage" | "about";
 
 // Settings in tabs. Users, backups and storage are for admins only (and the API enforces it).
+const builtAt = process.env.PBOOTH_BUILT_AT;
+
 export function SettingsView({ storage, backups, users, version }: {
   storage: { enabled: boolean; bucket: string | null } | null; backups: BackupList | null; users: UserRow[] | null; version: string;
 }) {
@@ -65,7 +67,9 @@ export function SettingsView({ storage, backups, users, version }: {
           <div className="host-head"><span className="cap">This installation</span><h2 id="ab">About</h2></div>
           <div className="panel">
             <dl className="kv">
-              <dt>Version</dt><dd>{version}</dd>
+              <dt>Version</dt><dd><code title={version}>{/^[0-9a-f]{40}$/.test(version) ? version.slice(0, 7) : version}</code></dd>
+              {/* the viewer's own time zone and format; the server can't know it */}
+              <dt>Built</dt><dd suppressHydrationWarning>{builtAt ? new Intl.DateTimeFormat(undefined, { dateStyle: "long", timeStyle: "short" }).format(new Date(builtAt)) : "—"}</dd>
               <dt>Locked out</dt><dd>Run <code>admin:reset-password</code> on the server (see the README).</dd>
             </dl>
           </div>

@@ -528,7 +528,8 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
       {showLive && (
         <div className="k-frame">
           <div className="k-view">
-            <img className={"k-media k-live" + (config?.camera.mirrorPreview ? " mirror" : "") + (rotation === 90 || rotation === 270 ? " sideways" : "")} src={agent.liveUrl!} alt="" />
+            {/* crossOrigin: the agent allows this site, so the frame at the shutter can be copied for the instant photo preview */}
+            <img className={"k-media k-live" + (config?.camera.mirrorPreview ? " mirror" : "") + (rotation === 90 || rotation === 270 ? " sideways" : "")} src={agent.liveUrl!} crossOrigin="anonymous" alt="" />
             {cropGuide && <div className="k-safe" aria-hidden="true" />}
           </div>
         </div>

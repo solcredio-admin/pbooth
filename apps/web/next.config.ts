@@ -9,6 +9,8 @@ const config: NextConfig = {
   output: "standalone",
   outputFileTracingRoot: path.join(import.meta.dirname, "../.."),
   poweredByHeader: false,
+  // When this version of the web app was built, shown in Settings → About.
+  env: { PBOOTH_BUILT_AT: new Date().toISOString() },
   reactStrictMode: true,
   // Socket.IO's path ends in "/" (/socket.io/?EIO=4…); don't let Next redirect it away.
   skipTrailingSlashRedirect: true,
