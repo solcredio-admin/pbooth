@@ -106,7 +106,39 @@ what it was done to, IP); nothing shows it yet.
 - Guest actions (voucher tries, pairing) are noisy: hidden until asked for.
 - To decide: how long to keep it (proposed: 1 year; money and user changes for good).
 
-**Order:** 11.1 is done; then 11.5 -> 11.4 -> 11.6 -> 11.2 -> 11.3. The two small ones are useful on day one; the GIF is last because
+### 11.7 User roles (M)
+
+| | Owner | Super admin | Event admin | Hardware admin (was Booth admin) | Sales admin (new) | Kiosk admin (was Kiosk operator) | Cashier |
+|---|---|---|---|---|---|---|---|
+| Users and roles | manage | no | no | no | no | no | no |
+| Settings, backups, storage, alerts | manage | manage | no | no | no | no | no |
+| Events | manage | manage | manage | see | see | **assigned only**, see | **assigned only**, see |
+| Booths and stations (and stuck prints) | manage | manage | see | manage | see | only to open the kiosk | no |
+| Sales tab | all | all | no | no | see all | no | no |
+| Vouchers and sales of one event | all | all | no | no | see | no | **assigned only** |
+| Open a booth's kiosk | yes | yes | no | yes | no | **assigned events only** | no |
+
+- **On each event, two pickers:** which kiosk admins may open its kiosks, and which cashiers may see its vouchers and
+  sales. Several people each; an account can be on several events. Nobody assigned = only owner and super admin (and
+  hardware admins, for the kiosk). The cashier list exists already (`EventCashier`); kiosk admins get the same kind.
+- A kiosk admin signs in to a short list of their events and the booths on them, with one button: open the kiosk.
+  Nothing else in the menu. The server refuses a booth that isn't on one of their events.
+- **Moving over:** today's "Super admin" accounts (`OWNER`) stay Owner, so nobody loses access. Booth admins become
+  Hardware admins and kiosk operators Kiosk admins by name only. **Kiosk operators then see nothing until they're
+  assigned**: assign them in the same update. At least one active owner must always exist (already enforced).
+- Enforced by the server on every request, as now; hidden menus are only for tidiness. Live updates and CSV exports
+  follow the same rules. Every role change goes into the audit log (11.6).
+- Test: one table of role x action, generated from the one above, so a new endpoint can't be forgotten.
+
+What gets taken away compared to today: event admins lose Sales, vouchers and refunds, and assigning booths may need
+deciding; cashiers can no longer edit, start or end their event; kiosk operators no longer see every event and booth.
+
+**To decide:** (1) may an event admin put a booth on an event (booking, not managing it)? Proposed: yes. (2) Do
+cashiers still make vouchers and hand out replacement vouchers? Proposed: yes, for their event; refunds of money stay
+with owner and super admin. (3) May a super admin refund money? Proposed: yes. (4) Does an event admin see event
+galleries and photos? Proposed: yes, as today; sales admin: no.
+
+**Order:** 11.1 is done; then 11.5 -> 11.4 -> 11.7 -> 11.6 -> 11.2 -> 11.3. The two small ones are useful on day one; the GIF is last because
 nothing depends on it.
 
 ---
