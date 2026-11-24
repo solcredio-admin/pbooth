@@ -260,25 +260,6 @@ A **Transactions** page per self-service event (and an all-locations view for th
 4. Transactions page and CSV export.
 5. Lockdown protocol (checklist + kiosk staff exit and hardening), then optional setup scripts.
 
-## 12. Phase 11 (logged 2026-11-25, not started)
+## 12. What's next
 
-Resolves the major open issues first.
-
-1. **Stations.** Booths become the camera side (kiosk + camera agent); **stations** are print agents with
-   their own tab. A kiosk (an iPad too) sends its prints through the server to a station, so the kiosk and
-   the printer no longer have to be on the same computer.
-   - Links: events ↔ booths (as today), booths ↔ stations. Many to many: an event has several booths, a
-     booth can have several stations, and a station can be shared by several booths.
-   - To settle when designing it: which of a booth's stations prints (first free, or a fixed order with a
-     fallback), what happens when every station is down, and moving today's booths, whose one agent does
-     both jobs, without re-enrolling them.
-2. **Remote booth control**: pause/resume, reload the kiosk, retry a stuck print, update the agent, screen snapshot.
-3. **Animated GIF / boomerang** delivered along with the photo.
-4. **Telegram alerts for the whole system** (managed events too); phase 10 covers self-service only.
-
-5. **Support email on the kiosk's help screen** (the owner will give the address): guests email their
-   reference themselves, so they can be contacted without pbooth collecting anything from them.
-
-## 13. Phase 12 (logged 2026-11-25, not started)
-
-Packages and extra prints, paper and ink tracking, and the location dashboard with monthly venue statements.
+Phases 11 to 13 are planned in [ROADMAP.md](ROADMAP.md); none of it is built.
