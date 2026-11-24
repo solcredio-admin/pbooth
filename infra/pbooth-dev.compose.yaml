@@ -1,0 +1,58 @@
+# Development stack on Stravex (~/compose/pbooth-dev): test code and mock data, never real events.
+# Separate from production (project "pbooth"): own database, own photo storage, nothing shared.
+#   tools/dev-stack.sh     sends this checkout to Stravex, builds it there and starts it
+# Everything is published on 127.0.0.1 only; reach it through an SSH tunnel:
+#   ssh -N -L 4400:127.0.0.1:4000 -L 8333:127.0.0.1:8333 stravex     (then the "preview" in launch.json)
+name: pbooth-dev
+
+services:
+  app:
+    image: pbooth:dev
+    build: { context: ./src, args: { PBOOTH_VERSION: development } }
+    restart: unless-stopped
+    labels: { wud.watch: "false", com.centurylinklabs.watchtower.enable: "false" }
+    depends_on:
+      db: { condition: service_healthy }
+      s3: { condition: service_started }
+    # shares s3's network: photo links are signed for localhost:8333, the same address the tunnel gives a browser
+    network_mode: "service:s3"
+    environment:
+      DATABASE_URL: postgresql://postgres:test@db:5432/test
+      APP_ORIGIN: http://localhost:3399
+      API_HOST: 0.0.0.0
+      TRUST_PROXY_HOPS: "1"
+      ALLOW_SIMULATED_BOOTHS: "true"
+      S3_ENDPOINT: http://localhost:8333
+      S3_BUCKET: pbooth-e2e
+      S3_ACCESS_KEY_ID: test
+      S3_SECRET_ACCESS_KEY: test
+    mem_limit: 768m
+    cpus: 1
+    logging: { driver: json-file, options: { max-size: "5m", max-file: "2" } }
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    labels: { wud.watch: "false", com.centurylinklabs.watchtower.enable: "false" }
+    environment: { POSTGRES_PASSWORD: test, POSTGRES_DB: test } # mock data on a private network, no published port
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U postgres -d test"], interval: 10s, timeout: 5s, retries: 6 }
+    mem_limit: 256m
+    logging: { driver: json-file, options: { max-size: "5m", max-file: "2" } }
+
+  s3:
+    image: chrislusf/seaweedfs:latest
+    command: server -s3 -s3.port=8333 -dir=/data -master.volumeSizeLimitMB=512 -ip=127.0.0.1 -ip.bind=0.0.0.0
+    restart: unless-stopped
+    labels: { wud.watch: "false", com.centurylinklabs.watchtower.enable: "false" }
+    volumes: [s3data:/data]
+    ports:
+      - "127.0.0.1:8333:8333" # photos
+      - "127.0.0.1:3398:3000" # web app
+      - "127.0.0.1:4000:4000" # API, for the local preview
+    mem_limit: 512m
+    logging: { driver: json-file, options: { max-size: "5m", max-file: "2" } }
+
+volumes:
+  pgdata:
+  s3data:

@@ -269,6 +269,9 @@ corepack pnpm install
 docker compose -f infra/docker-compose.dev.yml up -d
 ```
 
+To run the whole app with mock data on Stravex (the `pbooth-dev` stack, separate from production):
+`tools/dev-stack.sh`. It is reachable only through an SSH tunnel; see `infra/pbooth-dev.compose.yaml`.
+
 ```bash
 cp .env.example .env    # uncomment the "local development" block
 ```
