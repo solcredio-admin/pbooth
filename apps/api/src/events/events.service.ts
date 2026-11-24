@@ -41,7 +41,7 @@ export class EventsService {
   async list(q: ListEvents, scope?: EventScope) {
     const where: Prisma.EventWhereInput = {
       ...scoped(scope),
-      ...(q.status ? { status: q.status } : {}),
+      ...(q.status ? { status: q.status } : q.hideArchived ? { status: { not: "ARCHIVED" } } : {}),
       ...(q.q ? { OR: ["name", "organizerName", "venueName"].map((f) => ({ [f]: { contains: q.q, mode: "insensitive" } })) } : {}),
     };
     const [items, total] = await this.db.$transaction([

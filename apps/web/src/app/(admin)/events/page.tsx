@@ -12,9 +12,10 @@ const PAGE_SIZE = 20;
 export default async function EventsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
   const q = sp.q?.trim() ?? "";
-  const status = STATUSES.includes(sp.status as EventStatus) ? sp.status : "";
+  // no status chosen = everything except archived events; "ALL" shows those too
+  const status = STATUSES.includes(sp.status as EventStatus) || sp.status === "ALL" ? sp.status : "";
   const page = Math.max(1, Number(sp.page) || 1);
-  const qs = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE), ...(q ? { q } : {}), ...(status ? { status } : {}) });
+  const qs = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE), ...(q ? { q } : {}), ...(status && status !== "ALL" ? { status } : !status ? { hideArchived: "1" } : {}) });
   const data = await apiGet<Page<EventDto>>(`/events?${qs}`);
   const pages = Math.max(1, Math.ceil(data.total / PAGE_SIZE));
   const link = (p: number) => `/events?${new URLSearchParams({ ...(q ? { q } : {}), ...(status ? { status } : {}), page: String(p) })}`;
@@ -35,7 +36,8 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
               <label><span className="cap">Search</span><input name="q" defaultValue={q} placeholder="Name, organizer or venue" /></label>
               <label className="narrow"><span className="cap">Status</span>
                 <select name="status" defaultValue={status}>
-                  <option value="">Any status</option>
+                  <option value="">Current (no archived)</option>
+                  <option value="ALL">Any status, with archived</option>
                   {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
                 </select>
               </label>

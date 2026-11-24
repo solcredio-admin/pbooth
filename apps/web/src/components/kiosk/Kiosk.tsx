@@ -772,6 +772,11 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
             : <div className={`k-thumbs n${shots.length}`}>{shots.map((x, i) => <img key={x.url} src={x.url} alt={`Photo ${i + 1}`} />)}</div>}
           <div className="k-side">
             <h1 className="k-title small">Love it?</h1>
+            <div className="k-actions col">
+              <button className="k-btn big" type="button" onClick={approve}>Looks great</button>
+              <button className="k-btn ghost" type="button" onClick={retakeAll}>{shots.length > 1 ? "Retake all" : "Retake"}</button>
+            </div>
+            <p className="k-cap k-auto" aria-live="off">Saving automatically in <b>{reviewLeft}s</b></p>
             {shots.length > 1 && (
               <>
                 <p className="k-cap">Tap a photo to retake just that one</p>
@@ -808,11 +813,6 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
                 ))}
               </div>
             )}
-            <div className="k-actions col">
-              <button className="k-btn big" type="button" onClick={approve}>Looks great</button>
-              <button className="k-btn ghost" type="button" onClick={retakeAll}>{shots.length > 1 ? "Retake all" : "Retake"}</button>
-            </div>
-            <p className="k-cap k-auto" aria-live="off">Saving automatically in <b>{reviewLeft}s</b></p>
           </div>
         </div>
       )}
@@ -862,17 +862,26 @@ function printState(j: AgentJob): { state: "queued" | "printing" | "done" | "fai
   return { state: j.status === "printing" ? "printing" : "queued" };
 }
 
-// On-screen keys for voucher codes: touch-screen booths often have no keyboard. Only the characters
-// codes use (no I, L, O, U); the dash goes in by itself.
-const CODE_KEYS = "0123456789ABCDEFGHJKMNPQRSTVWXYZ".split("");
+// On-screen QWERTY keyboard for voucher codes: touch-screen booths often have no keyboard. Codes skip
+// I, L, O and U (they read as 1, 1, 0); those keys type what they mean, U is greyed out. The dash goes
+// in by itself.
+const KEY_ROWS = ["1234567890", "QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
+const KEY_MEANS: Record<string, string> = { O: "0", I: "1", L: "1" };
 function Keypad({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const raw = value.replace(/[^0-9A-Z]/g, "");
   const set = (r: string) => onChange(r.length > 4 ? `${r.slice(0, 4)}-${r.slice(4, 8)}` : r);
+  const full = raw.length >= 8;
   return (
-    <div className="k-keypad" role="group" aria-label="Keypad">
-      {CODE_KEYS.map((k) => <button key={k} type="button" className="k-key" disabled={raw.length >= 8} onClick={() => set(raw + k)}>{k}</button>)}
-      <button type="button" className="k-key wide" onClick={() => set(raw.slice(0, -1))} aria-label="Delete">⌫</button>
-      <button type="button" className="k-key wide" onClick={() => set("")}>Clear</button>
+    <div className="k-keypad" role="group" aria-label="Keyboard">
+      {KEY_ROWS.map((row, n) => (
+        <div className="k-keyrow" key={row}>
+          {row.split("").map((k) => (
+            <button key={k} type="button" className="k-key" disabled={full || k === "U"} onClick={() => set(raw + (KEY_MEANS[k] ?? k))}>{k}</button>
+          ))}
+          {n === 3 && <button type="button" className="k-key wide" onClick={() => set(raw.slice(0, -1))} aria-label="Delete">⌫</button>}
+        </div>
+      ))}
+      <div className="k-keyrow"><button type="button" className="k-key space" onClick={() => set("")}>Clear</button></div>
     </div>
   );
 }

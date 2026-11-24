@@ -70,6 +70,7 @@ export const updateEventSchema = z.object({
 export const listEventsSchema = z.object({
   q: z.string().trim().max(120).optional(),
   status: z.enum(["DRAFT", "SCHEDULED", "ACTIVE", "COMPLETED", "ARCHIVED"]).optional(),
+  hideArchived: z.enum(["1"]).optional(), // the events list hides archived ones unless asked for
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
   order: z.enum(["asc", "desc"]).default("desc"),
