@@ -3,6 +3,8 @@
 //   pbooth-agent enroll --server https://pbooth.example.com --code XXXX-XXXX [--simulate]
 //   pbooth-agent run [--port 47800]
 //   pbooth-agent doctor          checks gPhoto2, CUPS/Windows printing, cameras and printers
+import { setDefaultResultOrder } from "node:dns";
+import { setDefaultAutoSelectFamilyAttemptTimeout } from "node:net";
 import { platform } from "node:os";
 import { stateDir } from "./paths.js";
 import { Store } from "./store.js";
@@ -12,6 +14,11 @@ import { compatibilityFor } from "./camera/registry.js";
 import { CupsPrinter } from "./printer/cups.js";
 import { WindowsPrinter } from "./printer/windows.js";
 import { available } from "./exec.js";
+
+// Booth networks (café and venue Wi-Fi) often advertise IPv6 that doesn't actually work: try IPv4
+// first and don't wait long on a dead address, or every request to the server times out.
+setDefaultResultOrder("ipv4first");
+setDefaultAutoSelectFamilyAttemptTimeout(500);
 
 const [cmd, ...args] = process.argv.slice(2);
 const flag = (n: string) => { const i = args.indexOf(`--${n}`); return i >= 0 ? args[i + 1] : undefined; };
