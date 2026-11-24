@@ -10,7 +10,7 @@ import { plan, type Layout } from "@/lib/template/layout";
 import { PALETTES, STYLE_LABEL, STYLE_OPTIONS, type Look, type StyleKey } from "@/lib/template/styles";
 import { boothAspect, frameShot, snapshot } from "@/lib/kiosk/frame";
 import { newGalleryToken } from "@/lib/kiosk/upload";
-import { countdownBeep, shutterSound, unlockSound, warningTick } from "@/lib/kiosk/sound";
+import { countdownBeep, readyDing, shutterSound, unlockSound, warningTick } from "@/lib/kiosk/sound";
 import QRCode from "qrcode";
 
 type Screen =
@@ -486,6 +486,9 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   useEffect(() => { if (screen === "review" && reviewLeft === 0) approveRef.current(); }, [screen, reviewLeft]);
   useEffect(() => { if (screen === "review" && reviewLeft > 0 && reviewLeft <= 10) warningTick(); }, [screen, reviewLeft]);
   useEffect(() => { if (screen === "done" && doneLeft > 0 && doneLeft <= 5) warningTick(); }, [screen, doneLeft]);
+  // photos saved: the QR link now has them, a soft ding (only when there's a QR to scan)
+  const savedAll = screen === "done" && !!qr && !!saving && saving.total > 0 && saving.pending === 0;
+  useEffect(() => { if (savedAll) readyDing(); }, [savedAll]);
   // Browsers allow sound only after a touch: the first tap anywhere turns it on.
   useEffect(() => {
     window.addEventListener("pointerdown", unlockSound);

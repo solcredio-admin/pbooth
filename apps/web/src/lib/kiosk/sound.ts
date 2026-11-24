@@ -54,3 +54,9 @@ export function shutterSound() {
   burst(0, 45, 0.9, 2600);
   burst(0.075, 60, 0.6, 1700);
 }
+
+/** A soft two-note ding: the guest's photos are saved and the QR link is ready to download. */
+export function readyDing() {
+  tone(1568, 420, 0.1);
+  setTimeout(() => tone(2093, 520, 0.08), 110);
+}
