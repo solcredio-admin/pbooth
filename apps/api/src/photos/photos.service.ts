@@ -163,6 +163,10 @@ export class PhotosService implements OnModuleInit, OnModuleDestroy {
         photos: await Promise.all(s.photos.map(async (p) => ({
           id: p.id, kind: p.kind, index: p.index, status: p.status, error: p.error,
           thumbUrl: p.thumbKey && this.storage.enabled ? await this.storage.presignGet(p.thumbKey) : null,
+          // full size, saved as a file (not opened in the browser), with a readable name
+          downloadUrl: p.status === "PROCESSED" && this.storage.enabled
+            ? await this.storage.presignGet(p.key, `${slugify(event.name)}-${s.startedAt.toISOString().slice(0, 16).replace(/[-:T]/g, "")}-${p.kind === "DESIGN" ? "design" : `photo-${p.index}`}.jpg`)
+            : null,
         }))),
       }))),
     };
@@ -239,3 +243,5 @@ export class PhotosService implements OnModuleInit, OnModuleDestroy {
 }
 
 class Fatal extends Error {}
+
+const slugify = (name: string) => name.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "pbooth";

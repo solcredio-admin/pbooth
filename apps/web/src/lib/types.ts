@@ -71,6 +71,6 @@ export interface EventPhotos {
   page: number; pageSize: number; total: number;
   sessions: {
     id: string; startedAt: string; status: string; booth: { name: string; code: string } | null; galleryToken: string | null;
-    photos: { id: string; kind: "DESIGN" | "ORIGINAL"; index: number; status: string; error: string | null; thumbUrl: string | null }[];
+    photos: { id: string; kind: "DESIGN" | "ORIGINAL"; index: number; status: string; error: string | null; thumbUrl: string | null; downloadUrl?: string | null }[];
   }[];
 }

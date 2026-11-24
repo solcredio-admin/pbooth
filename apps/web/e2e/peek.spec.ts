@@ -12,7 +12,7 @@ test("each photo shows in a frame instantly, can be retaken, then the sequence g
   expect((await admin.post("/api/v1/auth/login", { data: ADMIN, headers: h })).ok()).toBe(true);
   const booth = await (await admin.post("/api/v1/booths", { data: { name: `Peek ${Date.now()}` }, headers: h })).json();
   const event = await (await admin.post("/api/v1/events", {
-    data: { name: `Peek ${Date.now()}`, date: new Date().toISOString().slice(0, 10), startTime: "00:00", endTime: "23:59", timeZone: "UTC", config: { shotsPerSession: 3, countdownSeconds: 1, captureIntervalSeconds: 1, previewSeconds: 2 } }, headers: h,
+    data: { name: `Peek ${Date.now()}`, date: new Date().toISOString().slice(0, 10), startTime: "00:00", endTime: "23:59", timeZone: "UTC", config: { shotsPerSession: 3, countdownSeconds: 1, captureIntervalSeconds: 1, previewSeconds: 2, primaryColor: "#f3e3d3" } }, headers: h,
   })).json();
   expect(event.config.previewSeconds).toBe(2);
   await admin.post(`/api/v1/events/${event.id}/booths`, { data: { boothId: booth.id }, headers: h });
@@ -24,7 +24,11 @@ test("each photo shows in a frame instantly, can be retaken, then the sequence g
   await page.getByLabel("Pairing code").fill(code);
   await page.getByRole("button", { name: "Pair" }).click();
   await expect(page.locator(".kiosk.ks-welcome")).toBeVisible({ timeout: 30_000 });
+  // a light brand colour: words over the camera must still be light (they sit on dark glass / shadow)
+  const lightInk = (sel: string) => page.locator(sel).first().evaluate((el) => { const [r, g, b] = getComputedStyle(el).color.match(/\d+/g)!.map(Number); return (r + g + b) / 3 > 200; });
+  expect(await lightInk(".k-hero"), "welcome title").toBe(true);
   await page.locator(".k-tap").click();
+  expect(await lightInk(".ks-ready .k-text"), "instructions").toBe(true);
   await page.getByRole("button", { name: "Start now" }).click(); // skip the 10 s instructions
 
   // photo 1: shows instantly in its frame, over the live camera
@@ -65,5 +69,16 @@ test("each photo shows in a frame instantly, can be retaken, then the sequence g
   expect(await shape()).toBeCloseTo(629 / 462, 1);
   await expect(page.locator(".kiosk.ks-review")).toBeVisible({ timeout: 20_000 });
   await expect(page.locator(".k-pick")).toHaveCount(3);
+  await expect(page.locator(".k-auto")).toContainText("Saving automatically in"); // saves by itself after a minute
+
+  // Looks great: the photo on the left, the QR big on the right
+  await page.getByRole("button", { name: "Looks great" }).click();
+  await expect(page.locator(".kiosk.ks-done")).toBeVisible();
+  if (await page.locator(".k-qr.big").count()) {
+    const photo = await page.locator(".k-done-photo").boundingBox(), qr = await page.locator(".k-qr.big img").boundingBox();
+    expect(qr!.x, "QR right of the photo").toBeGreaterThan(photo!.x + photo!.width / 2);
+    expect(qr!.width, "QR is big").toBeGreaterThan(250);
+  }
+  if (process.env.E2E_SHOTS) await page.screenshot({ path: `${process.env.E2E_SHOTS}/done.png` });
   await admin.dispose();
 });

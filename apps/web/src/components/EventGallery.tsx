@@ -95,22 +95,33 @@ export function EventGallery({ event, data, origin }: { event: EventDto; data: E
           <div className="panel">
             {data.sessions.length === 0 ? <p className="cap center">No photos yet.</p> : (
               <ul className="sessions">
-                {data.sessions.map((s) => (
-                  <li key={s.id}>
-                    <div className="session-thumbs">
-                      {s.photos.map((p) => p.thumbUrl
-                        ? <img key={p.id} src={p.thumbUrl} alt={p.kind === "DESIGN" ? "Design" : `Photo ${p.index}`} className={p.kind === "DESIGN" ? "design" : undefined} />
-                        : <span key={p.id} className={`thumb-status s-${p.status}`} title={p.error ?? undefined}>{p.status.toLowerCase()}</span>)}
-                    </div>
-                    <div className="session-meta">
-                      <span className="cap">{time(s.startedAt, event.timeZone)} · {s.booth?.name ?? "Deleted booth"}</span>
+                {data.sessions.map((s) => {
+                  const design = s.photos.find((p) => p.kind === "DESIGN") ?? s.photos[0];
+                  const shots = s.photos.filter((p) => p !== design);
+                  const thumb = (p: typeof design, big: boolean) => p.thumbUrl
+                    ? <img src={p.thumbUrl} alt={p.kind === "DESIGN" ? "Design" : `Photo ${p.index}`} loading="lazy" className={big ? "design" : undefined} />
+                    : <span className={`thumb-status s-${p.status}${big ? " big" : ""}`} title={p.error ?? undefined}>{p.status.toLowerCase()}</span>;
+                  return (
+                    <li key={s.id}>
+                      {design && (design.downloadUrl
+                        ? <a className="session-main" href={design.downloadUrl} title="Download full size">{thumb(design, true)}</a>
+                        : <div className="session-main">{thumb(design, true)}</div>)}
+                      {shots.length > 0 && (
+                        <div className="session-thumbs">
+                          {shots.map((p) => p.downloadUrl
+                            ? <a key={p.id} href={p.downloadUrl} title={`Download photo ${p.index}`}>{thumb(p, false)}</a>
+                            : <span key={p.id}>{thumb(p, false)}</span>)}
+                        </div>
+                      )}
+                      <span className="cap session-when">{time(s.startedAt, event.timeZone)} · {s.booth?.name ?? "Deleted booth"}</span>
                       <span className="session-actions">
+                        {design?.downloadUrl && <a className="plain cap" href={design.downloadUrl}>Download</a>}
                         {s.galleryToken && <a className="plain cap" href={`/g/${s.galleryToken}`} target="_blank" rel="noreferrer">Guest link</a>}
                         <button className="plain cap danger" type="button" disabled={busy} onClick={() => { if (confirm("Delete this guest's photos? This can't be undone.")) run("DELETE", `/events/${event.id}/sessions/${s.id}/photos`); }}>Delete</button>
                       </span>
-                    </div>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             )}
             {pages > 1 && (

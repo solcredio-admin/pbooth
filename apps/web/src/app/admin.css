@@ -251,15 +251,18 @@ main.narrow { max-width: 900px; }
 .actions.start { justify-content: flex-start; }
 .center-check { justify-content: center; }
 .btn.disabled { opacity: .4; pointer-events: none; }
-.sessions { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
-.sessions li { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
-.session-thumbs { display: flex; gap: 8px; align-items: flex-end; overflow-x: auto; }
-.session-thumbs img { height: 90px; width: auto; border-radius: 6px; }
-.session-thumbs img.design { height: 130px; }
-.thumb-status { height: 90px; min-width: 70px; display: grid; place-items: center; border-radius: 6px; border: 1px dashed var(--line); font: 500 10px/1 var(--mono); text-transform: uppercase; color: var(--muted); }
+/* sessions: a grid of cards, the design big, the single shots small; every image downloads full size */
+.sessions { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 18px; }
+.sessions li { display: grid; gap: 8px; align-content: start; padding: 10px; border: 1px solid var(--line); border-radius: 14px; min-width: 0; }
+.session-main { display: grid; place-items: center; aspect-ratio: 3 / 2; background: color-mix(in srgb, var(--line) 35%, transparent); border-radius: 10px; overflow: hidden; }
+.session-main img { width: 100%; height: 100%; object-fit: contain; }
+.session-thumbs { display: flex; gap: 6px; overflow-x: auto; }
+.session-thumbs img { height: 44px; width: auto; border-radius: 5px; display: block; }
+.thumb-status { height: 44px; min-width: 56px; display: grid; place-items: center; border-radius: 6px; border: 1px dashed var(--line); font: 500 10px/1 var(--mono); text-transform: uppercase; color: var(--muted); }
+.thumb-status.big { height: 100%; width: 100%; border: 0; }
 .thumb-status.s-FAILED { color: var(--warn); border-color: var(--warn); }
-.session-meta { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.session-actions { display: flex; gap: 16px; }
+.session-when { display: block; }
+.session-actions { display: flex; gap: 14px; flex-wrap: wrap; }
 .plain.danger:hover { color: var(--warn); }
 .check-steps { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 8px; font: 400 13px/1.4 var(--mono); }
 .check-steps .ok b { color: var(--free); }
