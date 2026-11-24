@@ -115,12 +115,16 @@ what it was done to, IP); nothing shows it yet.
 | Events | manage | manage | manage | see | see | **assigned only**, see | **assigned only**, see |
 | Booths and stations (and stuck prints) | manage | manage | see | manage | see | only to open the kiosk | no |
 | Sales tab | all | all | no | no | see all | no | no |
-| Vouchers and sales of one event | all | all | no | no | see | no | **assigned only** |
+| Vouchers of an event (make, print, void) | all | all | **all** | no | see | no | **assigned only** (question 2) |
+| Sales of one event (money totals) | all | all | no | no | see | no | **assigned only** |
+| Refund and help requests | all | all | no | no | see | no | **assigned only** (question 2) |
 | Open a booth's kiosk | yes | yes | no | yes | no | **assigned events only** | no |
 
 - **On each event, two pickers:** which kiosk admins may open its kiosks, and which cashiers may see its vouchers and
   sales. Several people each; an account can be on several events. Nobody assigned = only owner and super admin (and
   hardware admins, for the kiosk). The cashier list exists already (`EventCashier`); kiosk admins get the same kind.
+- An event admin's voucher list shows each code's state (unused, used, void, expired) but no money totals, and the
+  Sales tab stays hidden.
 - A kiosk admin signs in to a short list of their events and the booths on them, with one button: open the kiosk.
   Nothing else in the menu. The server refuses a booth that isn't on one of their events.
 - **Moving over:** today's "Super admin" accounts (`OWNER`) stay Owner, so nobody loses access. Booth admins become
@@ -130,8 +134,8 @@ what it was done to, IP); nothing shows it yet.
   follow the same rules. Every role change goes into the audit log (11.6).
 - Test: one table of role x action, generated from the one above, so a new endpoint can't be forgotten.
 
-What gets taken away compared to today: event admins lose Sales, vouchers and refunds, and assigning booths may need
-deciding; cashiers can no longer edit, start or end their event; kiosk operators no longer see every event and booth.
+What gets taken away compared to today: event admins lose the Sales tab, event sales totals and refunds (they
+keep vouchers); cashiers can no longer edit, start or end their event; kiosk operators no longer see every event and booth.
 
 **To decide:** (1) may an event admin put a booth on an event (booking, not managing it)? Proposed: yes. (2) Do
 cashiers still make vouchers and hand out replacement vouchers? Proposed: yes, for their event; refunds of money stay
