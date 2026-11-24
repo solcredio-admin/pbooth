@@ -10,6 +10,7 @@ import { plan, type Layout } from "@/lib/template/layout";
 import { PALETTES, STYLE_LABEL, STYLE_OPTIONS, type Look, type StyleKey } from "@/lib/template/styles";
 import { boothAspect, frameShot, snapshot } from "@/lib/kiosk/frame";
 import { newGalleryToken } from "@/lib/kiosk/upload";
+import { countdownBeep, shutterSound, unlockSound, warningTick } from "@/lib/kiosk/sound";
 import QRCode from "qrcode";
 
 type Screen =
@@ -375,10 +376,12 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
   useEffect(() => {
     if (screen !== "countdown") return;
     if (count > 0) {
+      if (!peek) countdownBeep(count === 1);
       const t = setTimeout(() => setCount((c) => c - 1), 1000);
       return () => clearTimeout(t);
     }
     let cancelled = false;
+    shutterSound();
     setFlash(true);
     setTimeout(() => setFlash(false), 450);
     // More photos to come (counting this one): show it right away (a copy of the live frame at the
@@ -481,6 +484,13 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     return () => clearInterval(t);
   }, [screen]);
   useEffect(() => { if (screen === "review" && reviewLeft === 0) approveRef.current(); }, [screen, reviewLeft]);
+  useEffect(() => { if (screen === "review" && reviewLeft > 0 && reviewLeft <= 10) warningTick(); }, [screen, reviewLeft]);
+  useEffect(() => { if (screen === "done" && doneLeft > 0 && doneLeft <= 5) warningTick(); }, [screen, doneLeft]);
+  // Browsers allow sound only after a touch: the first tap anywhere turns it on.
+  useEffect(() => {
+    window.addEventListener("pointerdown", unlockSound);
+    return () => window.removeEventListener("pointerdown", unlockSound);
+  }, []);
 
   const approve = () => {
     // free self-service sessions: photos on screen only (still saved for the owner), no QR, no print
