@@ -95,10 +95,18 @@ export function startLocalServer(d: LocalDeps): Promise<Server> {
 
       if (req.method === "POST" && url.pathname === "/camera/capture") {
         const cam = d.camera();
-        if (!cam || cam.getStatus().status !== "connected") return send(409, { error: { code: "NO_CAMERA", message: cam?.getStatus().error ?? "No camera connected" } });
-        const shot = await cam.capture(d.photosDir);
+        if (!cam || cam.getStatus().status !== "connected") {
+          console.log(`${new Date().toISOString()} capture refused: camera ${cam?.getStatus().status ?? "none"}${cam?.getStatus().error ? ` (${cam.getStatus().error})` : ""}`);
+          return send(409, { error: { code: "NO_CAMERA", message: cam?.getStatus().error ?? "No camera connected" } });
+        }
+        const t0 = Date.now();
+        const shot = await cam.capture(d.photosDir).catch((e: Error) => {
+          console.log(`${new Date().toISOString()} capture failed after ${Date.now() - t0} ms: ${e.message}`);
+          throw e;
+        });
         const jpeg = await cam.downloadImage(shot);
         const sha256 = createHash("sha256").update(jpeg).digest("hex");
+        console.log(`${new Date().toISOString()} capture ok in ${Date.now() - t0} ms (${Math.round(jpeg.length / 1024)} KB)`);
         res.writeHead(200, { "content-type": "image/jpeg", "cache-control": "no-store", "x-photo-sha256": sha256, ...corsHeaders(origin, false), "Access-Control-Expose-Headers": "x-photo-sha256" });
         return res.end(jpeg);
       }
