@@ -15,7 +15,7 @@ import { Station } from "./station.js";
 import { startLocalServer } from "./local/server.js";
 import { mkdirSync } from "node:fs";
 
-export const AGENT_VERSION = "0.5.0";
+export const AGENT_VERSION = "0.5.1";
 const STATION_POLL_MS = 2000;
 export const DEFAULT_PORT = 47800;
 const log = (m: string) => console.log(`${new Date().toISOString()} ${m}`);

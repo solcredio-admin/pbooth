@@ -21,14 +21,33 @@ if (-not $doc.PrinterSettings.IsValid) { throw "Printer not found: $($a.printer)
 $doc.DocumentName = $a.jobName
 $doc.PrinterSettings.Copies = [int]$a.copies
 $w = [int]($a.widthIn * 100); $h = [int]($a.heightIn * 100)
-$size = $doc.PrinterSettings.PaperSizes | Where-Object { [math]::Abs($_.Width - $w) -le 10 -and [math]::Abs($_.Height - $h) -le 10 } | Select-Object -First 1
+$size = $doc.PrinterSettings.PaperSizes | Where-Object { [math]::Abs($_.Width - $w) -le 10 -and [math]::Abs($_.Height - $h) -le 10 } | Sort-Object { $_.PaperName -notmatch 'borderless|full.?bleed' } | Select-Object -First 1
 if (-not $size) { $size = New-Object System.Drawing.Printing.PaperSize("pbooth", $w, $h) }
+# Always borderless: ask the driver through a print ticket. A driver that can't just keeps its own settings.
+try {
+  Add-Type -AssemblyName System.Printing, ReachFramework
+  $name = $doc.PrinterSettings.PrinterName
+  $q = (New-Object System.Printing.PrintServer).GetPrintQueue($name)
+  $want = New-Object System.Printing.PrintTicket
+  $want.PageMediaSize = New-Object System.Printing.PageMediaSize([double]([math]::Min($a.widthIn, $a.heightIn) * 96), [double]([math]::Max($a.widthIn, $a.heightIn) * 96))
+  $want.PageBorderless = [System.Printing.PageBorderless]::Borderless
+  $ticket = $q.MergeAndValidatePrintTicket($q.DefaultPrintTicket, $want).ValidatedPrintTicket
+  $conv = New-Object System.Printing.Interop.PrintTicketConverter($name, [System.Printing.Interop.PrintTicketConverter]::MaxPrintSchemaVersion)
+  $bytes = $conv.ConvertPrintTicketToDevMode($ticket, [System.Printing.Interop.BaseDevModeType]::UserDefault)
+  $ptr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($bytes.Length)
+  [System.Runtime.InteropServices.Marshal]::Copy($bytes, 0, $ptr, $bytes.Length)
+  $doc.PrinterSettings.SetHdevmode($ptr)
+  $doc.DefaultPageSettings.SetHdevmode($ptr)
+  [System.Runtime.InteropServices.Marshal]::FreeHGlobal($ptr)
+  $doc.PrinterSettings.Copies = [int]$a.copies
+} catch { }
 $doc.DefaultPageSettings.PaperSize = $size
 $doc.DefaultPageSettings.Landscape = [bool]$a.landscape
 $doc.DefaultPageSettings.Margins = New-Object System.Drawing.Printing.Margins(0, 0, 0, 0)
 $doc.OriginAtMargins = $false
 $doc.add_PrintPage({ param($s, $e)
   $b = $e.PageBounds
+  $e.Graphics.TranslateTransform(-$e.PageSettings.HardMarginX, -$e.PageSettings.HardMarginY) # start at the paper's edge, not the printable area's
   $scale = [math]::Max($b.Width / $img.Width, $b.Height / $img.Height)
   $dw = $img.Width * $scale; $dh = $img.Height * $scale
   $e.Graphics.DrawImage($img, $b.X + ($b.Width - $dw) / 2, $b.Y + ($b.Height - $dh) / 2, $dw, $dh)

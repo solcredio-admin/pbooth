@@ -69,6 +69,8 @@ over and over with several booths printing, and checks that nothing prints twice
 - Jobs live in SQLite and survive restarts. A job that was mid-hand-off when the agent stopped is
   **not** resent automatically (it may already be printing). It's marked failed with a note, so you
   check the printer first.
+- Prints are always borderless: the agent turns on whatever the driver offers for it. Very cheap or office
+  printers that can't print to the edge keep their own margins.
 - Paper: 4×6 and 5×7 fill the page at 300 dpi. 2×6 strips go two-up on 4×6 media, for printers that
   cut (e.g. DNP "2-inch cut"). Turn the cut option on in the printer driver's defaults.
 - Paper and ink levels are **not** reported: CUPS and the spooler don't expose them reliably.

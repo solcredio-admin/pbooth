@@ -28,6 +28,29 @@ export const parseRequestId = (out: string) => /request id is (\S+)/.exec(out)?.
 /** Job ids listed by "lpstat -o" style output. */
 export const listedJobs = (out: string) => new Set(out.split("\n").map((l) => l.split(/\s+/)[0]).filter(Boolean));
 
+/**
+ * Every driver names borderless its own way: a page size ("4x6.Borderless"), a switch ("StpFullBleed",
+ * "Borderless"), or just zero margins (driverless printers). `lpoptions -l` says which this one has.
+ */
+export function borderless(lpoptionsL: string, media: string, widthIn: number, heightIn: number) {
+  const [w, h] = [Math.min(widthIn, heightIn), Math.max(widthIn, heightIn)];
+  const size = new RegExp(`^(w${w * 72}h${h * 72}|(photo|na_index-|na_|custom_)?${w}x${h}(in|photo)?)(?!\\d)`, "i");
+  const out: string[] = [];
+  let page = media;
+  for (const line of lpoptionsL.split("\n")) {
+    const m = /^([^/:\s]+)[^:]*:\s*(.*)$/.exec(line);
+    if (!m) continue;
+    const choices = m[2].split(/\s+/).map((c) => c.replace(/^\*/, ""));
+    if (m[1] === "PageSize" || m[1] === "media") page = choices.find((c) => size.test(c) && /borderless|full.?bleed|nmgn|[._]bl$/i.test(c)) ?? page;
+    else if (/borderless|bleed/i.test(m[1])) {
+      const on = choices.find((c) => /^(true|on|yes|1|borderless)$/i.test(c));
+      if (on) out.push("-o", `${m[1]}=${on}`);
+    }
+  }
+  const zero = ["top", "right", "bottom", "left"].flatMap((s) => ["-o", `media-${s}-margin=0`, "-o", `page-${s}=0`]);
+  return ["-o", `media=${page}`, ...out, ...zero, "-o", "fit-to-page", "-o", "print-scaling=fill"];
+}
+
 export class CupsPrinter implements PrinterProvider {
   readonly kind = "cups" as const;
 
@@ -42,11 +65,13 @@ export class CupsPrinter implements PrinterProvider {
   }
 
   async submitPrint(j: Submit) {
-    const media = `w${Math.round(j.widthIn * 72)}h${Math.round(j.heightIn * 72)}`;
+    // drivers list the sheet upright only (w288h432); orientation-requested turns the picture
+    const media = `w${Math.round(Math.min(j.widthIn, j.heightIn) * 72)}h${Math.round(Math.max(j.widthIn, j.heightIn) * 72)}`;
+    const opts = await run("lpoptions", [...(j.printer ? ["-p", j.printer] : []), "-l"], { timeoutMs: 10_000 }).catch(() => null); // can't ask: zero margins still apply
     const args = [
       ...(j.printer ? ["-d", j.printer] : []),
       "-n", String(j.copies), "-t", j.jobName,
-      "-o", `media=${media}`, "-o", "fit-to-page", "-o", `orientation-requested=${j.landscape ? 4 : 3}`,
+      ...borderless(opts?.stdout ?? "", media, j.widthIn, j.heightIn), "-o", `orientation-requested=${j.landscape ? 4 : 3}`,
       j.file,
     ];
     const r = await run("lp", args, { timeoutMs: 30_000 }).catch((e: Error) => { throw new NotPrinted(e.message); }); // lp couldn't even start
