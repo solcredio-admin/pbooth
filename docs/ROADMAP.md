@@ -2,12 +2,23 @@
 
 Written 2026-11-25. Sizes: S = a day or so, M = a few days, L = a week or more.
 
+**Each phase has the same amount of code to write: 15 points** (S = 1, S-M = 2, M = 3, L = 6; 11.1 is done and isn't
+counted). Sections go from the smallest change to the largest; equal ones by what needs what. Renumbered 2026-11-25.
+
+| Phase | S | S-M | M | L | Points |
+|---|---|---|---|---|---|
+| 11 | 4 | 1 | 3 | - | 4 + 2 + 9 = **15** |
+| 12 | - | - | 3 | 1 | 9 + 6 = **15** |
+| 13 | - | - | 3 | 1 | 9 + 6 = **15** |
+
+The points are estimates, not measured lines of code.
+
 **Before phase 11:** phase 10 deployed; one real PayMongo test payment and refund; one real Telegram bot; one
 print on the Canon G1010; the lockdown steps tried on one real booth. Any of these can change the plans below.
 
 ---
 
-## Phase 11: the booth and the printer stop being one machine
+## Phase 11: the booth and the printer stop being one machine, and running it gets easier
 
 ### 11.1 Stations (L) - built and deployed 2026-11-25
 
@@ -55,38 +66,22 @@ Built in this order, each usable alone:
 Done when: an iPad prints to a station in another room; two booths share one; unplugging a station moves waiting
 jobs and nothing prints twice (tested by killing the agent at every step).
 
-### 11.2 Remote booth control (M)
+### 11.2 Support email on the help screen (S)
 
-| Command | Runs on | Notes |
-|---|---|---|
-| Pause / resume ("Be right back" screen) | kiosk | never interrupts a guest mid-session; a paid guest finishes first |
-| Reload the kiosk | kiosk | waits for the current session and unsent photos |
-| Retry / move a print | station | from 11.1 |
-| Restart the agent | agent | |
-| What's on screen | kiosk | the screen's name, camera state and last error. **Not a picture of guests** |
-| Update the agent | agent | last: it runs new code on booths. Only from this server, checked against a hash the server publishes, rolls back if the new version can't check in |
+One address in Settings, shown on "Thanks" with the reference. Nothing is collected; the guest writes first.
+Needs the address.
 
-Commands expire after 2 minutes (a booth back from an outage doesn't obey old orders), are audited, and are for
-the owner and booth admins. A picture of the idle screen could come later through the agent.
-
-### 11.3 Boomerang GIF (M)
-
-Short loop (forward and back) next to the photo in the guest's gallery; never printed.
-- The kiosk keeps the last ~1.5 s of live view before each shot (about 12 frames, 640 px wide) and uploads the
-  best one's frames through the existing outbox; **the server makes the GIF with Sharp, already in use**.
-- DSLR live view runs at ~12 fps and stops for the shot, so its loop ends just before the photo.
-- About 2-4 MB each: it counts toward storage and follows the same deletion date. Off by default, per event.
-- Free self-service sessions have no gallery, so no GIF.
-
-### 11.4 Telegram for everything (S)
+### 11.3 Telegram for everything (S)
 
 Managed events (same rules, muted outside the event's times), failed backups, photo processing failures, storage
 errors. Server up/down stays with Gatus, since pbooth can't report its own outage.
 
-### 11.5 Support email on the help screen (S)
+### 11.4 Public status page (S)
+"Is the booth at Kape Tayo working?" for cafés, without logging in.
 
-One address in Settings, shown on "Thanks" with the reference. Nothing is collected; the guest writes first.
-Needs the address.
+### 11.5 Venue statements (S)
+Monthly PDF per location: sessions, gross, refunds, net, share. Made from the same numbers as the CSV. A closed
+month doesn't change: a later refund appears in the next one.
 
 ### 11.6 Audit log in Settings (S-M)
 
@@ -142,40 +137,59 @@ cashiers still make vouchers and hand out replacement vouchers? Proposed: yes, f
 with owner and super admin. (3) May a super admin refund money? Proposed: yes. (4) Does an event admin see event
 galleries and photos? Proposed: yes, as today; sales admin: no.
 
-**Order:** 11.1 is done; then 11.5 -> 11.4 -> 11.7 -> 11.6 -> 11.2 -> 11.3. The two small ones are useful on day one; the GIF is last because
-nothing depends on it.
+### 11.8 Remote booth control (M)
+
+| Command | Runs on | Notes |
+|---|---|---|
+| Pause / resume ("Be right back" screen) | kiosk | never interrupts a guest mid-session; a paid guest finishes first |
+| Reload the kiosk | kiosk | waits for the current session and unsent photos |
+| Retry / move a print | station | from 11.1 |
+| Restart the agent | agent | |
+| What's on screen | kiosk | the screen's name, camera state and last error. **Not a picture of guests** |
+| Update the agent | agent | last: it runs new code on booths. Only from this server, checked against a hash the server publishes, rolls back if the new version can't check in |
+
+Commands expire after 2 minutes (a booth back from an outage doesn't obey old orders), are audited, and are for
+the owner and booth admins. A picture of the idle screen could come later through the agent.
+
+### 11.9 Boomerang GIF (M)
+
+Short loop (forward and back) next to the photo in the guest's gallery; never printed.
+- The kiosk keeps the last ~1.5 s of live view before each shot (about 12 frames, 640 px wide) and uploads the
+  best one's frames through the existing outbox; **the server makes the GIF with Sharp, already in use**.
+- DSLR live view runs at ~12 fps and stops for the shot, so its loop ends just before the photo.
+- About 2-4 MB each: it counts toward storage and follows the same deletion date. Off by default, per event.
+- Free self-service sessions have no gallery, so no GIF.
+
+**Order:** as listed. The small ones are useful on day one. The audit log comes before the roles, so the role changes
+are recorded; the GIF is last because nothing depends on it.
 
 ---
 
 ## Phase 12: sell more, run out of nothing
 
-### 12.1 Paper and ink (M) - first, the others depend on it
+### 12.1 Paper and ink (M)
 Counted per **station** (printers don't report it): sheets per pack, refill button with a count, one sheet off per
 finished print. Low and empty alerts. At empty the booth offers only packages without prints, so nobody pays
 for a print that can't come. Includes a "test print" that doesn't count as a sale.
 
-### 12.2 Packages (L)
-Per event: name, price, prints (0-5), digital yes/no, layouts allowed, order, on/off.
-- The price is fixed by the server when the payment is made; changing a package never changes a past sale.
-- Every event gets one "Standard" package with today's price, so nothing changes until a second is added.
-- Vouchers are for one package (existing ones: Standard). With one package, the guest sees no extra screen.
-- Reports, CSV and refunds show the package.
+### 12.2 Locations dashboard (M)
+Each location: today, week, failures, uptime, paper, open refunds, side by side. Uptime needs a small history of
+online/offline, recorded from phase 11 on.
 
 ### 12.3 Extra prints (M)
 On the done screen: "One more print, P50". Paid by QR only, so it needs the payment QR and the gallery QR on one
 screen without confusion (shown one at a time). Each extra print is its own job with its own id, or the
 never-twice rule would swallow it. Hidden when paper is low.
 
-### 12.4 Locations dashboard (M)
-Each location: today, week, failures, uptime, paper, open refunds, side by side. Uptime needs a small history of
-online/offline, recorded from phase 11 on.
+### 12.4 Packages (L)
+Per event: name, price, prints (0-5), digital yes/no, layouts allowed, order, on/off.
+- The price is fixed by the server when the payment is made; changing a package never changes a past sale.
+- Every event gets one "Standard" package with today's price, so nothing changes until a second is added.
+- Vouchers are for one package (existing ones: Standard). With one package, the guest sees no extra screen.
+- Reports, CSV and refunds show the package.
 
-### 12.5 Venue statements (S)
-Monthly PDF per location: sessions, gross, refunds, net, share. Made from the same numbers as the CSV. A closed
-month doesn't change: a later refund appears in the next one.
-
-**Order:** 12.1 -> 12.2 -> 12.3 -> 12.5 -> 12.4. Before starting: are prices per package inclusive of any tax the
-café or you must show?
+**Order:** as listed. Paper and ink comes first: the other three need its counts. Extra prints is built so packages
+can take over its price later. Before starting: are prices inclusive of any tax the café or you must show?
 
 ---
 
@@ -184,20 +198,7 @@ café or you must show?
 Until now the owner does everything. This phase lets cafés and clients help themselves, and makes sure a bad day
 can't take the business down.
 
-### 13.1 Café partner login (M)
-A read-only role for a café's owner: their location's sales, share, statements and booth status. No guests'
-photos, no other locations, no settings. Cashiers stay as they are.
-
-### 13.2 Bookings for managed events (L)
-A public request form -> quote -> deposit by PayMongo link -> the event is created, with a booth reserved and clashes
-refused. Reminders by email. This is the first feature that stores clients' personal details on purpose, so it
-comes with a privacy notice, a deletion date and an export/erase button.
-
-### 13.3 Design library (M)
-Your own overlays (PNG with transparent windows), saved looks, and a schedule ("Christmas, 1-31 December"), reused
-across events instead of set up each time.
-
-### 13.4 Bad-day readiness (M) - recommended first
+### 13.1 Bad-day readiness (M)
 - **Restore drill:** one command that restores the newest backup onto `pbooth-dev` and checks it, monthly, with a
   Telegram result. Backups that were never restored are only a hope.
 - **Offline vouchers:** a booth keeps a limited number of signed one-time codes it can accept without internet.
@@ -205,21 +206,31 @@ across events instead of set up each time.
 - **Second way in:** a written plan and tested steps for moving pbooth to another server.
 - **Key rotation:** PayMongo, R2 and Telegram keys changed without downtime, and a list of what each one can do.
 
-### 13.5 Public status page (S)
-"Is the booth at Kape Tayo working?" for cafés, without logging in.
+### 13.2 Café partner login (M)
+A read-only role for a café's owner: their location's sales, share, statements and booth status. No guests'
+photos, no other locations, no settings. Cashiers stay as they are.
+
+### 13.3 Design library (M)
+Your own overlays (PNG with transparent windows), saved looks, and a schedule ("Christmas, 1-31 December"), reused
+across events instead of set up each time.
+
+### 13.4 Bookings for managed events (L)
+A public request form -> quote -> deposit by PayMongo link -> the event is created, with a booth reserved and clashes
+refused. Reminders by email. This is the first feature that stores clients' personal details on purpose, so it
+comes with a privacy notice, a deletion date and an export/erase button.
 
 **Left out on purpose:** guest accounts and marketing lists, a native app, selling pbooth to other companies (it
 would need separate data per company: a rebuild, not a feature), AI backgrounds.
 
-**Order:** 13.4 -> 13.1 -> 13.3 -> 13.2 -> 13.5.
+**Order:** as listed. The café login needs the roles (11.7) and shows the venue statements (11.5).
 
 ## Questions
 
-**Phase 11:** (1) Is "first ready station in a fixed order" right, or should jobs spread evenly? (2) Is 30 minutes
+**Phase 11:** (1) answered: fixed list or rotate, per booth. (2) Is 30 minutes
 the right wait before a stuck paid print is flagged? (3) GIF on managed events, self-service, or both? (4) The
 support email address.
 
 **Phase 12:** (5) Tax on prices? (6) Can a voucher be upgraded by paying the difference, or only used for its package?
 
-**Phase 13:** (7) Do cafés want a login, or is a monthly PDF enough? If enough, drop 13.1. (8) Do clients book
-often enough that 13.2 saves real time?
+**Phase 13:** (7) Do cafés want a login, or is a monthly PDF enough? If enough, drop 13.2. (8) Do clients book
+often enough that 13.4 saves real time?
