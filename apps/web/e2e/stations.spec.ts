@@ -49,8 +49,9 @@ test("a guest's print goes to a station in another room", async ({ browser }) =>
   await page.locator(".k-tap").click();
   await page.getByRole("button", { name: "Start now" }).click();
   await page.getByRole("button", { name: "Looks great" }).click({ timeout: 30_000 });
-  await expect(page.locator(".k-print")).toHaveText(/waiting for a free printer/, { timeout: 30_000 }); // no station is on
+  await expect(page.locator(".k-print")).toHaveText("Please wait for your photos to be printed."); // no status, no station
 
+  await expect.poll(async () => (await (await admin.get(`/api/v1/stations/jobs`)).json()).items.some((j: { booth: { name: string } | null }) => j.booth?.name === `Room A ${stamp}`), { timeout: 30_000 }).toBe(true);
   await adminPage.goto("/dashboard");
   await expect(adminPage.getByRole("link", { name: new RegExp(`Front desk ${stamp}`) })).toBeVisible();
   if (SHOTS) await adminPage.screenshot({ path: `${SHOTS}/st-dash.png` });
@@ -59,12 +60,25 @@ test("a guest's print goes to a station in another room", async ({ browser }) =>
   await expect(adminPage.getByText(`Room A ${stamp}`).first()).toBeVisible();
   if (SHOTS) await adminPage.screenshot({ path: `${SHOTS}/st-board.png`, fullPage: true });
 
+  await expect.poll(async () => (await poll()).jobs.length, { timeout: 30_000 }).toBe(1);
   const [job] = (await poll()).jobs;
   await report(job.id, job.attempt, "PRINTING");
-  await expect(page.locator(".k-print")).toHaveText(`Printing your photos at Front desk ${stamp}…`, { timeout: 10_000 });
   await report(job.id, job.attempt, "DONE");
-  await expect(page.locator(".k-print")).toHaveText(`Printed! Collect it at Front desk ${stamp}.`, { timeout: 10_000 });
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/st-kiosk.png` });
+  // print it again from the gallery: a popup with the stations that are on
+  await adminPage.goto(`/events/${event.id}/gallery`);
+  await expect(adminPage.locator(".sessions img").first()).toBeVisible({ timeout: 30_000 });
+  await poll();
+  await adminPage.getByRole("button", { name: /^Print the photo/ }).first().click();
+  await adminPage.getByRole("button", { name: `Front desk ${stamp}` }).click();
+  await expect(adminPage.getByText(`Sent to Front desk ${stamp}.`)).toBeVisible();
+  const [again] = (await poll()).jobs;
+  expect(again.id).not.toBe(job.id);
+  await report(again.id, again.attempt, "PRINTING"); await report(again.id, again.attempt, "DONE");
+  if (SHOTS) await adminPage.screenshot({ path: `${SHOTS}/ga-popup.png` });
+  await adminPage.getByRole("button", { name: "Done" }).click();
+  if (SHOTS) await adminPage.screenshot({ path: `${SHOTS}/ga-admin.png`, fullPage: true });
+
   await adminPage.goto(`/stations/${main.id}`);
   await expect(adminPage.getByLabel("Station name")).toHaveValue(`Front desk ${stamp}`);
   if (SHOTS) await adminPage.screenshot({ path: `${SHOTS}/st-detail.png`, fullPage: true });

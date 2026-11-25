@@ -277,4 +277,41 @@ describe.skipIf(!url || !s3)("stations: printing", () => {
     expect((await post(`/stations/jobs/${one.id}/move`, { stationId: s.id })).status).toBe(200);
     expect(await s.ids()).toEqual([one.id]);
   }, 40_000);
+
+  it("reprints from the gallery at an online station: a new print each time, a double click is one", async () => {
+    const a = await station("Desk"), off = await station("Off");
+    const b = await booth();
+    await b.link(off.id);
+    const one = await b.session();
+    await one.done();
+    for (let i = 0; i < 60 && (await O(`/photos/${one.photoId}`)).body.status !== "PROCESSED"; i++) await new Promise((r) => setTimeout(r, 250));
+    await a.poll();
+    const online = (await O(`/events/${b.ev.id}/stations`)).body.items as { id: string }[];
+    expect(online.some((s) => s.id === a.id)).toBe(true);
+    expect(online.some((s) => s.id === off.id)).toBe(false);
+    const path = `/events/${b.ev.id}/sessions/${one.id}/reprint`, id = randomUUID();
+    expect((await post(path, { id, stationId: off.id })).body.error.code).toBe("STATION_OFF");
+    await Promise.all([post(path, { id, stationId: a.id }), post(path, { id, stationId: a.id })]);
+    expect((await a.poll()).jobs).toMatchObject([{ id, copies: 1 }]);
+    await a.report(id, "PRINTING"); await a.report(id, "DONE");
+    expect((await post(path, { id: randomUUID(), stationId: a.id })).status).toBe(200);
+    expect(await a.next()).not.toBe(id);
+    expect((await post(`/events/${b.ev.id}/sessions/${randomUUID()}/reprint`, { id: randomUUID(), stationId: a.id })).status).toBe(404);
+
+    // the client's link: everything as one ZIP
+    const { token } = (await post(`/events/${b.ev.id}/gallery`)).body;
+    const zip = await fetch(`${(await import("./helpers.js")).base}/galleries/${token}/zip`, { headers: { "x-forwarded-for": anyIp() } });
+    expect(zip.headers.get("content-type")).toBe("application/zip");
+    const bytes = Buffer.from(await zip.arrayBuffer());
+    expect(bytes.subarray(0, 2).toString()).toBe("PK");
+    expect(bytes.includes(Buffer.from(one.photoId.slice(0, 8)))).toBe(true);
+    expect((await call(`/galleries/${"x".repeat(43)}/zip`)).status).toBe(404);
+  }, 40_000);
+
+  it("timers go up to 60 seconds", async () => {
+    const b = await booth();
+    const cfg = { countdownSeconds: 60, captureIntervalSeconds: 60, previewSeconds: 60 };
+    expect((await O(`/events/${b.ev.id}`, { method: "PATCH", body: { config: cfg } })).body.config).toMatchObject(cfg);
+    expect((await O(`/events/${b.ev.id}`, { method: "PATCH", body: { config: { previewSeconds: 61 } } })).status).toBe(400);
+  });
 });

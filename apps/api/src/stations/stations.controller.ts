@@ -6,7 +6,7 @@ import { Public } from "../auth/public.decorator.js";
 import type { Req as Request } from "../common/request.js";
 import { StationGuard, type StationReq } from "./station.guard.js";
 import { StationsService } from "./stations.service.js";
-import { boothStationsSchema, createStationSchema, moveSchema, pollSchema, reportSchema, updateStationSchema, type Poll, type Report, type UpdateStation } from "./stations.schemas.js";
+import { boothStationsSchema, createStationSchema, moveSchema, pollSchema, reportSchema, reprintSchema, updateStationSchema, type Poll, type Report, type UpdateStation } from "./stations.schemas.js";
 
 const uuid = (what: string) => ({ schema: z.string().uuid(`Not a valid ${what} id`) });
 const actor = (r: Request) => `admin:${r.admin!.id}`;
@@ -59,6 +59,21 @@ export class BoothStationsController {
   @Put()
   set(@Param("boothId", uuid("booth")) boothId: string, @Body({ schema: boothStationsSchema }) body: z.infer<typeof boothStationsSchema>, @Req() r: Request) {
     return this.stations.setForBooth(boothId, body.stationIds, body.mode, actor(r), r.ip);
+  }
+}
+
+// From an event's gallery: whoever may see its photos may print one again.
+@Allow("EVENTS")
+@Controller("events/:eventId")
+export class ReprintController {
+  constructor(private readonly stations: StationsService) {}
+
+  @Get("stations")
+  online() { return this.stations.online(); }
+
+  @Post("sessions/:sessionId/reprint") @HttpCode(200)
+  reprint(@Param("eventId", uuid("event")) eventId: string, @Param("sessionId", uuid("session")) sessionId: string, @Body({ schema: reprintSchema }) body: z.infer<typeof reprintSchema>, @Req() r: Request) {
+    return this.stations.reprint(eventId, sessionId, body, actor(r), r.ip);
   }
 }
 

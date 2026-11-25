@@ -27,6 +27,8 @@ export const reportSchema = z.object({ attempt: z.number().int().min(1), status:
 /** From the kiosk: print this session's finished design (already uploaded). */
 export const printSchema = z.object({ sessionId: z.string().uuid(), photoId: z.string().uuid(), strip: z.boolean().default(false) });
 
+export const reprintSchema = z.object({ id: z.string().uuid(), stationId: z.string().uuid() });
+
 export type UpdateStation = z.infer<typeof updateStationSchema>;
 export type Poll = z.infer<typeof pollSchema>;
 export type Report = z.infer<typeof reportSchema>;

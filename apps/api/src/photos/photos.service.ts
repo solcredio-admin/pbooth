@@ -161,7 +161,7 @@ export class PhotosService implements OnModuleInit, OnModuleDestroy {
       sessions: await Promise.all(sessions.map(async (s) => ({
         id: s.id, startedAt: s.startedAt, status: s.status, booth: s.booth, galleryToken: s.gallery?.token ?? null,
         photos: await Promise.all(s.photos.map(async (p) => ({
-          id: p.id, kind: p.kind, index: p.index, status: p.status, error: p.error,
+          id: p.id, kind: p.kind, index: p.index, status: p.status, error: p.error, width: p.width, height: p.height,
           thumbUrl: p.thumbKey && this.storage.enabled ? await this.storage.presignGet(p.thumbKey) : null,
           // full size, saved as a file (not opened in the browser), with a readable name
           downloadUrl: p.status === "PROCESSED" && this.storage.enabled
@@ -230,13 +230,29 @@ export class PhotosService implements OnModuleInit, OnModuleDestroy {
     const event = await this.db.event.findUnique({ where: { id: eventId }, select: { name: true } });
     if (!event) throw notFound("Event");
     const photos = await this.db.photo.findMany({ where: { eventId, kind, status: "PROCESSED" }, orderBy: [{ createdAt: "asc" }, { index: "asc" }] });
+    return this.zip(photos, out);
+  }
+
+  /** Streams these photos as a ZIP. A photo that's missing from the bucket is skipped, not the whole download. */
+  async zip(photos: { id: string; key: string; kind: PhotoKind; index: number }[], out: Writable) {
+    this.requireStorage();
     const zip = new ZipArchive({ store: true }); // JPEGs are already compressed
     zip.pipe(out);
     let n = 0;
     for (const p of photos) {
       n++;
-      zip.append(await this.storage.stream(p.key), { name: `${String(n).padStart(4, "0")}-${kind === "DESIGN" ? "design" : `shot${p.index}`}-${p.id.slice(0, 8)}.jpg` });
+      if (out.destroyed) break; // the download was cancelled
+      const file = await this.storage.stream(p.key).catch((e: Error) => { this.log.warn(`zip: ${p.key}: ${e.message}`); return null; });
+      if (!file) continue;
+      // one file at a time: a big event must not hold hundreds of open downloads from the bucket
+      await new Promise<void>((resolve, reject) => {
+        const done = (e?: Error) => { out.off("close", closed); zip.off("entry", entry); zip.off("error", done); file.off("error", done); if (e) reject(e); else resolve(); };
+        const closed = () => { file.destroy(); done(); }, entry = () => done();
+        out.once("close", closed); zip.once("entry", entry); zip.once("error", done); file.once("error", done);
+        zip.append(file, { name: `${String(n).padStart(4, "0")}-${p.kind === "DESIGN" ? "design" : `shot${p.index}`}-${p.id.slice(0, 8)}.jpg` });
+      });
     }
+    if (out.destroyed) { zip.abort(); return n; }
     await zip.finalize();
     return n;
   }

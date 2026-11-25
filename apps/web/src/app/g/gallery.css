@@ -12,18 +12,34 @@
 .gal-note { text-align: center; opacity: .8; margin: 24px 0; }
 .gal-note.pulse { animation: gal-pulse 1.8s ease-in-out infinite; }
 @keyframes gal-pulse { 50% { opacity: .4; } }
-.gal-grid { display: grid; gap: 18px; max-width: 980px; margin: 0 auto; grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); }
-.gal-grid.session .design { grid-column: 1 / -1; justify-self: center; max-width: 420px; width: 100%; }
-.gal-grid figure { margin: 0; display: grid; gap: 10px; }
-.gal-grid button { padding: 0; border: 0; background: none; cursor: zoom-in; border-radius: 12px; overflow: hidden; box-shadow: 0 18px 40px -18px rgba(0, 0, 0, .55); }
-.gal-grid img { display: block; width: 100%; height: auto; }
-.gal-grid .shot img { aspect-ratio: 3 / 2; object-fit: cover; }
-.gal-btn { display: inline-flex; justify-content: center; align-items: center; min-height: 46px; padding: 0 20px; border-radius: 999px; border: 2px solid var(--g-accent); background: var(--g-accent); color: #0b0c0a; font: 600 13px/1 var(--mono); text-transform: uppercase; letter-spacing: .04em; text-decoration: none; cursor: pointer; }
-.gal-btn.ghost { background: transparent; color: #fff; border-color: rgba(255, 255, 255, .6); }
+/* every tile has the photos' usual shape, so most fit exactly; any other is shown whole on the mat */
+.gal-grid { display: grid; gap: clamp(16px, 2.4vw, 28px); max-width: 1240px; margin: 0 auto; grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--g-col, 240px)), 1fr)); }
+@media (max-width: 480px) { .gal-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, max(140px, calc(var(--g-col, 240px) * .62))), 1fr)); } }
+.gal-grid.few { grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--g-col, 240px)), 460px)); justify-content: center; }
+.gal-grid figure { margin: 0; display: grid; grid-template-rows: 1fr auto; gap: 12px; padding: 12px; border-radius: 20px; background: color-mix(in srgb, var(--g-ink) 7%, transparent); border: 1px solid color-mix(in srgb, var(--g-ink) 12%, transparent); min-width: 0; }
+.gal-photo { display: grid; place-items: center; width: 100%; aspect-ratio: var(--g-tile, 1.5); padding: 0; border: 0; background: none; cursor: zoom-in; border-radius: 10px; overflow: hidden; }
+.gal-photo img { display: block; width: 100%; height: 100%; min-height: 0; object-fit: contain; }
+.gal-photo:focus-visible, .gal-btn:focus-visible { outline: 3px solid var(--g-ink); outline-offset: 3px; }
+.gal-grid.session .design { grid-column: 1 / -1; justify-self: center; width: fit-content; min-width: min(100%, 250px); max-width: min(100%, 620px); }
+.gal-grid.session .design .gal-photo { aspect-ratio: auto; }
+.gal-grid.session .design .gal-photo img { width: auto; max-width: 100%; height: auto; max-height: 72vh; }
+/* buttons: one size, and colours picked to read on any event's colours */
+.gal-btn { display: inline-flex; justify-content: center; align-items: center; gap: 9px; box-sizing: border-box; height: 46px; padding: 0 22px; border-radius: 999px; border: 2px solid var(--g-btn, #c6f36b); background: var(--g-btn, #c6f36b); color: var(--g-btn-ink, #0b0c0a); font: 600 13px/1 var(--mono); text-transform: uppercase; letter-spacing: .04em; text-decoration: none; white-space: nowrap; cursor: pointer; }
+.gal-btn svg { flex: none; }
+.gal-grid .gal-btn { width: 100%; padding: 0 8px; }
+.gal-head .gal-btn { justify-self: center; margin-top: 14px; }
+.gal-btn.outline { background: transparent; color: var(--g-ink); border-color: color-mix(in srgb, var(--g-ink) 60%, transparent); }
+.gal-btn:hover { filter: brightness(1.06); }
+.gal-more { display: grid; justify-items: center; margin: 30px 0 0; }
 .gal-empty { min-height: 80vh; display: grid; place-content: center; text-align: center; gap: 14px; justify-items: center; }
 .gal-empty h1 { margin: 0; font: 300 clamp(36px, 9vw, 60px)/1.05 var(--serif); }
 .gal-empty p { margin: 0; opacity: .8; max-width: 34ch; }
-.gal-foot { max-width: 520px; margin: 40px auto 0; text-align: center; font-size: 12px; opacity: .65; }
+.gal-foot { max-width: 520px; margin: 40px auto 0; text-align: center; font-size: 12px; opacity: .75; }
 .gal-box { position: fixed; inset: 0; z-index: 10; background: rgba(0, 0, 0, .9); display: grid; place-items: center; gap: 16px; padding: 16px; align-content: center; }
-.gal-box img { max-width: 100%; max-height: 80vh; border-radius: 8px; }
+.gal-box:focus { outline: none; }
+/* over the dark viewer: always white on black */
+.gal-box .gal-btn { background: #fff; border-color: #fff; color: #0b0c0a; }
+.gal-box .gal-btn.ghost { background: transparent; color: #fff; border-color: rgba(255, 255, 255, .6); }
+.gal-btn.icon { width: 46px; padding: 0; font-size: 22px; }
+.gal-box img { max-width: 100%; max-height: 80vh; object-fit: contain; border-radius: 8px; }
 .gal-box-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }

@@ -203,16 +203,16 @@ export function EventForm({ event, canEdit = true, lockMoney = false }: { event?
             </Field>
           ))}
           <Field name="countdownSeconds" label="Countdown (seconds)" error={errors.countdownSeconds}>
-            <input {...attrs("countdownSeconds")} type="number" min={0} max={10} defaultValue={cfg.countdownSeconds} />
+            <input {...attrs("countdownSeconds")} type="number" min={0} max={60} defaultValue={cfg.countdownSeconds} />
           </Field>
           <Field name="shotsPerSession" label="Photos per session" error={errors.shotsPerSession} hint="1 to 4, taken in a row">
             <input {...attrs("shotsPerSession")} type="number" min={1} max={4} defaultValue={cfg.shotsPerSession} />
           </Field>
           <Field name="captureIntervalSeconds" label="Seconds between photos" error={errors.captureIntervalSeconds} hint="Time to change poses">
-            <input {...attrs("captureIntervalSeconds")} type="number" min={1} max={10} defaultValue={cfg.captureIntervalSeconds} />
+            <input {...attrs("captureIntervalSeconds")} type="number" min={1} max={60} defaultValue={cfg.captureIntervalSeconds} />
           </Field>
           <Field name="previewSeconds" label="Photo preview (seconds)" error={errors.previewSeconds} hint="Each photo shows in a frame this long; guests can tap to retake">
-            <input {...attrs("previewSeconds")} type="number" min={1} max={10} defaultValue={cfg.previewSeconds} />
+            <input {...attrs("previewSeconds")} type="number" min={1} max={60} defaultValue={cfg.previewSeconds} />
           </Field>
 
         </div>

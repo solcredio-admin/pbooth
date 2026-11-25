@@ -1,6 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma.service.js";
 import { StorageService } from "../storage/storage.service.js";
+import { PhotosService } from "../photos/photos.service.js";
+import type { Writable } from "node:stream";
 import { notFound } from "../common/errors.js";
 
 const PAGE = 60;
@@ -9,7 +11,7 @@ const PAGE = 60;
 // so a link reveals nothing about why it doesn't work.
 @Injectable()
 export class GalleriesService {
-  constructor(private readonly db: PrismaService, private readonly storage: StorageService) {}
+  constructor(private readonly db: PrismaService, private readonly storage: StorageService, private readonly photoFiles: PhotosService) {}
 
   private async open(token: string) {
     const g = await this.db.gallery.findUnique({ where: { token }, include: { event: { include: { config: true } } } });
@@ -41,6 +43,20 @@ export class GalleriesService {
     };
   }
 
+  async zip(token: string) {
+    const { g } = await this.open(token);
+    const photos = await this.db.photo.findMany({
+      where: { status: "PROCESSED", ...(g.scope === "SESSION" ? { sessionId: g.sessionId! } : { eventId: g.eventId, kind: "DESIGN" as const }) },
+      orderBy: [{ createdAt: "asc" }, { index: "asc" }], select: { id: true, key: true, kind: true, index: true },
+    });
+    if (!photos.length) throw notFound("Photos");
+    return { name: `${slugOf(g.event.name)}-photos`, photos };
+  }
+
+  async stream(photos: Awaited<ReturnType<GalleriesService["zip"]>>["photos"], out: Writable) {
+    await this.photoFiles.zip(photos, out).catch(() => { out.destroy(); }); // headers are gone: a broken download, not a hung one
+  }
+
   async photos(token: string, page = 1) {
     const { g } = await this.open(token);
     const where = g.scope === "SESSION" ? { sessionId: g.sessionId!, status: "PROCESSED" as const } : { eventId: g.eventId, kind: "DESIGN" as const, status: "PROCESSED" as const };
@@ -48,7 +64,7 @@ export class GalleriesService {
       where, orderBy: g.scope === "SESSION" ? [{ kind: "desc" }, { index: "asc" }] : [{ createdAt: "desc" }],
       skip: (page - 1) * PAGE, take: PAGE,
     });
-    const slug = g.event.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "photos";
+    const slug = slugOf(g.event.name);
     return {
       page, pageSize: PAGE,
       items: await Promise.all(rows.map(async (p, i) => ({
@@ -60,5 +76,7 @@ export class GalleriesService {
     };
   }
 }
+
+const slugOf = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "photos";
 
 export { notFound };

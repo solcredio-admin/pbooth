@@ -42,11 +42,12 @@ test("each photo shows in a frame instantly, can be retaken, then the sequence g
   // the frame shows the print's crop: 4R landscape with 3 photos, photo 1 is the big slot (1025x950)
   const shape = () => page.locator(".k-polaroid img").evaluate((i) => { const r = i.getBoundingClientRect(); return r.width / r.height; });
   expect(await shape()).toBeCloseTo(1025 / 950, 1);
-  await expect(page.locator(".k-peek-hint")).toContainText("Next photo in");
+  await expect(page.locator(".k-peek-hint").first()).toContainText("Next photo in");
   await expect(page.locator(".k-polaroid-timer")).toBeVisible();
 
   // retake it: a fresh countdown for photo 1, then the sequence continues
-  await page.getByRole("button", { name: "Retake", exact: true }).click();
+  await expect(page.getByText("Tap anywhere to retake")).toBeVisible();
+  await page.mouse.click(62, 62); // anywhere on the screen, the hidden staff corner included
   await expect(page.locator(".k-peek")).toBeHidden();
   await expect(page.locator(".k-shot")).toHaveText("Retaking photo 1");
   await expect(page.locator(".k-polaroid-cap")).toHaveText("Photo 1 of 3", { timeout: 15_000 }); // the new photo 1
@@ -65,7 +66,7 @@ test("each photo shows in a frame instantly, can be retaken, then the sequence g
   // retaking from the review screen gets the same framed preview, then goes back to the review
   await page.getByRole("button", { name: "Retake photo 2" }).click();
   await expect(page.locator(".k-polaroid-cap")).toHaveText("Photo 2 of 3", { timeout: 15_000 });
-  await expect(page.locator(".k-peek-hint")).toContainText("Back to your photos in");
+  await expect(page.locator(".k-peek-hint").first()).toContainText("Back to your photos in");
   expect(await shape()).toBeCloseTo(629 / 462, 1);
   await expect(page.locator(".kiosk.ks-review")).toBeVisible({ timeout: 20_000 });
   await expect(page.locator(".k-pick")).toHaveCount(3);

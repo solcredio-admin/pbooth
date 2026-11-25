@@ -1,5 +1,6 @@
-import { Controller, Get, Param, Query } from "@nestjs/common";
+import { Controller, Get, Param, Query, Res } from "@nestjs/common";
 import { RouteConfig } from "@nestjs/platform-fastify";
+import type { FastifyReply } from "fastify";
 import { z } from "zod";
 import { Public } from "../auth/public.decorator.js";
 import { GalleriesService } from "./galleries.service.js";
@@ -15,6 +16,16 @@ export class GalleriesController {
   @Get(":token")
   @RouteConfig({ rateLimit: { max: 120, timeWindow: "1 minute" } })
   meta(@Param("token", token) t: string) { return this.galleries.meta(t); }
+
+  /** Everything on this link, as one ZIP. */
+  @Get(":token/zip")
+  @RouteConfig({ rateLimit: { max: 10, timeWindow: "10 minutes" } })
+  async zip(@Param("token", token) t: string, @Res() res: FastifyReply) {
+    const { name, photos } = await this.galleries.zip(t); // a bad link is still a normal 404
+    res.hijack();
+    res.raw.writeHead(200, { "content-type": "application/zip", "content-disposition": `attachment; filename="${name}.zip"`, "cache-control": "no-store" });
+    await this.galleries.stream(photos, res.raw);
+  }
 
   @Get(":token/photos")
   @RouteConfig({ rateLimit: { max: 120, timeWindow: "1 minute" } })

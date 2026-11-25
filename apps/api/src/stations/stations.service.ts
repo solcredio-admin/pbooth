@@ -271,6 +271,27 @@ export class StationsService implements OnModuleInit, OnModuleDestroy {
     return this.status(boothId, b.sessionId);
   }
 
+  // ---------- reprint from the gallery ----------
+
+  /** Stations that are on right now, for the gallery's popup (event admins can't open Stations). */
+  async online() {
+    const rows = await this.db.station.findMany({ where: { enabled: true, lastPollAt: { gt: new Date(Date.now() - STATION_READY_SECONDS * 1000) } }, select: { id: true, name: true, ready: true, lastError: true }, orderBy: { name: "asc" } });
+    return { items: rows };
+  }
+
+  /** One more print of a finished session, at the station staff chose. The id is made by the page, so a double click is one print. */
+  async reprint(eventId: string, sessionId: string, b: { id: string; stationId: string }, actor: string, ip?: string) {
+    const photo = await this.db.photo.findFirst({ where: { eventId, sessionId, kind: "DESIGN", status: "PROCESSED" }, orderBy: { createdAt: "desc" }, include: { session: { select: { boothId: true } } } });
+    if (!photo) throw notFound("Photo");
+    if (!(await this.online()).items.some((s) => s.id === b.stationId)) throw new ApiError(HttpStatus.CONFLICT, "STATION_OFF", "That station is offline. Choose another one");
+    const { count } = await this.db.printJob.createMany({
+      data: { id: b.id, boothId: photo.session.boothId, eventId, photoId: photo.id, copies: 1, strip: !!photo.width && !!photo.height && photo.height > photo.width * 2.2, targetStationId: b.stationId, expiresAt: this.deadline() },
+      skipDuplicates: true,
+    });
+    if (count) await this.audit.record({ actor, action: "print.reprint", entityType: "print", entityId: b.id, ip, metadata: { sessionId, stationId: b.stationId } });
+    return { ok: true };
+  }
+
   async status(boothId: string, id: string) {
     const j = await this.db.printJob.findFirst({ where: { id, boothId }, include: { station: { select: { name: true } } } });
     if (!j) throw notFound("Print");
