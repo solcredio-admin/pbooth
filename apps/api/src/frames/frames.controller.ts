@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Header, Param, Put, Req } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Put, Req, Res } from "@nestjs/common";
+import type { FastifyReply } from "fastify";
 import { z } from "zod";
 import { Allow } from "../auth/roles.js";
 import { Public } from "../auth/public.decorator.js";
@@ -36,7 +37,9 @@ export class FramesController {
   constructor(private readonly frames: FramesService) {}
 
   @Get(":id")
-  @Header("content-type", "image/png")
-  @Header("cache-control", "public, max-age=31536000, immutable")
-  file(@Param("id", uuid) id: string) { return this.frames.file(id); }
+  async file(@Param("id", uuid) id: string, @Res({ passthrough: true }) res: FastifyReply) {
+    const png = await this.frames.file(id); // a missing one is an ordinary JSON 404
+    res.header("content-type", "image/png").header("cache-control", "public, max-age=31536000, immutable");
+    return png;
+  }
 }
