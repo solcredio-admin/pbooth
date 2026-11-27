@@ -85,6 +85,11 @@ comes with a privacy notice, a deletion date and an export/erase button.
 
 ### 12.1 Telegram for everything (S)
 
+**Fix first (seen 2026-11-27):** a booth that stays offline is repeated every hour with "(still happening)", all day
+(two test booths offline since the morning filled the chat from 09:40 to 17:44). Send a problem once, then at most
+a short daily reminder, or only when it changes; never repeat while the event isn't running or is outside its hours;
+a booth unused for a day is "parked", not an alert.
+
 Managed events (same rules, muted outside the event's times), failed backups, photo processing failures, storage
 errors. Server up/down stays with Gatus, since pbooth can't report its own outage.
 
