@@ -8,9 +8,9 @@ needs another. Points (S = 1, S-M = 2, M = 3, L = 6) show how much code each pha
 
 | Phase | For | Points |
 |---|---|---|
-| 11 | Managed events | 9 (+ Stations, done) |
+| 11 | Managed events | done |
 | 12 | Both | 15 |
-| 13 | Self-service | 21 |
+| 13 | Self-service | 21, + 6 for bookings (moved here) |
 
 Phase 13 is the biggest: split it in two when it starts if it's too long to ship at once.
 
@@ -68,16 +68,11 @@ Built in this order, each usable alone:
 Done when: an iPad prints to a station in another room; two booths share one; unplugging a station moves waiting
 jobs and nothing prints twice (tested by killing the agent at every step).
 
-### 11.2 Design library (M)
+### 11.2 Design library (M) - built and deployed 2026-11-27: your own frames per layout, with templates
 Your own overlays (PNG with transparent windows), saved looks, and a schedule ("Christmas, 1-31 December"), reused
 across events instead of set up each time.
 
-### 11.3 Bookings for managed events (L)
-A public request form -> quote -> deposit by PayMongo link -> the event is created, with a booth reserved and clashes
-refused. Reminders by email. This is the first feature that stores clients' personal details on purpose, so it
-comes with a privacy notice, a deletion date and an export/erase button.
-
-**Order:** as listed. The design library comes first: bookings can then offer its looks in a quote.
+**Done 2026-11-27.** Bookings moved to the end of phase 13 (13.9): it needs the PayMongo live account.
 
 ---
 
@@ -222,6 +217,13 @@ Per event: name, price, prints (0-5), digital yes/no, layouts allowed, order, on
 - Vouchers are for one package (existing ones: Standard). With one package, the guest sees no extra screen.
 - Reports, CSV and refunds show the package.
 
+### 13.9 Bookings for managed events (L) - moved last 2026-11-27
+
+Waits for the PayMongo live account (business permits first): the deposit link needs it.
+A public request form -> quote -> deposit by PayMongo link -> the event is created, with a booth reserved and clashes
+refused. Reminders by email. This is the first feature that stores clients' personal details on purpose, so it
+comes with a privacy notice, a deletion date and an export/erase button.
+
 **Left out on purpose:** guest accounts and marketing lists, a native app, selling pbooth to other companies (it
 would need separate data per company: a rebuild, not a feature), AI backgrounds.
 
@@ -231,7 +233,7 @@ and shows the venue statements (13.3). Before starting: are prices inclusive of 
 
 ## Questions
 
-**Phase 11 (managed):** (1) Do clients book often enough that bookings (11.3) saves real time?
+**Phase 11 (managed):** (1) Do clients book often enough that bookings (13.9) saves real time?
 
 **Phase 12 (both):** (2) The boomerang GIF on managed events, self-service, or both? (3) The four open questions
 under user roles (12.3). (4) How long to keep the audit log (12.2)?
