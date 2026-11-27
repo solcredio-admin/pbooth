@@ -1,7 +1,8 @@
 "use client";
+import { useRefresh } from "@/lib/use-refresh";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { AgentInstall, AgentRemove } from "./AgentInstall";
 import { Ago } from "./Ago";
 import { DeleteZone } from "./DeleteZone";
@@ -18,7 +19,7 @@ export function StationDetail({ station: s, all, jobs, origin }: { station: Stat
   const [code, setCode] = useState<string | null>(null);
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { const t = setInterval(() => router.refresh(), 5000); return () => clearInterval(t); }, [router]);
+  useRefresh(5000);
   const st = stationState(s);
   const printers = [...new Set([...s.printers.map((p) => p.name), ...(s.printerName ? [s.printerName] : [])])];
 

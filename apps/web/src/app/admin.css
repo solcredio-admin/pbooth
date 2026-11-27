@@ -7,7 +7,7 @@
 .bar .nav { justify-self: start; display: flex; gap: 16px; }
 .bar .acts { justify-self: end; display: flex; gap: 16px; align-items: center; }
 .nav a { text-decoration: none; color: var(--muted); font: 500 12px/1 var(--mono); text-transform: uppercase; padding: 4px 0; border-bottom: 1px solid transparent; transition: color .2s ease; }
-.nav a:hover, .nav a:focus-visible { color: var(--ink); outline: none; }
+.nav a:hover, .nav a:focus-visible { color: var(--ink); }
 .nav a[aria-current="page"] { color: var(--ink); border-color: var(--ink); }
 .brand a { text-decoration: none; display: grid; place-items: center; }
 a.plain { text-decoration: none; }
@@ -27,21 +27,23 @@ a.key { text-decoration: none; cursor: pointer; }
 .hero .meta { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 18px; }
 .hero .back { justify-self: center; }
 
-/* ---------- buttons ---------- */
+/* ---------- buttons: primary (lime, the one main action), secondary (outline), danger (outline, warn) ---------- */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  border: 1px solid var(--ink); background: var(--ink); color: var(--bg); border-radius: 999px;
-  padding: 9px 22px; cursor: pointer; font: 500 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .02em;
-  text-decoration: none; transition: background-color .15s ease, color .15s ease, opacity .15s ease;
+  border: 1px solid var(--key); background: var(--key); color: var(--key-ink); border-radius: 999px;
+  padding: 9px 20px; cursor: pointer; font: 500 13px/1.4 var(--mono);
+  text-decoration: none; transition: background-color .15s ease, color .15s ease, border-color .15s ease, opacity .15s ease;
 }
-.btn:hover, .btn:focus-visible { background: transparent; color: var(--ink); outline: none; }
-.btn:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink) 25%, transparent); }
-.btn.ghost { background: transparent; color: var(--ink); }
-.btn.ghost:hover, .btn.ghost:focus-visible { background: var(--ink); color: var(--bg); }
-.btn.go { background: var(--key); border-color: var(--key-edge); color: var(--key-ink); }
-.btn.go:hover, .btn.go:focus-visible { background: transparent; color: var(--ink); }
-.btn.warn { background: transparent; border-color: var(--warn); color: var(--warn); }
-.btn.warn:hover, .btn.warn:focus-visible { background: var(--warn); color: #fff; }
+.btn:hover, .btn:focus-visible { background: var(--key-edge); border-color: var(--key-edge); color: var(--key-ink); }
+.btn.ghost, .btn.warn, .row-btn, .pill-toggle {
+  background: transparent; border: 1px solid color-mix(in srgb, var(--ink) 28%, transparent); color: var(--ink);
+  font: 500 13px/1.4 var(--mono); border-radius: 999px; cursor: pointer;
+}
+.btn.ghost:hover, .btn.ghost:focus-visible, .row-btn:hover, .row-btn:focus-visible, .pill-toggle:hover {
+  background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); border-color: color-mix(in srgb, var(--ink) 45%, transparent);
+}
+.btn.warn, .row-btn.danger { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 55%, transparent); }
+.btn.warn:hover, .btn.warn:focus-visible, .row-btn.danger:hover, .row-btn.danger:focus-visible { background: color-mix(in srgb, var(--warn) 12%, transparent); color: var(--warn); }
 .btn[disabled] { opacity: .45; cursor: default; pointer-events: none; }
 .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 
@@ -301,7 +303,7 @@ main.narrow { max-width: 900px; }
 /* Dashboard: status filters in the summary chip, and wrapped-event tiles */
 .filters-chip { display: inline-flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px 6px; }
 .chip-filter { border: 1px solid transparent; background: none; color: inherit; font: inherit; text-transform: inherit; padding: 2px 8px; border-radius: 999px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
-.chip-filter:hover, .chip-filter:focus-visible { border-color: var(--line); outline: none; }
+.chip-filter:hover, .chip-filter:focus-visible { border-color: var(--line); }
 .chip-filter.on { border-color: var(--ink); color: var(--ink); }
 .chip-filter i, .legend-row i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; }
 .chip-filter .lg-live { background: var(--key); } .chip-filter .lg-sched { background: var(--sched); } .chip-filter .lg-cap { background: var(--cap); } .chip-filter .lg-done { background: var(--done); }
@@ -394,12 +396,8 @@ main.detail.single { grid-template-columns: minmax(0, 1fr); } /* same 1240px wid
 .users-admin tr.muted td { opacity: .55; }
 .actions-cell { text-align: right; white-space: nowrap; }
 .row-actions { display: inline-flex; gap: 8px; justify-content: flex-end; align-items: center; }
-.row-btn { border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 999px; padding: 4px 12px; cursor: pointer; font: 500 11px/1.4 var(--mono); text-transform: uppercase; transition: background-color .15s ease, border-color .15s ease; }
-.row-btn:hover, .row-btn:focus-visible { background: color-mix(in srgb, var(--ink) 8%, transparent); border-color: color-mix(in srgb, var(--ink) 35%, transparent); outline: none; }
-.row-btn.danger { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
-.row-btn.danger:hover, .row-btn.danger:focus-visible { background: color-mix(in srgb, var(--warn) 12%, transparent); }
-.pill-toggle { border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 999px; padding: 4px 12px; cursor: pointer; font: 500 11px/1.4 var(--mono); text-transform: uppercase; }
-.pill-toggle.on { color: var(--ink); border-color: color-mix(in srgb, var(--free) 60%, transparent); background: color-mix(in srgb, var(--free) 16%, transparent); }
+/* small buttons in rows (styles with the buttons above): uppercase, tighter */
+.row-btn, .pill-toggle { padding: 5px 14px; text-transform: uppercase; transition: background-color .15s ease, border-color .15s ease; }
 .pill-toggle:disabled { cursor: default; opacity: .7; }
 .role-help { font-size: 12px; color: var(--muted); }
 fieldset.bare { border: 0; margin: 0; padding: 0; min-width: 0; display: contents; }
@@ -458,25 +456,9 @@ main.detail.single .tabs { margin-inline: auto; } /* centred like the page title
 .side-card { padding: 20px; border: 1px solid var(--soft-line); background-image: none; box-shadow: none; }
 .detail-side .host { padding: 20px; }
 
-/* --- three buttons: primary (accent, the one main action), secondary (outline), text link --- */
-.btn, .btn.go {
-  background: var(--key); border: 1px solid var(--key); color: var(--key-ink);
-  font: 500 13px/1.4 var(--mono); padding: 9px 20px; border-radius: 999px;
-}
-.btn:hover, .btn:focus-visible, .btn.go:hover, .btn.go:focus-visible { background: var(--key-edge); border-color: var(--key-edge); color: var(--key-ink); }
-.btn.ghost, .btn.warn, .row-btn, .pill-toggle {
-  background: transparent; border: 1px solid color-mix(in srgb, var(--ink) 28%, transparent); color: var(--ink);
-  font: 500 13px/1.4 var(--mono); border-radius: 999px;
-}
-.btn.ghost, .btn.warn { padding: 9px 20px; }
-.row-btn, .pill-toggle { padding: 5px 14px; }
-.btn.ghost:hover, .btn.ghost:focus-visible, .row-btn:hover, .row-btn:focus-visible, .pill-toggle:hover {
-  background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); border-color: color-mix(in srgb, var(--ink) 45%, transparent);
-}
-.btn.warn, .row-btn.danger { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 55%, transparent); }
-.btn.warn:hover, .btn.warn:focus-visible, .row-btn.danger:hover { background: color-mix(in srgb, var(--warn) 12%, transparent); color: var(--warn); }
+/* --- links (buttons are defined once, under "buttons" above) --- */
 .plain, .plain.cap, .linkish { font: 500 13px/1.4 var(--mono); color: var(--ink); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--ink) 30%, transparent); text-underline-offset: 4px; }
-.plain:hover, .plain:focus-visible { text-decoration-color: currentColor; outline: none; }
+.plain:hover, .plain:focus-visible { text-decoration-color: currentColor; }
 .plain.icon, .bar .plain, .plain.back { text-decoration: none; }
 .plain.danger { color: var(--warn); }
 
@@ -556,3 +538,29 @@ main.detail.single .tabs { margin-inline: auto; } /* centred like the page title
 .audit-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; margin: 14px 0 6px; }
 .audit li > div { min-width: 0; }
 .audit-changes { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 2px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+
+/* ---------- focus and motion (audit 2026-11-27) ---------- */
+/* One ring for everything you can reach with the keyboard. Components with their own visible focus (keycaps,
+   table rows, icon buttons, kiosk choices) keep theirs. */
+:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; border-radius: 4px; }
+.btn:focus-visible, .row-btn:focus-visible, .pill-toggle:focus-visible, .chip-filter:focus-visible { border-radius: 999px; }
+/* fields: the underline doubles on focus, without moving the text */
+.field input:focus, .field select:focus, .field textarea:focus, .filters input:focus, .filters select:focus, .login input:focus { box-shadow: 0 1px 0 var(--ink); }
+.field input:focus-visible, .field select:focus-visible, .field textarea:focus-visible, .filters input:focus-visible, .filters select:focus-visible, .login input:focus-visible { outline: none; }
+@media (prefers-reduced-motion: reduce) {
+  .live-dot.on, .skeleton, .sk { animation: none; }
+}
+
+/* browser surfaces in the palette: selection, caret, scrollbars, numbers in tables */
+::selection { background: color-mix(in srgb, var(--key) 60%, transparent); color: var(--key-ink); }
+input, textarea { caret-color: var(--key-edge); }
+html { scrollbar-color: color-mix(in srgb, var(--ink) 28%, transparent) transparent; }
+.table td, .kv dd { font-variant-numeric: tabular-nums; }
+
+/* phones: the menu keeps its size and scrolls sideways inside the bar instead of pushing the page wider */
+@media (max-width: 640px) {
+  .bar { grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; }
+  .bar .nav { justify-self: stretch; min-width: 0; overflow-x: auto; scrollbar-width: none; gap: 14px; justify-content: safe center; }
+  .bar .nav::-webkit-scrollbar { display: none; }
+  .nav a { font-size: 12px; white-space: nowrap; }
+}

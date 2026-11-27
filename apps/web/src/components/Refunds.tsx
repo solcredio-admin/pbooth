@@ -1,4 +1,5 @@
 "use client";
+import { useRefresh } from "@/lib/use-refresh";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
@@ -28,7 +29,7 @@ export function Refunds({ open, done }: { open: RefundRow[]; done: RefundRow[] }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [code, setCode] = useState<{ code: string; event: string } | null>(null);
-  useEffect(() => { const t = setInterval(() => router.refresh(), 20_000); return () => clearInterval(t); }, [router]);
+  useRefresh(20_000);
   const ask = (r: RefundRow, action: Action) => { setPick({ r, action }); setError(""); dialog.current?.showModal(); };
   const go = async () => {
     if (!pick) return;

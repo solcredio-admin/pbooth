@@ -1,4 +1,5 @@
 "use client";
+import { inkOn } from "@/lib/contrast";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useWebcam } from "@/lib/kiosk/camera";
 import { useAgent } from "@/lib/kiosk/agent";
@@ -215,6 +216,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     if (!el) return;
     el.style.setProperty("--k-bg", guest?.primaryColor ?? "#0b0c0a");
     el.style.setProperty("--k-accent", guest?.accentColor ?? "#c6f36b");
+    el.style.setProperty("--k-accent-ink", inkOn(guest?.accentColor ?? "#c6f36b")); // a dark accent gets light text on its buttons
     el.style.setProperty("--k-ink", isLight(guest?.primaryColor ?? "#0b0c0a") ? "#0b0c0a" : "#f6f5f0");
   }, [guest?.primaryColor, guest?.accentColor]);
 

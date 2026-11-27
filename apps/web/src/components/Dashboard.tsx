@@ -1,7 +1,7 @@
 "use client";
+import { useRefresh } from "@/lib/use-refresh";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Ago } from "./Ago";
 import { stationState } from "./StationsBoard";
 import { useLiveBooths } from "@/lib/live";
@@ -29,9 +29,8 @@ const stationTile = (s: StationDto) => (!s.enabled || !s.computer || !s.online ?
 
 // The dashboard: booths (live) on top, then one Events box sorted by date with status filters.
 export function Dashboard({ events, summary, booths: initialBooths, stations, jobs }: { events: EventDto[]; summary: Summary; booths: BoothDto[]; stations: StationDto[] | null; jobs: PrintJobDto[] }) {
-  const router = useRouter();
   // booths arrive live; stations are re-read
-  useEffect(() => { if (!stations) return; const t = setInterval(() => router.refresh(), 10_000); return () => clearInterval(t); }, [stations, router]);
+  useRefresh(10_000, !!stations);
   const line = jobs.filter((j) => ["WAITING", "CLAIMED", "PRINTING"].includes(j.status)).length;
   const look = jobs.filter((j) => j.status === "FAILED" || j.status === "EXPIRED").length;
   const { booths } = useLiveBooths(initialBooths);

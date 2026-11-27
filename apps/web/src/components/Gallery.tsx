@@ -8,10 +8,12 @@ interface Item { id: string; kind: "DESIGN" | "ORIGINAL"; index: number; width: 
 
 const Down = () => <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 4v11" /><path d="m7.5 11 4.5 4.5L16.5 11" /><path d="M5 20h14" /></svg>;
 
+const Chevron = ({ flip = false }: { flip?: boolean }) => <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={flip ? "m9 5 7 7-7 7" : "m15 5-7 7 7 7"} /></svg>;
+
 // What guests (their own photos) and clients (the whole event) see. Every photo whole, in its own shape.
 export function Gallery({ token }: { token: string }) {
   const root = useRef<HTMLDivElement>(null);
-  const box = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLDialogElement>(null);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [pages, setPages] = useState(1);
@@ -65,8 +67,8 @@ export function Gallery({ token }: { token: string }) {
   const go = useCallback((by: number) => setOpenId((id) => { const i = items.findIndex((p) => p.id === id); return items[(i + by + items.length) % items.length]?.id ?? null; }), [items]);
   useEffect(() => {
     if (!isOpen) return;
-    box.current?.focus();
-    const key = (e: KeyboardEvent) => { if (e.key === "Escape") setOpenId(null); if (e.key === "ArrowRight") go(1); if (e.key === "ArrowLeft") go(-1); };
+    if (!box.current?.open) box.current?.showModal();
+    const key = (e: KeyboardEvent) => { if (e.key === "ArrowRight") go(1); if (e.key === "ArrowLeft") go(-1); };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
   }, [isOpen, go]);
@@ -112,15 +114,15 @@ export function Gallery({ token }: { token: string }) {
         </>
       )}
       {open && (
-        <div ref={box} className="gal-box" role="dialog" aria-modal="true" aria-label="Photo" tabIndex={-1} onClick={() => setOpenId(null)}>
+        <dialog ref={box} className="gal-box" aria-label={`Photo ${at + 1} of ${items.length}`} onClose={() => setOpenId(null)} onClick={(e) => { if (e.target === e.currentTarget) box.current?.close(); }}>
           <img src={open.previewUrl} alt="" />
-          <div className="gal-box-actions" onClick={(e) => e.stopPropagation()}>
-            {items.length > 1 && <button type="button" className="gal-btn ghost icon" onClick={() => go(-1)} aria-label="Previous photo">‹</button>}
+          <div className="gal-box-actions">
+            {items.length > 1 && <button type="button" className="gal-btn ghost icon" onClick={() => go(-1)} aria-label="Previous photo"><Chevron /></button>}
             <a className="gal-btn" href={open.downloadUrl}><Down />Download</a>
-            <button type="button" className="gal-btn ghost" onClick={() => setOpenId(null)}>Close</button>
-            {items.length > 1 && <button type="button" className="gal-btn ghost icon" onClick={() => go(1)} aria-label="Next photo">›</button>}
+            <button type="button" className="gal-btn ghost" onClick={() => box.current?.close()}>Close</button>
+            {items.length > 1 && <button type="button" className="gal-btn ghost icon" onClick={() => go(1)} aria-label="Next photo"><Chevron flip /></button>}
           </div>
-        </div>
+        </dialog>
       )}
     </div>
   );

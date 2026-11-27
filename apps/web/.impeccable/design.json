@@ -1,0 +1,202 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-27T15:05:28.394847+00:00",
+  "title": "Design System: pbooth",
+  "extensions": {
+    "colorMeta": {
+      "lime-key": {
+        "role": "primary",
+        "displayName": "Acid Lime"
+      },
+      "periwinkle-sched": {
+        "role": "secondary",
+        "displayName": "Periwinkle"
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Warm Paper"
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink"
+      },
+      "night": {
+        "role": "neutral",
+        "displayName": "Night"
+      },
+      "warn-light": {
+        "role": "error",
+        "displayName": "Burnt Red"
+      },
+      "ash-cap": {
+        "role": "neutral",
+        "displayName": "Ash"
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Page titles: a short noun with a full stop."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "One per glass sheet."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "All copy, tables, buttons."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Field labels, table headers, card titles; the only uppercase."
+      }
+    },
+    "shadows": [
+      {
+        "name": "sheet",
+        "value": "inset 0 1px 0 var(--rim), inset 0 -1px 0 var(--rim-soft), 0 18px 40px -22px rgba(0,0,0,.45)",
+        "purpose": "Every glass section."
+      },
+      {
+        "name": "floating",
+        "value": "inset 0 1px 0 var(--rim), 0 24px 60px -20px rgba(0,0,0,.5)",
+        "purpose": "Hover ticket and dialogs, with backdrop blur."
+      },
+      {
+        "name": "keycap",
+        "value": "inset 0 -4px 0 var(--key-edge)",
+        "purpose": "Tiles; 2px when pressed."
+      }
+    ],
+    "motion": [
+      {
+        "name": "key-press",
+        "value": "transform .14s cubic-bezier(.2,.7,.2,1)",
+        "purpose": "Keycap press on hover/focus."
+      },
+      {
+        "name": "theme-glide",
+        "value": ".9s ease",
+        "purpose": "Colours glide while the gradient morphs on theme switch."
+      },
+      {
+        "name": "reveal",
+        "value": "rise .9s cubic-bezier(.2,.7,.2,1)",
+        "purpose": "Content rises once after the sign-in intro; a fade under reduced motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sidebar-stacks",
+        "value": "960px"
+      },
+      {
+        "name": "phone",
+        "value": "640px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one main action in an area.",
+      "html": "<button class=\"ds-btn\">Save</button>",
+      "css": ".ds-btn{background:#c6f36b;color:#0b0f05;border:1px solid #c6f36b;border-radius:999px;padding:9px 20px;font:500 13px/1.4 'Roboto Mono',ui-monospace,monospace;cursor:pointer;transition:background-color .15s ease}.ds-btn:hover{background:#9fcc45;border-color:#9fcc45}.ds-btn:focus-visible{outline:2px solid rgba(11,12,10,.75);outline-offset:3px}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Everything else.",
+      "html": "<button class=\"ds-btn-ghost\">Cancel</button>",
+      "css": ".ds-btn-ghost{background:transparent;color:#0b0c0a;border:1px solid rgba(11,12,10,.28);border-radius:999px;padding:9px 20px;font:500 13px/1.4 'Roboto Mono',ui-monospace,monospace;cursor:pointer}.ds-btn-ghost:hover{background:rgba(11,12,10,.08);border-color:rgba(11,12,10,.45)}.ds-btn-ghost:focus-visible{outline:2px solid rgba(11,12,10,.75);outline-offset:3px}"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Destructive actions, always confirmed.",
+      "html": "<button class=\"ds-btn-warn\">Delete booth…</button>",
+      "css": ".ds-btn-warn{background:transparent;color:#b8310f;border:1px solid rgba(184,49,15,.55);border-radius:999px;padding:9px 20px;font:500 13px/1.4 'Roboto Mono',ui-monospace,monospace;cursor:pointer}.ds-btn-warn:hover{background:rgba(184,49,15,.12)}"
+    },
+    {
+      "name": "Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Label, underline input, hint.",
+      "html": "<label class=\"ds-field\"><span>Booth name</span><input placeholder=\"Booth A\"><em>Shown on the kiosk.</em></label>",
+      "css": ".ds-field{display:grid;gap:6px;font-family:'Roboto Mono',ui-monospace,monospace}.ds-field span{font:500 11px/1.4 inherit;text-transform:uppercase;letter-spacing:.05em;color:#4c4f48}.ds-field input{border:0;border-bottom:1px solid rgba(11,12,10,.12);background:transparent;padding:8px 0;font:400 15px/1.4 inherit;outline:none}.ds-field input:focus{border-color:#0b0c0a;box-shadow:0 1px 0 #0b0c0a}.ds-field em{font:400 12px/1.45 inherit;font-style:normal;color:#4c4f48}"
+    },
+    {
+      "name": "Keycap",
+      "kind": "custom",
+      "refersTo": "key-live",
+      "description": "An event, booth or station as a tile.",
+      "html": "<a class=\"ds-key\" href=\"#\"><span>LIVE</span><b>7K3M</b><i>Booth A</i></a>",
+      "css": ".ds-key{display:grid;gap:6px;width:150px;min-height:104px;padding:14px;border-radius:12px;background:#c6f36b;color:#0b0f05;box-shadow:inset 0 -4px 0 #9fcc45;text-decoration:none;font-family:'Roboto Mono',ui-monospace,monospace;transition:transform .14s cubic-bezier(.2,.7,.2,1),box-shadow .12s ease}.ds-key span{font:500 11px/1.4 inherit;letter-spacing:.05em}.ds-key b{font:500 20px/1 inherit}.ds-key i{font:400 12px/1.2 inherit;font-style:normal;opacity:.8}.ds-key:hover,.ds-key:focus-visible{transform:translateY(2px);box-shadow:inset 0 -2px 0 #9fcc45,0 0 0 2px rgba(11,12,10,.75);outline:none}"
+    },
+    {
+      "name": "Status",
+      "kind": "chip",
+      "refersTo": "key-scheduled",
+      "description": "A dot and a word.",
+      "html": "<span class=\"ds-pill\">Online</span>",
+      "css": ".ds-pill{display:inline-flex;align-items:center;gap:7px;font:500 12px/1.4 'Roboto Mono',ui-monospace,monospace;color:#0b0c0a}.ds-pill::before{content:'';width:7px;height:7px;border-radius:50%;background:#9fcc45;box-shadow:0 0 0 3px rgba(159,204,69,.22)}"
+    },
+    {
+      "name": "Navigation",
+      "kind": "nav",
+      "description": "Floating glass strip.",
+      "html": "<nav class=\"ds-nav\"><a aria-current=\"page\" href=\"#\">Dashboard</a><a href=\"#\">Events</a><a href=\"#\">Booths</a></nav>",
+      "css": ".ds-nav{display:flex;gap:16px;padding:12px 22px;border-radius:999px;background:rgba(250,248,242,.42);box-shadow:inset 0 1px 0 rgba(255,255,255,.75),0 18px 40px -22px rgba(0,0,0,.45);font:500 13px/1 'Roboto Mono',ui-monospace,monospace}.ds-nav a{color:#4c4f48;text-decoration:none;padding:4px 0;border-bottom:1px solid transparent}.ds-nav a[aria-current=page]{color:#0b0c0a;border-color:#0b0c0a}.ds-nav a:focus-visible{outline:2px solid rgba(11,12,10,.75);outline-offset:3px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Quiet Glass, Lime Keys",
+    "overview": "pbooth is run by one owner and a few staff, often at a venue on a phone or a laptop beside a booth. The admin is a working tool: quiet editorial type, a slow lime-and-periwinkle shader gradient behind everything, and content on light glass sheets. Colour is spent almost entirely on state: lime means live or primary, periwinkle means scheduled, ash means idle or done. Everything else is ink on paper (or paper on night).",
+    "keyCharacteristics": [
+      "One large serif statement per page, ending in a full stop (\"Stations.\"), over small mono labels.",
+      "One glass sheet per section; nothing nested in a second box.",
+      "Lime is rare: the primary button, live keys, the live dot.",
+      "Status is a coloured dot and a word, never a filled badge.",
+      "Light and dark both designed; dark mode is chosen by the viewer, not by category."
+    ],
+    "rules": [
+      {
+        "name": "The Lime Is Rare Rule",
+        "body": "Lime marks what's live or the one main action in an area. If two lime buttons sit side by side, one of them is secondary.",
+        "section": "colors"
+      },
+      {
+        "name": "The Dot And Word Rule",
+        "body": "State reads as a 7px dot plus a plain word. Colour alone never carries meaning.",
+        "section": "colors"
+      },
+      {
+        "name": "The Serif For Titles Only Rule",
+        "body": "The serif never sets a sentence of UI copy or a button.",
+        "section": "typography"
+      },
+      {
+        "name": "The One Box Rule",
+        "body": "A section is one glass sheet; panels inside it have no second frame.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** set every dynamic value (colours, aspect ratios, crops) through a CSS variable from a ref; the page's security policy refuses inline `style`.",
+      "**Do** keep burnt red at 4.5:1 or better wherever it's text.",
+      "**Do** keep reduced motion meaningful: no travel or scaling, but fades, colour changes and progress fills stay.",
+      "**Do** use native `<dialog>` with `showModal()` for anything that interrupts."
+    ],
+    "donts": [
+      "**Don't** add a second accent colour, or use lime for decoration.",
+      "**Don't** nest a card inside a glass sheet.",
+      "**Don't** add uppercase beyond labels and row buttons.",
+      "**Don't** crop guests' photos in a gallery; show each one whole.",
+      "**Don't** animate on a failure (a wrong password gets no flourish)."
+    ]
+  }
+}

@@ -1,7 +1,8 @@
 "use client";
+import { useRefresh } from "@/lib/use-refresh";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { Ago } from "./Ago";
 import { PrintJobs } from "./PrintJobs";
 import { send } from "@/lib/client-api";
@@ -21,7 +22,7 @@ export function StationsBoard({ stations, open, done }: { stations: StationDto[]
   const readOnly = !can(useMe().role).manageBooths;
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  useEffect(() => { const t = setInterval(() => router.refresh(), 5000); return () => clearInterval(t); }, [router]);
+  useRefresh(5000);
   const line = open.filter((j) => j.status === "WAITING" || j.status === "CLAIMED" || j.status === "PRINTING").reverse(); // oldest first, as they print
   const look = open.filter((j) => j.status === "FAILED" || j.status === "EXPIRED");
 

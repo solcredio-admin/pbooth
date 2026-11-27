@@ -45,23 +45,24 @@ admin and no default password.
 
 | Piece | Where |
 |---|---|
-| App + Postgres | Stravex, `~/compose/pbooth` (a git checkout of `main`), published on `100.86.234.119:3310` (Tailscale only) |
+| App + Postgres | Emeruth, `~/compose/pbooth` (compose file and `.env`; a local `docker-compose.override.yml` gives the network a fixed address range), published on `100.97.186.49:3020` (Tailscale only) |
 | Image | `ghcr.io/solcredio-admin/pbooth:latest`, built and published by CI after the tests pass (public) |
-| Public proxy | Veldora Caddy: `pbooth.solcredio.net` → `100.86.234.119:3310` ([snippet](infra/Caddyfile.veldora), [installer](infra/veldora-add-route.sh)) |
+| Public proxy | Averion Caddy: `pbooth.solcredio.net` → `100.97.186.49:3020` |
 | DNS | `*.solcredio.net` via Cloudflare (proxied) |
+| Development copy | Emeruth, `~/compose/pbooth-dev`: <https://pbooth-dev.ts.solcredio.net> (tailnet only, mock data) |
 
-Stravex is a staging host. Production should move to a dedicated VPS before real events (see
-"Infrastructure" in the architecture doc).
+Production moved from Stravex to Emeruth on 2026-11-27 (Stravex and Veldora went offline) and was restored
+from the newest daily backup in R2.
 
-Update Stravex after pushing to `main` and seeing CI pass. It pulls the image CI built, so
-Stravex doesn't compile anything:
+Update production after pushing to `main` and seeing CI pass. It pulls the image CI built, so nothing is
+compiled there. Back up the database first:
 
 ```bash
-ssh stravex 'cd ~/compose/pbooth && git pull --ff-only && docker compose pull app && docker compose up -d'
+ssh emeruth 'cd ~/compose/pbooth && docker compose exec -T db pg_dump -U pbooth -Fc pbooth > ~/pbooth-predeploy-$(date +%Y%m%d-%H%M).dump && docker compose pull -q app && docker compose up -d --wait app'
 ```
 
 Each image is also tagged with its commit (`ghcr.io/solcredio-admin/pbooth:<sha>`). To pin a
-version or roll back, set `PBOOTH_IMAGE` to that tag in Stravex's `.env` and run
+version or roll back, set `PBOOTH_IMAGE` to that tag in Emeruth's `.env` and run
 `docker compose up -d`.
 
 ## Booths
@@ -162,7 +163,7 @@ Leave public access **off**.
 - Copy the *Access Key ID*, the *Secret Access Key*, and the *S3 endpoint*
   (`https://<account id>.r2.cloudflarestorage.com`).
 
-**4. Put them in the server's `.env`** (on Stravex: `~/compose/pbooth/.env`). Type them there
+**4. Put them in the server's `.env`** (on Emeruth: `~/compose/pbooth/.env`). Type them there
 yourself; don't paste keys into chats or tickets.
 
 ```
@@ -175,7 +176,7 @@ S3_SECRET_ACCESS_KEY=...
 **5. Restart and check:**
 
 ```bash
-ssh stravex 'cd ~/compose/pbooth && docker compose up -d'
+ssh emeruth 'cd ~/compose/pbooth && docker compose up -d'
 ```
 
 Then open **Settings → Storage → Run storage check**. All four steps should pass, including
@@ -272,8 +273,9 @@ corepack pnpm install
 docker compose -f infra/docker-compose.dev.yml up -d
 ```
 
-To run the whole app with mock data on Stravex (the `pbooth-dev` stack, separate from production):
-`tools/dev-stack.sh`. It is reachable only through an SSH tunnel; see `infra/pbooth-dev.compose.yaml`.
+To run the whole app with mock data on Emeruth (the `pbooth-dev` stack, separate from production):
+`tools/dev-stack.sh`, then `node tools/seed-dev.mjs` once on an empty stack (after `admin:create`). It is
+reachable only on the tailnet at <https://pbooth-dev.ts.solcredio.net>; see `infra/pbooth-dev.compose.yaml`.
 
 ```bash
 cp .env.example .env    # uncomment the "local development" block

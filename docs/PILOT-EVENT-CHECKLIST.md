@@ -53,5 +53,5 @@ A short, printable list for running a real event with pbooth. Tick it top to bot
 | Camera not found | Replug the USB camera; the kiosk retries by itself. Check the browser allowed the camera |
 | Preview zoomed / wrong way round | Booth → *Hardware*: booth display, camera rotation, mirror preview |
 | Photos not uploading | The kiosk keeps them; they upload when the internet returns. Don't clear the browser's data |
-| Locked out of pbooth | On Stravex: `docker compose exec app sh -c "cd /app/api && node dist/cli.js admin:reset-password"` (add `--username <name>` for someone else) |
+| Locked out of pbooth | On Emeruth (`~/compose/pbooth`): `docker compose exec app sh -c "cd /app/api && node dist/cli.js admin:reset-password"` (add `--username <name>` for someone else) |
 | Need to undo a mistake in the data | Settings → *Backups*, then `backup:restore` on the server (it saves a safety copy first) |

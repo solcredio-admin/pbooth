@@ -114,7 +114,7 @@ export function BoothDetail({ initial, events, stations, origin }: { initial: Bo
             {b.liveEvent ? (
               <p><span className="live-dot on" aria-hidden="true" />Live at <Link href={`/events/${b.liveEvent.id}`}>{b.liveEvent.name}</Link></p>
             ) : b.nextEvent ? (
-              <p>Next: <Link href={`/events/${b.nextEvent.id}`}>{b.nextEvent.name}</Link><br /><span className="cap">{new Date(b.nextEvent.startsAt).toLocaleString()}</span></p>
+              <p>Next: <Link href={`/events/${b.nextEvent.id}`}>{b.nextEvent.name}</Link><br /><span className="cap" suppressHydrationWarning>{new Date(b.nextEvent.startsAt).toLocaleString()}</span></p>
             ) : (
               <p className="cap">Not booked on an upcoming event.</p>
             )}

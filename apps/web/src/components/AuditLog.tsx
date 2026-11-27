@@ -11,7 +11,7 @@ const VERB: Record<string, string> = {
   create: "created", update: "edited", delete: "deleted", activate: "started", complete: "wrapped up", archive: "archived", schedule: "scheduled",
   login: "signed in", logout: "signed out", "login.failed": "failed to sign in", "password.changed": "changed their password", "password.failed": "entered a wrong password",
   revoke: "revoked", "sign-out": "signed out the computer of", enroll: "connected", "enrollment-code": "made a connection code for", "kiosk-code": "made a kiosk code for",
-  "kiosk-unpair": "unpaired the kiosk of", stations: "changed the stations of", "booth.assign": "booked a booth on", "booth.unassign": "took a booth off", cashiers: "changed the cashiers of",
+  "kiosk-unpair": "unpaired the kiosk of", stations: "changed the stations of", "booth.assign": "booked a booth on", "booth.unassign": "took a booth off", cashiers: "changed the cashiers of", kioskAdmins: "changed the kiosk admins of", "staffPin.set": "set the staff PIN of", "staffPin.remove": "removed the staff PIN of",
   "frame.upload": "uploaded a frame to", "frame.remove": "removed a frame from", retry: "printed again", move: "moved a print", reprint: "reprinted a photo",
 };
 function sentence(e: Entry) {

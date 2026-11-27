@@ -1,5 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+
+const Icon = ({ d }: { d: string }) => <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>;
+const BACK = "M21 5H9l-7 7 7 7h12zM17 9l-6 6M11 9l6 6", OK = "m5 12 5 5L20 7";
 import { kioskFetch } from "@/lib/kiosk/api";
 
 const HOLD_MS = 3000;
@@ -11,6 +14,8 @@ export function Staff() {
   const [error, setError] = useState("");
   const hold = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const drop = () => clearTimeout(hold.current);
+  const dlg = useRef<HTMLDialogElement>(null);
+  useEffect(() => { if (open && !dlg.current?.open) dlg.current?.showModal(); }, [open]);
   useEffect(() => { if (!open) return; const t = setTimeout(() => { setOpen(null); setPin(""); }, 30_000); return () => clearTimeout(t); }, [open, pin]); // never left open for a guest
   const check = async () => {
     setError("");
@@ -23,14 +28,14 @@ export function Staff() {
     <>
       <div className="k-corner" aria-hidden="true" onPointerDown={() => { drop(); hold.current = setTimeout(() => { setError(""); setPin(""); setOpen("pin"); }, HOLD_MS); }} onPointerUp={drop} onPointerLeave={drop} onPointerCancel={drop} />
       {open && (
-        <div className="k-staff" role="dialog" aria-modal="true" aria-label="Staff">
+        <dialog ref={dlg} className="k-staff" aria-label="Staff" onClose={() => setOpen(null)}>
           <div className="k-panel">
             {open === "pin" ? <>
               <h1 className="k-title small">Staff</h1>
               <p className="k-ref big" aria-label={`${pin.length} digits`}>{"•".repeat(pin.length) || "PIN"}</p>
               <div className="k-pins">{"123456789".split("").map((d) => <button key={d} className="k-key" type="button" onClick={() => setPin((p) => (p + d).slice(0, 8))}>{d}</button>)}
-                <button className="k-key" type="button" aria-label="Delete" onClick={() => setPin((p) => p.slice(0, -1))}>⌫</button><button className="k-key" type="button" onClick={() => setPin((p) => (p + "0").slice(0, 8))}>0</button>
-                <button className="k-key" type="button" aria-label="Enter" disabled={pin.length < 4} onClick={check}>✓</button></div>
+                <button className="k-key" type="button" aria-label="Delete" onClick={() => setPin((p) => p.slice(0, -1))}><Icon d={BACK} /></button><button className="k-key" type="button" onClick={() => setPin((p) => (p + "0").slice(0, 8))}>0</button>
+                <button className="k-key" type="button" aria-label="Enter" disabled={pin.length < 4} onClick={check}><Icon d={OK} /></button></div>
               {error && <p className="k-error" role="alert">{error}</p>}
             </> : <>
               <h1 className="k-title small">Staff menu</h1>
@@ -40,9 +45,9 @@ export function Staff() {
                 <button className="k-btn ghost" type="button" onClick={() => { location.href = "/booths"; }}>Go to the admin</button>
               </div>
             </>}
-            <button className="k-btn ghost" type="button" onClick={() => setOpen(null)}>Close</button>
+            <button className="k-btn ghost" type="button" onClick={() => dlg.current?.close()}>Close</button>
           </div>
-        </div>
+        </dialog>
       )}
     </>
   );
