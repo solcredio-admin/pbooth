@@ -9,10 +9,24 @@ needs another. Points (S = 1, S-M = 2, M = 3, L = 6) show how much code each pha
 | Phase | For | Points |
 |---|---|---|
 | 11 | Managed events | done |
-| 12 | Both | 15 |
+| 12 | Both | 15: 12.1-12.3 built (6), 12.4-12.6 to do (9) |
 | 13 | Self-service | 21, + 6 for bookings (moved here) |
 
 Phase 13 is the biggest: split it in two when it starts if it's too long to ship at once.
+
+**Done alongside (2026-11-27), not in the plan:**
+- Production moved to Emeruth behind Averion's Caddy (Stravex and Veldora went offline), restored from the newest
+  daily R2 backup (Nov 25). Restoring an older backup over a newer schema fails (the in-app restore needs a fix
+  before anyone relies on it); it was done by hand into an empty database.
+- Telegram spam fixed: reminders at most daily, parked booths quiet. Deployed.
+- Design audit (14/20) and fixes: readable danger red, one focus ring, native dialogs, reduced motion that keeps
+  feedback, refreshes that pause in hidden tabs, buttons defined once, phone menu, kiosk button contrast.
+  DESIGN.md written. Pushed, not deployed.
+- A permanent development copy on Emeruth, tailnet only: https://pbooth-dev.ts.solcredio.net (`tools/dev-stack.sh`,
+  `tools/seed-dev.mjs`). Every admin page, the kiosk and the galleries were checked there as every role.
+
+**Still open from that work:** the test that catches a change that skips the audit log (12.2); ~150 colour,
+radius and font-size values outside DESIGN.md's scale (a visual tidy-up); Emeruth's disk at 91%.
 
 **Before phase 11:** phase 10 deployed; one real PayMongo test payment and refund; one real Telegram bot; one
 print on the Canon G1010; the lockdown steps tried on one real booth. Any of these can change the plans below.
@@ -78,7 +92,7 @@ across events instead of set up each time.
 
 ## Phase 12: both kinds of event
 
-### 12.1 Telegram for everything (S) - built 2026-11-27, not deployed
+### 12.1 Telegram for everything (S) - built and pushed 2026-11-27 (CI passed), not deployed yet
 
 Built: reminders at most daily; a booth silent for a day is parked (closes quietly); managed events alert from an
 hour before they start until they end; a new "Backups, photos, storage" kind (no backup in 26 hours, storage not
@@ -92,7 +106,7 @@ a booth unused for a day is "parked", not an alert.
 Managed events (same rules, muted outside the event's times), failed backups, photo processing failures, storage
 errors. Server up/down stays with Gatus, since pbooth can't report its own outage.
 
-### 12.2 Audit log in Settings (S-M) - built 2026-11-27, not deployed
+### 12.2 Audit log in Settings (S-M) - built and pushed 2026-11-27 (CI passed), not deployed yet
 
 Built: Settings → Audit log for the owner and super admins, with account (name and role kept with each entry), kind,
 dates, guests on request, old → new values for events, booths, stations and users (secrets only as "changed"),
@@ -115,7 +129,7 @@ what it was done to, IP); nothing shows it yet.
 - Guest actions (voucher tries, pairing) are noisy: hidden until asked for.
 - To decide: how long to keep it (proposed: 1 year; money and user changes for good).
 
-### 12.3 User roles (M) - built 2026-11-27, not deployed
+### 12.3 User roles (M) - built and pushed 2026-11-27 (CI passed), not deployed yet
 
 Built as the table below, with the four proposed answers: event admins book booths and keep galleries; cashiers
 make vouchers and give replacement vouchers; super admins refund money; sales admins don't see photos.
@@ -184,6 +198,8 @@ Short loop (forward and back) next to the photo in the guest's gallery; never pr
   Small risk: a code used at two offline booths; limited by binding each batch to one booth.
 - **Second way in:** a written plan and tested steps for moving pbooth to another server.
 - **Key rotation:** PayMongo, R2 and Telegram keys changed without downtime, and a list of what each one can do.
+
+**Next:** 12.4 remote booth control, then 12.5 and 12.6.
 
 **Order:** as listed. The audit log comes before the roles, so the role changes are recorded; the GIF needs
 nothing else, so it can move; bad-day readiness closes the phase, once everything it must restore exists.
