@@ -10,10 +10,11 @@ import { withinHours } from "./hours.js";
 export const ALERT_KINDS = ["OFFLINE", "KIOSK", "REFUND", "PAYMENTS"] as const;
 export type AlertKind = (typeof ALERT_KINDS)[number];
 const HOUR = 3600_000;
+const DAY = 24 * HOUR;
 
 /**
  * Telegram alerts for live self-service booths. Every problem is one open Alert row: it's sent once,
- * again at most hourly while it lasts, and followed by a message when it ends. Rows survive a restart,
+ * reminded at most once a day while it lasts, and followed by a message when it ends. Rows survive a restart,
  * so restarting the server doesn't send anything twice.
  */
 @Injectable()
@@ -61,6 +62,8 @@ export class AlertsService implements OnModuleInit, OnModuleDestroy {
       const seen = Math.max(device, kiosk);
       if (!seen) continue; // never connected yet
       const limit = this.cfg.ALERT_OFFLINE_SECONDS * 1000;
+      // silent for a day: the booth is parked (packed away, switched off), not broken; closes without a message
+      if (now - seen > DAY) { quiet.add(b.id); continue; }
       if (now - seen > limit) {
         // just after a restart every booth looks silent; give them a chance to check in
         if (now - this.bootedAt > limit) problems.set(`offline:${b.id}`, { kind: "OFFLINE", text: `🔴 ${name} is offline. Last seen ${utcToWallTime(new Date(seen), e.timeZone).time}.` });
@@ -114,13 +117,13 @@ export class AlertsService implements OnModuleInit, OnModuleDestroy {
     if (!this.telegram.enabled) return;
     const now = Date.now();
     const due = await this.db.alert.findMany({
-      where: { OR: [{ sentAt: null, createdAt: { gt: new Date(now - HOUR) } }, { clearedAt: null, sentAt: { lt: new Date(now - HOUR) } }] }, orderBy: { createdAt: "asc" }, take: 30,
+      where: { OR: [{ sentAt: null, createdAt: { gt: new Date(now - HOUR) } }, { clearedAt: null, sentAt: { lt: new Date(now - DAY) } }] }, orderBy: { createdAt: "asc" }, take: 30,
     });
     if (!due.length) return;
     const chats = await this.db.alertChat.findMany();
     for (const a of due) {
       const to = chats.filter((c) => c.kinds.includes(a.kind));
-      const ok = await Promise.all(to.map((c) => this.sendTo(c, a.sentAt ? `${a.text}\n(still happening)` : a.text)));
+      const ok = await Promise.all(to.map((c) => this.sendTo(c, a.sentAt ? `${a.text}\n(still happening, daily reminder)` : a.text)));
       if (ok.some(Boolean)) await this.db.alert.update({ where: { id: a.id }, data: { sentAt: new Date() } }); // nobody got it: next sweep tries again
     }
   }

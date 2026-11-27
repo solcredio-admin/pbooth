@@ -1,6 +1,8 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { TemplatePreview } from "./TemplatePreview";
+import type { Layout } from "@/lib/template/layout";
 import { downloadTemplate, FRAME_LAYOUTS, frameKey } from "@/lib/template/frame-template";
 import type { EventDto } from "@/lib/types";
 
@@ -8,6 +10,8 @@ import type { EventDto } from "@/lib/types";
 export function EventFrames({ event, readOnly }: { event: EventDto; readOnly: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
+  const viewer = useRef<HTMLDialogElement>(null);
+  const [view, setView] = useState<{ layout: Layout; shots: number; name: string; src: string } | null>(null);
   const [error, setError] = useState<{ key: string; text: string } | null>(null);
   const have = new Map(event.frames.map((f) => [frameKey(f.layout, f.shots), f]));
   const c = event.config;
@@ -49,6 +53,7 @@ export function EventFrames({ event, readOnly }: { event: EventDto; readOnly: bo
                 </div>
                 <div className="frame-name"><b>{name}</b><span className="cap">{shots} photo{shots === 1 ? "" : "s"}{key === current ? " · this event now" : ""}</span></div>
                 <div className="frame-acts">
+                  {f && <button className="row-btn" type="button" onClick={() => { setView({ layout, shots, name, src: `/api/v1/frames/${f.id}` }); viewer.current?.showModal(); }} aria-label={`View the design for ${name}, ${shots} photos`}>View</button>}
                   <button className="row-btn" type="button" onClick={() => downloadTemplate(layout, shots, name)}>Template</button>
                   {!readOnly && <>
                     <button className="row-btn" type="button" disabled={!!busy} onClick={() => document.getElementById(`frame-${key}`)?.click()} aria-label={`${f ? "Replace" : "Upload"} the frame for ${name}, ${shots} photos`}>{busy === key ? "Uploading…" : f ? "Replace" : "Upload"}</button>
@@ -61,6 +66,15 @@ export function EventFrames({ event, readOnly }: { event: EventDto; readOnly: bo
             );
           })}
         </ul>
+        <dialog ref={viewer} className="setup frame-view" aria-labelledby="fv-title" onClose={() => setView(null)} onClick={(e) => { if (e.target === e.currentTarget) viewer.current?.close(); }}>
+          {view && <>
+            <span className="cap">{view.shots} photo{view.shots === 1 ? "" : "s"} · sample photos</span>
+            <h2 id="fv-title">{view.name}</h2>
+            <TemplatePreview key={view.src} layout={view.layout} shots={view.shots} frame={view.src} primaryColor="#ffffff" accentColor="#000000" footer="" dateText={null} logo={null}
+              pattern="none" frameStyle="none" photoStyle="square" fontStyle="serif" />
+            <div className="actions"><button type="button" className="btn" onClick={() => viewer.current?.close()}>Close</button></div>
+          </>}
+        </dialog>
       </div>
     </section>
   );

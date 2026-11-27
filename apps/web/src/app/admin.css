@@ -548,3 +548,5 @@ main.detail.single .tabs { margin-inline: auto; } /* centred like the page title
 .frame-name { display: grid; gap: 2px; }
 .frame-acts { display: flex; flex-wrap: wrap; gap: 6px; }
 .frame-acts label { cursor: pointer; }
+.frame-view { width: min(92vw, 760px); }
+.frame-view .template-preview img { max-height: min(70vh, 640px); }
