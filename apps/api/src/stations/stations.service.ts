@@ -1,6 +1,6 @@
 import { HttpStatus, Inject, Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
 import { PrismaService } from "../prisma.service.js";
-import { AuditService } from "../audit/audit.service.js";
+import { AuditService, changes } from "../audit/audit.service.js";
 import { BoothsService } from "../booths/booths.service.js";
 import { newEnrollmentCode, newStationCode, normalizeEnrollmentCode } from "../booths/codes.js";
 import { STATION_READY_SECONDS, stationOnline } from "../booths/status.js";
@@ -141,9 +141,9 @@ export class StationsService implements OnModuleInit, OnModuleDestroy {
   }
 
   async update(id: string, body: UpdateStation, actor: string, ip?: string) {
-    await this.row(id);
+    const before = await this.row(id);
     const s = await this.db.station.update({ where: { id }, data: { ...body, ...(body.printerName === "" ? { printerName: null } : {}) }, include });
-    await this.audit.record({ actor, action: "station.update", entityType: "station", entityId: id, ip, metadata: { fields: Object.keys(body) } });
+    await this.audit.record({ actor, action: "station.update", entityType: "station", entityId: id, ip, metadata: { changes: changes(before as unknown as Record<string, unknown>, body) } as Prisma.InputJsonValue });
     this.pushBooths(s);
     return this.toDto(s);
   }

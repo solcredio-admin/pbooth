@@ -28,31 +28,40 @@ export function EventRevenue({ revenue: r, eventId }: { revenue: Revenue; eventI
   );
 }
 
-// Sidebar (owner): which cashier accounts run this event.
-export function EventCashiers({ event, cashiers }: { event: EventDto; cashiers: UserRow[] }) {
+const PEOPLE = {
+  cashiers: { title: "Cashiers", none: "No cashier accounts yet. Add one in Settings → Users with the Cashier role.", hint: "See this event's vouchers, sales and help requests." },
+  "kiosk-admins": { title: "Kiosk admins", none: "No kiosk admin accounts yet. Add one in Settings → Users with the Kiosk admin role.", hint: "May open this event's kiosks." },
+} as const;
+
+// Sidebar (owner, super admin): who is assigned to this event.
+export function EventPeople({ event, kind, people }: { event: EventDto; kind: keyof typeof PEOPLE; people: UserRow[] }) {
   const router = useRouter();
-  const [picked, setPicked] = useState(() => new Set(event.cashiers.map((c) => c.id)));
+  const [picked, setPicked] = useState(() => new Set((kind === "cashiers" ? event.cashiers : event.kioskAdmins).map((c) => c.id)));
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const t = PEOPLE[kind];
   const toggle = async (id: string) => {
     const next = new Set(picked);
     if (next.has(id)) next.delete(id); else next.add(id);
     setPicked(next); setBusy(true); setMsg("");
-    const r = await send("PUT", `/events/${event.id}/cashiers`, { adminIds: [...next] });
+    const r = await send("PUT", `/events/${event.id}/${kind}`, { adminIds: [...next] });
     setBusy(false);
     if (!r.ok) { setMsg(r.message); setPicked(picked); } else router.refresh();
   };
   return (
-    <section className="side-card" aria-labelledby="side-cashiers">
-      <h2 id="side-cashiers">Cashiers</h2>
-      {cashiers.length === 0 ? <p className="cap">No cashier accounts yet. Add one in Settings → Users with the Cashier role.</p> : (
-        <ul className="side-list">
-          {cashiers.map((u) => (
-            <li key={u.id}>
-              <label className="check"><input type="checkbox" checked={picked.has(u.id)} disabled={busy || u.disabled} onChange={() => toggle(u.id)} /><span>{u.username}{u.disabled ? " (disabled)" : ""}</span></label>
-            </li>
-          ))}
-        </ul>
+    <section className="side-card" aria-labelledby={`side-${kind}`}>
+      <h2 id={`side-${kind}`}>{t.title}</h2>
+      {people.length === 0 ? <p className="cap">{t.none}</p> : (
+        <>
+          <p className="cap">{t.hint}</p>
+          <ul className="side-list">
+            {people.map((u) => (
+              <li key={u.id}>
+                <label className="check"><input type="checkbox" checked={picked.has(u.id)} disabled={busy || u.disabled} onChange={() => toggle(u.id)} /><span>{u.username}{u.disabled ? " (disabled)" : ""}</span></label>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
       {msg && <p className="cap err" role="alert">{msg}</p>}
     </section>

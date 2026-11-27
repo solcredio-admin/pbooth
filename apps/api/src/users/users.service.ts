@@ -1,7 +1,8 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { z } from "zod";
 import { PrismaService } from "../prisma.service.js";
-import { AuditService } from "../audit/audit.service.js";
+import { AuditService, changes } from "../audit/audit.service.js";
+import type { Prisma } from "../generated/prisma/client.js";
 import { ApiError, notFound } from "../common/errors.js";
 import { hashPassword, passwordProblem } from "../auth/password.js";
 import { ROLES, type Role } from "../auth/roles.js";
@@ -58,7 +59,7 @@ export class UsersService {
     ]);
     await this.audit.record({
       actor: `admin:${by.id}`, action: "user.update", entityType: "user", entityId: id, ip,
-      metadata: { role: body.role, disabled: body.disabled, passwordReset: body.password !== undefined },
+      metadata: { changes: changes(user as unknown as Record<string, unknown>, { role: body.role, disabled: body.disabled }), passwordReset: body.password !== undefined } as Prisma.InputJsonValue,
     });
     return updated;
   }

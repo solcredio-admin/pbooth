@@ -8,6 +8,7 @@ import { hashToken } from "../auth/tokens.js";
 import { newEnrollmentCode, normalizeEnrollmentCode } from "../booths/codes.js";
 import type { AuthedAdmin } from "../common/request.js";
 import type { EventScope } from "../events/events.service.js";
+import { isTop } from "../auth/roles.js";
 import { startOfDayIn } from "../events/tz.js";
 import { PaymongoService } from "./paymongo.service.js";
 
@@ -53,7 +54,7 @@ export class SelfServiceService {
    */
   async createVouchers(eventId: string, body: z.infer<typeof createVouchersSchema>, by: AuthedAdmin, scope?: EventScope, ip?: string) {
     await this.event(eventId, scope);
-    if (body.kind === "UNLIMITED" && by.role !== "OWNER") {
+    if (body.kind === "UNLIMITED" && !isTop(by.role)) {
       throw new ApiError(HttpStatus.FORBIDDEN, "FORBIDDEN", "Only the owner makes unlimited (free session) codes");
     }
     const count = body.kind === "UNLIMITED" ? 1 : body.count;

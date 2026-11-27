@@ -10,61 +10,88 @@ async function signIn(username: string, ip: string, password = PW) {
 }
 
 describe.skipIf(!url)("users and roles", () => {
-  it("each role can do its job and nothing else", async () => {
-    const owner = await login("10.0.20.1");
+  it("each role can do its job and nothing else (the table in docs/ROADMAP.md 12.3)", async () => {
+    const IP = "10.0.20.1";
+    const owner = await login(IP);
+    const O = (path: string, init: Parameters<typeof call>[1] = {}) => call(path, { cookie: owner, ip: IP, ...init });
     const stamp = Date.now();
-    const mk = async (role: string) => {
-      const r = await call("/users", { method: "POST", cookie: owner, ip: "10.0.20.1", body: { username: `${role.toLowerCase()}-${stamp}`, password: PW, role } });
-      expect(r.status).toBe(201);
-      return r.body;
+    let n = 2;
+    const as = async (role: string) => {
+      const u = (await O("/users", { method: "POST", body: { username: `${role.toLowerCase()}-${stamp}`, password: PW, role } })).body;
+      const ip = `10.0.20.${n++}`, cookie = (await signIn(u.username, ip))!;
+      return Object.assign((path: string, init: Parameters<typeof call>[1] = {}) => call(path, { cookie, ip, ...init }), { id: u.id as string, ip, cookie });
     };
-    const [ev, bo, ki] = [await mk("EVENTS"), await mk("BOOTHS"), await mk("KIOSK")];
-    const events = (await signIn(ev.username, "10.0.20.2"))!;
-    const booths = (await signIn(bo.username, "10.0.20.3"))!;
-    const kiosk = (await signIn(ki.username, "10.0.20.4"))!;
-    expect((await call("/auth/me", { cookie: kiosk, ip: "10.0.20.4" })).body.admin.role).toBe("KIOSK");
+    const [SA, EV, HW, SL, KI, CA] = [await as("SUPER_ADMIN"), await as("EVENTS"), await as("BOOTHS"), await as("SALES"), await as("KIOSK"), await as("CASHIER")];
+    const ev = (await O("/events", { method: "POST", body: { ...newEvent, name: `Roles ${stamp}`, kind: "SELF_SERVICE" } })).body;
+    const other = (await O("/events", { method: "POST", body: { ...newEvent, name: `Other ${stamp}` } })).body;
+    const booth = (await O("/booths", { method: "POST", body: { name: `Roles booth ${stamp}` } })).body;
+    const elsewhere = (await O("/booths", { method: "POST", body: { name: `Elsewhere ${stamp}` } })).body;
+    await O(`/events/${ev.id}/booths`, { method: "POST", body: { boothId: booth.id } });
+    await O(`/events/${other.id}/booths`, { method: "POST", body: { boothId: elsewhere.id } });
+    const st = async (f: typeof O, path: string, init: Parameters<typeof call>[1] = {}) => (await f(path, init)).status;
+    const ok = (s: number) => s < 300;
 
-    const as = (cookie: string, ip: string) => (path: string, init: Parameters<typeof call>[1] = {}) => call(path, { cookie, ip, ...init });
-    const E = as(events, "10.0.20.2"), B = as(booths, "10.0.20.3"), K = as(kiosk, "10.0.20.4"), O = as(owner, "10.0.20.1");
+    // users and roles: the owner only; settings: owner and super admin
+    expect(ok(await st(SA, "/users"))).toBe(true); // to pick people for events
+    expect(await st(SA, "/users", { method: "POST", body: { username: `x-${stamp}`, password: PW, role: "EVENTS" } })).toBe(403);
+    expect(await st(SA, `/users/${EV.id}`, { method: "PATCH", body: { role: "SALES" } })).toBe(403);
+    for (const f of [EV, HW, SL, KI, CA]) expect(await st(f, "/users")).toBe(403);
+    for (const path of ["/backups", "/alerts", "/storage/status", "/audit"]) {
+      expect(ok(await st(SA, path)), path).toBe(true);
+      for (const f of [EV, HW, SL, KI, CA]) expect(await st(f, path), path).toBe(403);
+    }
 
-    // events admin: makes and runs events; can't touch booths, users, backups or storage
-    const event = (await E("/events", { method: "POST", body: { ...newEvent, name: `Roles ${stamp}` } }));
-    expect(event.status).toBe(201);
-    expect((await E(`/events/${event.body.id}`, { method: "PATCH", body: { venueName: "Hall B" } })).status).toBe(200);
-    expect((await E("/booths", { method: "POST", body: { name: "nope" } })).status).toBe(403);
-    expect((await E("/users")).status).toBe(403);
-    expect((await E("/backups")).status).toBe(403);
-    expect((await E("/storage/status")).status).toBe(403);
+    // events: owner, super and event admins manage; hardware and sales admins see
+    expect(ok(await st(SA, `/events/${ev.id}`, { method: "PATCH", body: { venueName: "Hall B" } }))).toBe(true);
+    expect(ok(await st(EV, `/events/${ev.id}`, { method: "PATCH", body: { venueName: "Hall C" } }))).toBe(true);
+    for (const f of [HW, SL, CA]) expect(await st(f, `/events/${ev.id}`, { method: "PATCH", body: { venueName: "x" } })).toBe(403);
+    for (const f of [HW, SL]) expect(ok(await st(f, `/events/${ev.id}`))).toBe(true);
+    expect(await st(HW, "/events", { method: "POST", body: { ...newEvent, name: "nope" } })).toBe(403);
 
-    // booth admin: manages booths, sees events but can't change them
-    const booth = await B("/booths", { method: "POST", body: { name: `Roles booth ${stamp}` } });
-    expect(booth.status).toBe(201);
-    expect((await B(`/booths/${booth.body.id}`, { method: "PATCH", body: { notes: "by the stage" } })).status).toBe(200);
-    expect((await B(`/events/${event.body.id}`)).status).toBe(200);
-    expect((await B(`/events/${event.body.id}`, { method: "PATCH", body: { venueName: "x" } })).status).toBe(403);
-    expect((await B(`/events/${event.body.id}/activate`, { method: "POST" })).status).toBe(403);
-    expect((await B(`/events/${event.body.id}/booths`, { method: "POST", body: { boothId: booth.body.id } })).status).toBe(200);
-    expect((await B("/users")).status).toBe(403);
+    // booths and stations: hardware admins manage; event and sales admins see
+    expect(ok(await st(HW, `/booths/${booth.id}`, { method: "PATCH", body: { notes: "by the stage" } }))).toBe(true);
+    for (const f of [EV, SL]) {
+      expect(ok(await st(f, `/booths/${booth.id}`))).toBe(true);
+      expect(ok(await st(f, "/stations"))).toBe(true);
+      expect(await st(f, `/booths/${booth.id}`, { method: "PATCH", body: { notes: "x" } })).toBe(403);
+      expect(await st(f, "/stations", { method: "POST", body: { name: "x" } })).toBe(403);
+    }
+    expect(ok(await st(EV, `/events/${other.id}/booths`, { method: "POST", body: { boothId: booth.id } }))).toBe(true); // booking, not managing
 
-    // kiosk operator: sees events and booths, changes nothing, can only open a kiosk
-    expect((await K("/events")).status).toBe(200);
-    expect((await K(`/events/${event.body.id}`)).status).toBe(200);
-    expect((await K("/booths")).status).toBe(200);
-    expect((await K(`/booths/${booth.body.id}`)).status).toBe(200);
-    expect((await K(`/events/${event.body.id}/booths`)).status).toBe(200);
-    expect((await K("/events", { method: "POST", body: { ...newEvent, name: "nope" } })).status).toBe(403);
-    expect((await K(`/booths/${booth.body.id}`, { method: "PATCH", body: { notes: "x" } })).status).toBe(403);
-    expect((await K(`/booths/${booth.body.id}/kiosk-code`, { method: "POST" })).status).toBe(403);
-    expect((await K(`/events/${event.body.id}/photos`)).status).toBe(403);
-    const launched = await K(`/booths/${booth.body.id}/kiosk/launch`, { method: "POST" });
+    // sales: owner, super and sales admins; event admins keep vouchers, not money
+    for (const f of [SA, SL]) { expect(ok(await st(f, "/transactions"))).toBe(true); expect(ok(await st(f, `/events/${ev.id}/revenue`))).toBe(true); expect(ok(await st(f, "/refunds"))).toBe(true); }
+    for (const f of [EV, HW, KI]) { expect(await st(f, "/transactions")).toBe(403); expect(await st(f, "/refunds")).toBe(403); }
+    expect(await st(EV, `/events/${ev.id}/revenue`)).toBe(403);
+    expect(ok(await st(EV, `/events/${ev.id}/vouchers`, { method: "POST", body: { kind: "ONE_TIME", count: 1 } }))).toBe(true);
+    expect(ok(await st(SL, `/events/${ev.id}/vouchers`))).toBe(true);
+    expect(await st(SL, `/events/${ev.id}/vouchers`, { method: "POST", body: { kind: "ONE_TIME", count: 1 } })).toBe(403);
+    expect(ok(await st(SA, `/events/${ev.id}/vouchers`, { method: "POST", body: { kind: "UNLIMITED" } }))).toBe(true);
+
+    // kiosk admins: nothing until assigned, then only those events and their booths, to open the kiosk
+    expect((await KI("/events")).body.items).toHaveLength(0);
+    expect((await KI("/booths")).body.items).toHaveLength(0);
+    expect(await st(KI, `/booths/${booth.id}/kiosk/launch`, { method: "POST" })).toBe(404);
+    expect(await st(EV, `/events/${ev.id}/kiosk-admins`, { method: "PUT", body: { adminIds: [KI.id] } })).toBe(403);
+    expect((await SA(`/events/${ev.id}/kiosk-admins`, { method: "PUT", body: { adminIds: [KI.id, EV.id] } })).body.kioskAdmins).toEqual([{ id: KI.id, username: `kiosk-${stamp}` }]);
+    expect((await KI("/events")).body.items.map((e: { id: string }) => e.id)).toEqual([ev.id]);
+    expect((await KI("/booths")).body.items.map((b: { id: string }) => b.id)).toEqual([booth.id]);
+    expect(await st(KI, `/booths/${elsewhere.id}`)).toBe(404);
+    expect(await st(KI, `/events/${other.id}`)).toBe(404);
+    const launched = await KI(`/booths/${booth.id}/kiosk/launch`, { method: "POST" });
     expect(launched.status).toBe(200);
-    const kioskCookie = launched.setCookie!.split(";")[0];
-    expect(kioskCookie).toMatch(/^pb_kiosk=/);
-    expect((await call(`/kiosk/config?booth=${booth.body.code}`, { cookie: kioskCookie, ip: "10.0.20.4" })).status).toBe(200);
+    expect((await call(`/kiosk/config?booth=${booth.code}`, { cookie: launched.setCookie!.split(";")[0], ip: KI.ip })).status).toBe(200);
+    expect(await st(KI, `/booths/${elsewhere.id}/kiosk/launch`, { method: "POST" })).toBe(404);
+    expect(await st(KI, `/booths/${booth.id}/kiosk-code`, { method: "POST" })).toBe(403);
+    expect(ok(await st(HW, `/booths/${elsewhere.id}/kiosk/launch`, { method: "POST" }))).toBe(true);
+    expect(await st(EV, `/booths/${booth.id}/kiosk/launch`, { method: "POST" })).toBe(403);
 
-    // owner still does everything
-    expect((await O(`/booths/${booth.body.id}/kiosk-code`, { method: "POST" })).status).toBe(200);
-  });
+    // cashiers: only their assigned event's vouchers, sales and help requests
+    await SA(`/events/${ev.id}/cashiers`, { method: "PUT", body: { adminIds: [CA.id] } });
+    expect(ok(await st(CA, `/events/${ev.id}/revenue`))).toBe(true);
+    expect(await st(CA, `/events/${other.id}`)).toBe(404);
+    expect(await st(CA, "/booths")).toBe(403);
+    expect(await st(CA, `/events/${ev.id}/activate`, { method: "POST" })).toBe(403);
+  }, 60_000);
 
   it("disabling or changing a user takes effect at once, and you can't lock yourself out", async () => {
     const owner = await login("10.0.21.1");

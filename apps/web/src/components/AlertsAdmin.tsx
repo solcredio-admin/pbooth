@@ -3,12 +3,12 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { send } from "@/lib/client-api";
 
-const KINDS = { OFFLINE: "Booth offline", KIOSK: "Camera, printer or screen", REFUND: "Help and refunds", PAYMENTS: "Payments failing" } as const;
+const KINDS = { OFFLINE: "Booth offline", KIOSK: "Camera, printer or screen", REFUND: "Help and refunds", PAYMENTS: "Payments failing", SYSTEM: "Backups, photos, storage" } as const;
 type Kind = keyof typeof KINDS;
 interface Chat { id: string; chatId: string; label: string; kinds: Kind[]; lastError: string | null }
 export interface AlertsStatus { enabled: boolean; bot: { username: string | null; error: string | null } | null; chats: Chat[]; recent: { id: string; text: string; createdAt: string; sentAt: string | null; clearedAt: string | null }[] }
 
-// Telegram alerts for self-service booths: who gets them, and which kinds.
+// Telegram alerts (booths at live events, and the server's own health): who gets them, and which kinds.
 export function AlertsAdmin({ data }: { data: AlertsStatus }) {
   const router = useRouter();
   const [found, setFound] = useState<{ chatId: string; label: string }[] | null>(null);

@@ -2,7 +2,7 @@ import { type CanActivate, type ExecutionContext, HttpStatus, Injectable } from 
 import { Reflector } from "@nestjs/core";
 import { AuthService } from "./auth.service.js";
 import { IS_PUBLIC } from "./public.decorator.js";
-import { ALLOW, allowed, type Role } from "./roles.js";
+import { ALLOW, allowed, type Role, OWNER_ONLY } from "./roles.js";
 import { SESSION_COOKIE } from "./tokens.js";
 import { ApiError } from "../common/errors.js";
 import type { Req } from "../common/request.js";
@@ -19,7 +19,8 @@ export class AuthGuard implements CanActivate {
     const admin = await this.auth.resolve(req.cookies?.[SESSION_COOKIE]);
     if (!admin) throw new ApiError(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Sign in required");
     const allow = this.reflector.getAllAndOverride<Role[] | undefined>(ALLOW, [ctx.getHandler(), ctx.getClass()]);
-    if (!allowed(admin.role, allow)) throw new ApiError(HttpStatus.FORBIDDEN, "FORBIDDEN", "Your account can't do that");
+    const ownerOnly = this.reflector.getAllAndOverride<boolean | undefined>(OWNER_ONLY, [ctx.getHandler(), ctx.getClass()]) ?? false;
+    if (!allowed(admin.role, allow, ownerOnly)) throw new ApiError(HttpStatus.FORBIDDEN, "FORBIDDEN", "Your account can't do that");
     req.admin = admin;
     return true;
   }

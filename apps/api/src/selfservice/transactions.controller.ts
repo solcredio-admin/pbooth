@@ -4,7 +4,7 @@ import { scope } from "../events/events.controller.js";
 import type { Req as Request } from "../common/request.js";
 import { transactionsSchema, TransactionsService, type TransactionsQuery } from "./transactions.service.js";
 
-@Allow("EVENTS", "CASHIER")
+@Allow("SALES", "CASHIER") // cashiers: their events only
 @Controller("transactions")
 export class TransactionsController {
   constructor(private readonly tx: TransactionsService) {}

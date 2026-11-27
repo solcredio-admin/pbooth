@@ -6,24 +6,25 @@ import { StorageCheck } from "./StorageCheck";
 import { Backups, type BackupList } from "./Backups";
 import { AlertsAdmin, type AlertsStatus } from "./AlertsAdmin";
 import { UsersAdmin, type UserRow } from "./UsersAdmin";
+import { AuditLog } from "./AuditLog";
 import { ROLE_HELP, ROLE_LABEL, useMe } from "@/lib/roles";
 
-type Tab = "account" | "users" | "alerts" | "backups" | "storage" | "about";
+type Tab = "account" | "users" | "alerts" | "backups" | "storage" | "audit" | "about";
 
 // Settings in tabs. Users, backups and storage are for admins only (and the API enforces it).
 const builtAt = process.env.PBOOTH_BUILT_AT;
 
-export function SettingsView({ storage, backups, users, alerts, version }: {
-  storage: { enabled: boolean; bucket: string | null } | null; backups: BackupList | null; users: UserRow[] | null; alerts: AlertsStatus | null; version: string;
+export function SettingsView({ storage, backups, users, alerts, version, history }: {
+  storage: { enabled: boolean; bucket: string | null } | null; backups: BackupList | null; users: UserRow[] | null; alerts: AlertsStatus | null; version: string; history?: string;
 }) {
   const me = useMe();
-  const admin = me.role === "OWNER";
+  const admin = me.role === "OWNER" || me.role === "SUPER_ADMIN";
   const tabs: { id: Tab; label: string }[] = [
     { id: "account", label: "Account" },
-    ...(admin ? [{ id: "users" as const, label: "Users" }, { id: "alerts" as const, label: "Alerts" }, { id: "backups" as const, label: "Backups" }, { id: "storage" as const, label: "Storage" }] : []),
+    ...(admin ? [...(users ? [{ id: "users" as const, label: "Users" }] : []), { id: "alerts" as const, label: "Alerts" }, { id: "backups" as const, label: "Backups" }, { id: "storage" as const, label: "Storage" }, { id: "audit" as const, label: "Audit log" }] : []),
     { id: "about", label: "About" },
   ];
-  const [tab, setTab] = useState<Tab>("account");
+  const [tab, setTab] = useState<Tab>(history && admin ? "audit" : "account"); // ?history=<id> from an event, booth or station page
   return (
     <>
       <Tabs label="Settings" tabs={tabs} value={tab} onChange={setTab} />
@@ -50,7 +51,7 @@ export function SettingsView({ storage, backups, users, alerts, version }: {
       {admin && alerts && (
         <div className="tab-pane" hidden={tab !== "alerts"}>
           <section className="host" aria-labelledby="al">
-            <div className="host-head"><span className="cap">Self-service booths, sent to Telegram</span><h2 id="al">Alerts</h2></div>
+            <div className="host-head"><span className="cap">Booths at live events, backups, photos and storage, sent to Telegram</span><h2 id="al">Alerts</h2></div>
             <div className="panel"><AlertsAdmin data={alerts} /></div>
           </section>
         </div>
@@ -68,6 +69,14 @@ export function SettingsView({ storage, backups, users, alerts, version }: {
           <section className="host" aria-labelledby="st">
             <div className="host-head"><span className="cap">Where photos are kept (Cloudflare R2)</span><h2 id="st">Storage</h2></div>
             <div className="panel"><StorageCheck enabled={storage.enabled} bucket={storage.bucket} /></div>
+          </section>
+        </div>
+      )}
+      {admin && (
+        <div className="tab-pane" hidden={tab !== "audit"}>
+          <section className="host" aria-labelledby="au">
+            <div className="host-head"><span className="cap">Who changed what, and when</span><h2 id="au">Audit log</h2></div>
+            <div className="panel">{tab === "audit" && <AuditLog initialEntity={history} />}</div>
           </section>
         </div>
       )}

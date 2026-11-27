@@ -17,7 +17,7 @@ const status = (v: VoucherRow) =>
 
 // Vouchers of one self-service event: make one-time codes (sold at the counter) or, for the owner,
 // unlimited free-session codes; codes are shown once to print; void lost ones.
-export function EventVouchers({ event }: { event: EventDto }) {
+export function EventVouchers({ event, readOnly = false }: { event: EventDto; readOnly?: boolean }) {
   const me = useMe();
   const [items, setItems] = useState<VoucherRow[] | null>(null);
   const [made, setMade] = useState<NewCodes | null>(null);
@@ -54,13 +54,13 @@ export function EventVouchers({ event }: { event: EventDto }) {
   const active = items?.filter((v) => status(v) === "Active").length ?? 0;
   return (
     <div className="vouchers">
-      <section className="host" aria-labelledby="v-make">
+      {!readOnly && <section className="host" aria-labelledby="v-make">
         <div className="host-head"><span className="cap">{peso(event.priceCentavos, event.currency)} per paid session · codes work only at this event</span><h2 id="v-make">Make vouchers</h2></div>
         <form className="inline-form add-user" onSubmit={create}>
           <label className="field narrow-field"><span>Type</span>
             <select name="kind" defaultValue="ONE_TIME">
               <option value="ONE_TIME">One-time (sold at the counter)</option>
-              {me.role === "OWNER" && <option value="UNLIMITED">Unlimited (owner, free sessions)</option>}
+              {(me.role === "OWNER" || me.role === "SUPER_ADMIN") && <option value="UNLIMITED">Unlimited (owner, free sessions)</option>}
             </select>
             <span className="hint">One-time codes work once</span>
           </label>
@@ -79,7 +79,7 @@ export function EventVouchers({ event }: { event: EventDto }) {
           <button className="btn" type="submit" disabled={busy}>{busy ? "Making…" : "Make codes"}</button>
         </form>
         {error && <p className="cap err" role="alert">{error}</p>}
-      </section>
+      </section>}
 
       {made && <NewCodesCard event={event} made={made} onClose={() => setMade(null)} />}
 
@@ -97,7 +97,7 @@ export function EventVouchers({ event }: { event: EventDto }) {
                     <td><span className={"pill " + (status(v) === "Active" ? "s-ACTIVE" : status(v) === "Used" ? "s-COMPLETED" : "s-ARCHIVED")}>{status(v)}</span></td>
                     <td className="hide-sm">{v.label ?? "—"}{v.batch && <span className="cap"> · batch {v.batch}</span>}</td>
                     <td className="hide-sm cap">{new Date(v.createdAt).toLocaleDateString()}{v.createdBy ? ` · ${v.createdBy.username}` : ""}</td>
-                    <td className="actions-cell">{status(v) === "Active" && <button type="button" className="row-btn danger" onClick={() => voidOne(v)}>Void</button>}</td>
+                    <td className="actions-cell">{!readOnly && status(v) === "Active" && <button type="button" className="row-btn danger" onClick={() => voidOne(v)}>Void</button>}</td>
                   </tr>
                 ))}
               </tbody>

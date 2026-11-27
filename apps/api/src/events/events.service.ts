@@ -1,6 +1,6 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma.service.js";
-import { AuditService } from "../audit/audit.service.js";
+import { AuditService, changes } from "../audit/audit.service.js";
 import { ApiError, notFound } from "../common/errors.js";
 import { EventStatus, type Prisma } from "../generated/prisma/client.js";
 import type { CreateEvent, ListEvents, UpdateEvent } from "./events.schemas.js";
@@ -9,11 +9,11 @@ import { eventWindow, utcToWallTime } from "./tz.js";
 import { BoothsService } from "../booths/booths.service.js";
 import { PhotosService } from "../photos/photos.service.js";
 
-const withConfig = { config: true, frames: { select: { id: true, layout: true, shots: true, width: true, height: true } }, cashiers: { select: { admin: { select: { id: true, username: true } } } } } as const;
+const withConfig = { config: true, frames: { select: { id: true, layout: true, shots: true, width: true, height: true } }, cashiers: { select: { admin: { select: { id: true, username: true } } } }, kioskAdmins: { select: { admin: { select: { id: true, username: true } } } } } as const;
 
-/** A cashier sees only the events assigned to them; everyone else sees all. */
-export type EventScope = { cashierId?: string };
-const scoped = (s?: EventScope): Prisma.EventWhereInput => (s?.cashierId ? { cashiers: { some: { adminId: s.cashierId } } } : {});
+/** Cashiers and kiosk admins see only the events assigned to them; everyone else sees all. */
+export type EventScope = { cashierId?: string; kioskId?: string };
+const scoped = (s?: EventScope): Prisma.EventWhereInput => (s?.cashierId ? { cashiers: { some: { adminId: s.cashierId } } } : s?.kioskId ? { kioskAdmins: { some: { adminId: s.kioskId } } } : {});
 type EventRow = Prisma.EventGetPayload<{ include: typeof withConfig }>;
 
 // What the web app receives: exact instants plus the same times on the venue's clock.
@@ -27,6 +27,7 @@ export function toDto(e: EventRow) {
     kind: e.kind, priceCentavos: e.priceCentavos, currency: e.currency, freeSessions: e.freeSessions, acceptVouchers: e.acceptVouchers, acceptQr: e.acceptQr, alertFrom: e.alertFrom, alertTo: e.alertTo,
     partnerName: e.partnerName, partnerSharePercent: e.partnerSharePercent,
     cashiers: e.cashiers.map((c) => c.admin),
+    kioskAdmins: e.kioskAdmins.map((c) => c.admin),
     local: { date: start.date, startTime: start.time, endTime: end.time },
     activatedAt: e.activatedAt, completedAt: e.completedAt, createdAt: e.createdAt, updatedAt: e.updatedAt,
     config: e.config ? config : null,
@@ -76,7 +77,7 @@ export class EventsService {
   }
 
   async update(id: string, body: UpdateEvent, actor: string, ip?: string) {
-    const current = await this.db.event.findUnique({ where: { id } });
+    const current = await this.db.event.findUnique({ where: { id }, include: { config: true } });
     if (!current) throw notFound("Event");
     if (current.status === EventStatus.ARCHIVED) {
       throw new ApiError(HttpStatus.CONFLICT, "EVENT_ARCHIVED", "Archived events can't be edited");
@@ -88,7 +89,7 @@ export class EventsService {
       data: { ...rest, ...times, ...(config ? { config: { upsert: { create: config, update: config } } } : {}) },
       include: withConfig,
     });
-    await this.audit.record({ actor, action: "event.update", entityType: "event", entityId: id, ip, metadata: { fields: Object.keys(body) } });
+    await this.audit.record({ actor, action: "event.update", entityType: "event", entityId: id, ip, metadata: { changes: changes(current as unknown as Record<string, unknown>, { ...rest, ...times, ...(config ? { config } : {}) }) } as Prisma.InputJsonValue });
     if (e.status === EventStatus.ACTIVE) await this.booths.pushForEvent(id); // live guest settings changed
     return toDto(e);
   }
@@ -145,6 +146,18 @@ export class EventsService {
       this.db.eventCashier.createMany({ data: valid.map((a) => ({ eventId: id, adminId: a.id })) }),
     ]);
     await this.audit.record({ actor, action: "event.cashiers", entityType: "event", entityId: id, ip, metadata: { adminIds: valid.map((a) => a.id) } });
+    return this.get(id);
+  }
+
+  /** Which kiosk admins may open this event's kiosks (replaces the list). Only KIOSK users count. */
+  async setKioskAdmins(id: string, adminIds: string[], actor: string, ip?: string) {
+    await this.get(id);
+    const valid = await this.db.admin.findMany({ where: { id: { in: adminIds }, role: "KIOSK" }, select: { id: true } });
+    await this.db.$transaction([
+      this.db.eventKiosk.deleteMany({ where: { eventId: id } }),
+      this.db.eventKiosk.createMany({ data: valid.map((a) => ({ eventId: id, adminId: a.id })) }),
+    ]);
+    await this.audit.record({ actor, action: "event.kioskAdmins", entityType: "event", entityId: id, ip, metadata: { adminIds: valid.map((a) => a.id) } });
     return this.get(id);
   }
 }

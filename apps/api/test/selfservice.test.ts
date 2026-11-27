@@ -67,7 +67,7 @@ describe.skipIf(!url)("self-service events: vouchers, payments, cashiers", () =>
     expect((await O(`/events/${ev.id}/revenue`)).body.all.byMethod.FREE.sessions).toBe(1);
   });
 
-  it("cashiers run only their assigned events and can't touch price, share or unlimited codes", async () => {
+  it("cashiers see only their assigned events: vouchers and sales, not the event itself, price, share or unlimited codes", async () => {
     const IP = "10.0.31.1";
     const owner = await login(IP);
     const O = (path: string, init: Parameters<typeof call>[1] = {}) => call(path, { cookie: owner, ip: IP, ...init });
@@ -88,11 +88,11 @@ describe.skipIf(!url)("self-service events: vouchers, payments, cashiers", () =>
     expect((await C(`/events/${other.id}`)).status).toBe(404);
     expect((await C(`/events/${other.id}/vouchers`)).status).toBe(404);
 
-    expect((await C(`/events/${ev.id}`, { method: "PATCH", body: { venueName: "Level 2 atrium" } })).status).toBe(200);
+    // the event itself is the event admins' (12.3): cashiers don't edit, start or end it
+    expect((await C(`/events/${ev.id}`, { method: "PATCH", body: { venueName: "Level 2 atrium" } })).status).toBe(403);
     expect((await C(`/events/${ev.id}`, { method: "PATCH", body: { priceCentavos: 100 } })).status).toBe(403);
-    expect((await C(`/events/${ev.id}`, { method: "PATCH", body: { partnerSharePercent: 90 } })).status).toBe(403);
-    expect((await C(`/events/${ev.id}/activate`, { method: "POST" })).status).toBe(200);
-    expect((await C(`/events/${other.id}/activate`, { method: "POST" })).status).toBe(404);
+    expect((await C(`/events/${ev.id}/activate`, { method: "POST" })).status).toBe(403);
+    expect((await O(`/events/${ev.id}/activate`, { method: "POST" })).status).toBe(200);
 
     expect((await C(`/events/${ev.id}/vouchers`, { method: "POST", body: { kind: "ONE_TIME", count: 3 } })).body.codes).toHaveLength(3);
     expect((await C(`/events/${ev.id}/vouchers`, { method: "POST", body: { kind: "UNLIMITED" } })).status).toBe(403);

@@ -1,3 +1,4 @@
+import { OwnerOnly } from "../auth/roles.js";
 import { Body, Controller, Delete, Get, Param, Patch, Post, Req } from "@nestjs/common";
 import { z } from "zod";
 import { UsersService, createUserSchema, updateUserSchema } from "./users.service.js";
@@ -5,11 +6,13 @@ import type { Req as Request } from "../common/request.js";
 
 const id = { schema: z.string().uuid("Not a valid user id") };
 
-// OWNER-only (no @Allow): managing who can sign in.
+// Managing who can sign in and their roles: the owner only. The list also helps super admins assign people to events.
+@OwnerOnly()
 @Controller("users")
 export class UsersController {
   constructor(private readonly users: UsersService) {}
 
+  @OwnerOnly(false)
   @Get()
   list() { return this.users.list(); }
 

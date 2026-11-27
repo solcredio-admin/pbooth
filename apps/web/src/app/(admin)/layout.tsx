@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Shell } from "@/components/Shell";
 import { apiGet } from "@/lib/server-api";
-import type { Me } from "@/lib/roles";
+import type { Me } from "@/lib/role-rules";
 
 // Every page in here needs a valid session: apiGet redirects to /login on 401.
 export default async function AdminLayout({ children }: { children: ReactNode }) {

@@ -46,6 +46,7 @@ export function BoothDetail({ initial, events, stations, origin }: { initial: Bo
         </div>
         <div className="head-actions">
           {b.liveEvent && <Link className="btn go" href={`/events/${b.liveEvent.id}/booths`}>Live at {b.liveEvent.name}</Link>}
+          {may.admin && <Link className="plain" href={`/settings?history=${b.id}`}>History</Link>}
           {may.openKiosk && <OpenKioskHere boothId={b.id} boothCode={b.code} className="btn ghost" />}
         </div>
       </section>

@@ -18,12 +18,14 @@ const deleteSchema = z.object({ confirmName: z.string().min(1).max(200) });
 export class StationsController {
   constructor(private readonly stations: StationsService) {}
 
+  @Allow("BOOTHS", "EVENTS", "SALES") // event and sales admins see stations, they don't change them
   @Get()
   list() { return this.stations.list(); }
 
   @Post()
   create(@Body({ schema: createStationSchema }) body: { name: string }, @Req() r: Request) { return this.stations.create(body.name, actor(r), r.ip); }
 
+  @Allow("BOOTHS", "EVENTS", "SALES")
   @Get("jobs")
   jobs(@Query({ schema: jobsSchema }) q: z.infer<typeof jobsSchema>) { return this.stations.jobs(q); }
 
@@ -35,6 +37,7 @@ export class StationsController {
     return this.stations.move(id, body.stationId, body.confirm, actor(r), r.ip);
   }
 
+  @Allow("BOOTHS", "EVENTS", "SALES")
   @Get(":id")
   get(@Param("id", uuid("station")) id: string) { return this.stations.get(id); }
 

@@ -164,7 +164,7 @@ Attract screen ─tap→ Choose a package ─→ Pay ─→ Get ready (10 s) ─
 - References look like `7K3M-Q9TX` (8 characters, so the booth's code keyboard fits them).
 - Only the owner refunds money; cashiers can give a replacement voucher (₱0 in reports) for their own events.
 - No guest contact details are collected. A PayMongo QR Ph refund is claimed through a link (3 days) that staff show as a QR.
-- Telegram: self-service events only. System-wide alerts are for phase 11. The token is `TELEGRAM_BOT_TOKEN` in the server's `.env`.
+- Telegram: booths at every live event (self-service within its alert hours, managed from an hour before it starts until it ends), plus backups, photo processing and storage (the "Backups, photos, storage" kind). The token is `TELEGRAM_BOT_TOKEN` in the server's `.env`.
 - One staff PIN per booth, checked by the server (so it needs internet).
 - Lockdown is a checklist per system; its commands haven't been run on every system version.
 

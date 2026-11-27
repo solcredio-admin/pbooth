@@ -78,7 +78,11 @@ across events instead of set up each time.
 
 ## Phase 12: both kinds of event
 
-### 12.1 Telegram for everything (S)
+### 12.1 Telegram for everything (S) - built 2026-11-27, not deployed
+
+Built: reminders at most daily; a booth silent for a day is parked (closes quietly); managed events alert from an
+hour before they start until they end; a new "Backups, photos, storage" kind (no backup in 26 hours, storage not
+answering, photos that failed processing in the last hour), checked every 10 minutes and added to existing chats.
 
 **Fix first (seen 2026-11-27):** a booth that stays offline is repeated every hour with "(still happening)", all day
 (two test booths offline since the morning filled the chat from 09:40 to 17:44). Send a problem once, then at most
@@ -88,7 +92,12 @@ a booth unused for a day is "parked", not an alert.
 Managed events (same rules, muted outside the event's times), failed backups, photo processing failures, storage
 errors. Server up/down stays with Gatus, since pbooth can't report its own outage.
 
-### 12.2 Audit log in Settings (S-M)
+### 12.2 Audit log in Settings (S-M) - built 2026-11-27, not deployed
+
+Built: Settings → Audit log for the owner and super admins, with account (name and role kept with each entry), kind,
+dates, guests on request, old → new values for events, booths, stations and users (secrets only as "changed"),
+CSV, and History links on event, booth and station pages. Kept a year; money and account entries for good.
+Not built: the test that catches a change endpoint that records nothing.
 
 Who changed what, and when. The server has recorded most changes since phase 1 (the `AuditLog` table: account, action,
 what it was done to, IP); nothing shows it yet.
@@ -106,7 +115,10 @@ what it was done to, IP); nothing shows it yet.
 - Guest actions (voucher tries, pairing) are noisy: hidden until asked for.
 - To decide: how long to keep it (proposed: 1 year; money and user changes for good).
 
-### 12.3 User roles (M)
+### 12.3 User roles (M) - built 2026-11-27, not deployed
+
+Built as the table below, with the four proposed answers: event admins book booths and keep galleries; cashiers
+make vouchers and give replacement vouchers; super admins refund money; sales admins don't see photos.
 
 | | Owner | Super admin | Event admin | Hardware admin (was Booth admin) | Sales admin (new) | Kiosk admin (was Kiosk operator) | Cashier |
 |---|---|---|---|---|---|---|---|

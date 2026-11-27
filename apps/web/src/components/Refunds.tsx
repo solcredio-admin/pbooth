@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { send } from "@/lib/client-api";
 import { peso } from "@/lib/peso";
-import { useMe } from "@/lib/roles";
+import { can, useMe } from "@/lib/roles";
 
 export interface RefundRow {
   id: string; reason: "NO_SESSION" | "NO_PRINT" | "OTHER" | "SESSION_FAILED"; status: "OPEN" | "PROCESSING" | "REFUNDED" | "REPLACED" | "REJECTED"; note: string | null; link: string | null; providerRef: string | null; resolvedBy: string | null; createdAt: string; booth: string | null;
@@ -70,13 +70,13 @@ export function Refunds({ open, done }: { open: RefundRow[]; done: RefundRow[] }
                     <div className="refund-claim">
                       <span className="cap">{r.providerRef ? STATUS.PROCESSING : "No answer from PayMongo yet"}</span>
                       {r.link && <ClaimQr link={r.link} />}
-                      {!r.providerRef && me.role === "OWNER" && <button className="row-btn" type="button" onClick={() => ask(r, "PAYMONGO")}>Try again</button>}
+                      {!r.providerRef && can(me.role).refundMoney && <button className="row-btn" type="button" onClick={() => ask(r, "PAYMONGO")}>Try again</button>}
                     </div>
                   ) : (
-                    <div className="refund-acts">
-                      {me.role === "OWNER" && r.payment?.method === "QR" && <button className="row-btn" type="button" onClick={() => ask(r, "PAYMONGO")}>Refund by PayMongo</button>}
+                    me.role === "SALES" ? <span className="cap">Waiting</span> : <div className="refund-acts">
+                      {can(me.role).refundMoney && r.payment?.method === "QR" && <button className="row-btn" type="button" onClick={() => ask(r, "PAYMONGO")}>Refund by PayMongo</button>}
                       <button className="row-btn" type="button" onClick={() => ask(r, "VOUCHER")}>New voucher</button>
-                      {me.role === "OWNER" && r.payment && <button className="row-btn" type="button" onClick={() => ask(r, "MANUAL")}>Paid back by hand</button>}
+                      {can(me.role).refundMoney && r.payment && <button className="row-btn" type="button" onClick={() => ask(r, "MANUAL")}>Paid back by hand</button>}
                       <button className="row-btn danger" type="button" onClick={() => ask(r, "REJECT")}>Reject</button>
                     </div>
                   )}

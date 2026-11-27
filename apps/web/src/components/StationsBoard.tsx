@@ -5,6 +5,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Ago } from "./Ago";
 import { PrintJobs } from "./PrintJobs";
 import { send } from "@/lib/client-api";
+import { can, useMe } from "@/lib/roles";
 import type { PrintJobDto, StationDto } from "@/lib/types";
 
 export function stationState(s: StationDto) {
@@ -17,6 +18,7 @@ export function stationState(s: StationDto) {
 
 export function StationsBoard({ stations, open, done }: { stations: StationDto[]; open: PrintJobDto[]; done: PrintJobDto[] }) {
   const router = useRouter();
+  const readOnly = !can(useMe().role).manageBooths;
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => { const t = setInterval(() => router.refresh(), 5000); return () => clearInterval(t); }, [router]);
@@ -41,7 +43,7 @@ export function StationsBoard({ stations, open, done }: { stations: StationDto[]
         {look.length > 0 && (
           <section className="host" aria-labelledby="look">
             <div className="host-head"><span className="cap">Last 7 days</span><h2 id="look">Need a look</h2></div>
-            <div className="panel"><PrintJobs jobs={look} stations={stations} empty="" /></div>
+            <div className="panel"><PrintJobs jobs={look} stations={stations} empty="" readOnly={readOnly} /></div>
           </section>
         )}
         {stations.length > 0 && (
@@ -69,10 +71,10 @@ export function StationsBoard({ stations, open, done }: { stations: StationDto[]
         {stations.length > 0 && (
           <section className="host" aria-labelledby="line">
             <div className="host-head"><span className="cap">Oldest first, from every booth</span><h2 id="line">In line</h2></div>
-            <div className="panel"><PrintJobs jobs={line} stations={stations} empty="Nothing in line." /></div>
+            <div className="panel"><PrintJobs jobs={line} stations={stations} empty="Nothing in line." readOnly={readOnly} /></div>
           </section>
         )}
-        <section className="host" aria-labelledby="new-station">
+        {!readOnly && <section className="host" aria-labelledby="new-station">
           <div className="host-head"><span className="cap">A printer and the computer it&apos;s plugged into, shared by any booths</span><h2 id="new-station">{stations.length ? "Add a station" : "Your first station"}</h2></div>
           <div className="panel">
             <form className="inline-form" onSubmit={create}>
@@ -82,11 +84,11 @@ export function StationsBoard({ stations, open, done }: { stations: StationDto[]
             <p className="cap">Guests see this name when it&apos;s time to collect their print.</p>
             {error && <p className="cap err" role="alert">{error}</p>}
           </div>
-        </section>
+        </section>}
         {done.length > 0 && (
           <section className="host" aria-labelledby="done">
             <div className="host-head"><span className="cap">Last 100</span><h2 id="done">Printed</h2></div>
-            <div className="panel"><PrintJobs jobs={done} stations={stations} empty="" /></div>
+            <div className="panel"><PrintJobs jobs={done} stations={stations} empty="" readOnly={readOnly} /></div>
           </section>
         )}
       </main>

@@ -15,7 +15,7 @@ export interface EventDto {
   id: string; name: string; organizerName: string | null; contactPhone: string | null; contactEmail: string | null; venueName: string | null; venueAddress: string | null;
   status: EventStatus; timeZone: string; startsAt: string; endsAt: string;
   kind: "MANAGED" | "SELF_SERVICE"; priceCentavos: number; currency: string; freeSessions: boolean; acceptVouchers: boolean; acceptQr: boolean; alertFrom: string | null; alertTo: string | null;
-  partnerName: string | null; partnerSharePercent: number | null; cashiers: { id: string; username: string }[];
+  partnerName: string | null; partnerSharePercent: number | null; cashiers: { id: string; username: string }[]; kioskAdmins: { id: string; username: string }[];
   local: { date: string; startTime: string; endTime: string };
   activatedAt: string | null; completedAt: string | null; createdAt: string; updatedAt: string;
   config: EventConfig | null; actions: Transition[];

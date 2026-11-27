@@ -3,6 +3,7 @@ import { PrismaService } from "../prisma.service.js";
 import { AuditService } from "../audit/audit.service.js";
 import { ApiError, notFound } from "../common/errors.js";
 import type { AuthedAdmin } from "../common/request.js";
+import { isTop } from "../auth/roles.js";
 import { CONFIG, type Config } from "../config.js";
 import { AlertsService } from "../alerts/alerts.service.js";
 import { newEnrollmentCode, normalizeEnrollmentCode } from "../booths/codes.js";
@@ -140,7 +141,7 @@ export class RefundsService implements OnModuleInit, OnModuleDestroy {
   async resolve(id: string, body: { action: RefundAction; note?: string }, by: AuthedAdmin, scope?: EventScope, ip?: string) {
     const r = await this.db.refundRequest.findFirst({ where: { id, ...this.scoped(scope) }, include: { payment: true, event: true } });
     if (!r) throw notFound("Request");
-    if ((body.action === "PAYMONGO" || body.action === "MANUAL") && by.role !== "OWNER") throw new ApiError(HttpStatus.FORBIDDEN, "FORBIDDEN", "Only the owner refunds money");
+    if ((body.action === "PAYMONGO" || body.action === "MANUAL") && !isTop(by.role)) throw new ApiError(HttpStatus.FORBIDDEN, "FORBIDDEN", "Only the owner or a super admin refunds money");
     const taken = () => new ApiError(HttpStatus.CONFLICT, "ALREADY_HANDLED", "Someone already handled this request");
     const done = { note: body.note || null, resolvedBy: by.username, resolvedAt: new Date() };
     const record = (extra: object = {}) => this.audit.record({ actor: `admin:${by.id}`, action: `refund.${body.action.toLowerCase()}`, entityType: "refund", entityId: id, ip, metadata: { paymentId: r.paymentId, amount: r.payment?.amountCentavos ?? null, ...extra } });

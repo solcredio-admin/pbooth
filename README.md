@@ -219,26 +219,29 @@ one-time codes in batches (printed as cards for the counter) and, as super admin
 for free sessions; codes only work on their own event and can be voided. **Free sessions** mode
 skips payment and prints nothing (QR gallery only). The sidebar shows today's and all-time sales
 and the venue's share. **Cashier** accounts see only the events assigned to them (sidebar →
-Cashiers): they make one-time vouchers, see sales and run the event, but can't change the price,
-the revenue share or make unlimited codes.
+Cashiers): they make one-time vouchers, see its sales and handle its help requests (a new voucher),
+but don't edit or run the event, change the price or the share, or make unlimited codes.
 
 ### Users and roles
 
-`admin:create` makes the first account, a **Super admin**. Everyone else is added in Settings → Users
-(username, password of 12+ characters, role), where a Super admin can also change roles, disable or
+`admin:create` makes the first account, an **Owner**. Everyone else is added in Settings → Users
+(username, password of 12+ characters, role), where the Owner can also change roles, disable or
 enable, reset passwords and remove people.
 
 | Role | Can |
 |---|---|
-| Super admin | Everything, including users, backups and storage |
-| Event admin | Create, edit and run events; galleries and exports; book booths |
-| Booth admin | Manage booths (pairing, agent, hardware); view events, read-only; book booths |
-| Kiosk operator | View events and booths, read-only; open a booth's kiosk on the computer they're signed in on |
-| Cashier | Only the self-service events assigned to them: vouchers, sales, and running the event |
+| Owner | Everything, including users and their roles |
+| Super admin | Everything except users and roles (settings, backups, storage, alerts, audit log, refunds) |
+| Event admin | Create, edit and run events; vouchers (no money totals); frames, galleries and exports; book booths; sees booths and stations |
+| Hardware admin | Booths and stations; opening kiosks; book booths; sees events |
+| Sales admin | Sees the Sales tab, every event's sales, vouchers and help requests, events, booths and stations; changes nothing |
+| Kiosk admin | Opens the kiosks of the events assigned to them (event sidebar → Kiosk admins); sees nothing else |
+| Cashier | The vouchers, sales and help requests of the events assigned to them |
 
-The API checks the role on every request; routes are Super-admin-only unless they say otherwise. A
-disabled user, a new role or a reset password signs that person out everywhere at once. You can't
-disable, demote or remove yourself, and there is always at least one active Super admin.
+The API checks the role on every request; routes are owner and super-admin only unless they say
+otherwise, and users and roles are the owner's alone. A disabled user, a new role or a reset password
+signs that person out everywhere at once. You can't disable, demote or remove yourself, and there is
+always at least one active Owner. Settings → Audit log (owner, super admin) shows who changed what.
 
 ## Backups
 

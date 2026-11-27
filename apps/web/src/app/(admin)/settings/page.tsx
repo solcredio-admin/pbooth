@@ -4,19 +4,20 @@ import type { BackupList } from "@/components/Backups";
 import type { AlertsStatus } from "@/components/AlertsAdmin";
 import type { UserRow } from "@/components/UsersAdmin";
 import { apiGet } from "@/lib/server-api";
-import { ROLE_LABEL, type Me } from "@/lib/roles";
+import { ROLE_LABEL, type Me } from "@/lib/role-rules";
 
 export const metadata: Metadata = { title: "Settings" };
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ history?: string }> }) {
+  const { history } = await searchParams;
   const { admin } = await apiGet<{ admin: Me }>("/auth/me");
-  const owner = admin.role === "OWNER";
+  const owner = admin.role === "OWNER" || admin.role === "SUPER_ADMIN"; // settings; users are the owner's alone
   // admin-only data is only fetched for admins (the API would refuse it anyway)
   const [storage, backups, users, alerts] = owner
     ? await Promise.all([
         apiGet<{ enabled: boolean; bucket: string | null }>("/storage/status"),
         apiGet<BackupList>("/backups"),
-        apiGet<{ items: UserRow[] }>("/users").then((r) => r.items),
+        admin.role === "OWNER" ? apiGet<{ items: UserRow[] }>("/users").then((r) => r.items) : null,
         apiGet<AlertsStatus>("/alerts"),
       ])
     : [null, null, null, null];
@@ -28,7 +29,7 @@ export default async function SettingsPage() {
       </section>
       <main className="detail single">
         <div className="detail-main">
-          <SettingsView storage={storage} backups={backups} users={users} alerts={alerts} version={process.env.PBOOTH_VERSION ?? "development"} />
+          <SettingsView storage={storage} backups={backups} users={users} alerts={alerts} version={process.env.PBOOTH_VERSION ?? "development"} history={history} />
         </div>
       </main>
     </>

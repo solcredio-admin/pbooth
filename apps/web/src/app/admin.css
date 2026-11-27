@@ -550,3 +550,9 @@ main.detail.single .tabs { margin-inline: auto; } /* centred like the page title
 .frame-acts label { cursor: pointer; }
 .frame-view { width: min(92vw, 760px); }
 .frame-view .template-preview img { max-height: min(70vh, 640px); }
+
+/* audit log */
+.audit-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px 18px; }
+.audit-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; margin: 14px 0 6px; }
+.audit li > div { min-width: 0; }
+.audit-changes { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 2px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }

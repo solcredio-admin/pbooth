@@ -8,7 +8,7 @@ import type { PrintJobDto, StationDto } from "@/lib/types";
 const STATUS: Record<PrintJobDto["status"], string> = { WAITING: "In line", CLAIMED: "Being fetched", PRINTING: "Printing", DONE: "Printed", FAILED: "Needs a look", EXPIRED: "Gave up waiting" };
 
 /** Prints in line, printing, or needing a person: try again, or send to another station. */
-export function PrintJobs({ jobs, stations, empty }: { jobs: PrintJobDto[]; stations: StationDto[]; empty: string }) {
+export function PrintJobs({ jobs, stations, empty, readOnly = false }: { jobs: PrintJobDto[]; stations: StationDto[]; empty: string; readOnly?: boolean }) {
   const router = useRouter();
   const dialog = useRef<HTMLDialogElement>(null);
   const [pick, setPick] = useState<{ job: PrintJobDto; stationId: string } | null>(null);
@@ -40,7 +40,7 @@ export function PrintJobs({ jobs, stations, empty }: { jobs: PrintJobDto[]; stat
               <div className="sub">{j.booth?.name ?? "Deleted booth"} · {j.event.name} · {j.copies > 1 ? `${j.copies} copies · ` : ""}<Ago iso={j.status === "DONE" ? j.doneAt : j.createdAt} /></div>
               {j.error && j.status !== "DONE" && <div className="sub err">{j.error}</div>}
             </div>
-            {j.status !== "DONE" && (
+            {j.status !== "DONE" && !readOnly && (
               <div className="refund-acts">
                 {j.status === "FAILED" && j.stationId && <button className="row-btn" type="button" disabled={busy} onClick={() => run(`/stations/jobs/${j.id}/retry`)}>Try again</button>}
                 <span className="field move-to">

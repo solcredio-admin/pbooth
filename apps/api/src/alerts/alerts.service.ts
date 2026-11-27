@@ -4,16 +4,19 @@ import { AuditService } from "../audit/audit.service.js";
 import { ApiError, notFound } from "../common/errors.js";
 import { CONFIG, type Config } from "../config.js";
 import { utcToWallTime } from "../events/tz.js";
+import { StorageService } from "../storage/storage.service.js";
+import { BACKUP_PREFIX } from "../backups/backups.service.js";
 import { TelegramService } from "./telegram.service.js";
 import { withinHours } from "./hours.js";
 
-export const ALERT_KINDS = ["OFFLINE", "KIOSK", "REFUND", "PAYMENTS"] as const;
+export const ALERT_KINDS = ["OFFLINE", "KIOSK", "REFUND", "PAYMENTS", "SYSTEM"] as const;
 export type AlertKind = (typeof ALERT_KINDS)[number];
 const HOUR = 3600_000;
 const DAY = 24 * HOUR;
 
 /**
- * Telegram alerts for live self-service booths. Every problem is one open Alert row: it's sent once,
+ * Telegram alerts: booths at live events (self-service within its alert hours, managed within its own times),
+ * and the server's own backups, photo processing and storage. Every problem is one open Alert row: it's sent once,
  * reminded at most once a day while it lasts, and followed by a message when it ends. Rows survive a restart,
  * so restarting the server doesn't send anything twice.
  */
@@ -24,8 +27,9 @@ export class AlertsService implements OnModuleInit, OnModuleDestroy {
   private busy = false;
   private readonly bootedAt = Date.now();
   private readonly since = new Map<string, number>(); // when a camera/printer/screen problem was first seen
+  private system: { at: number; problems: [string, { kind: AlertKind; text: string }][] } = { at: 0, problems: [] }; // checked every 10 minutes
 
-  constructor(private readonly db: PrismaService, private readonly audit: AuditService, private readonly telegram: TelegramService, @Inject(CONFIG) private readonly cfg: Config) {}
+  constructor(private readonly db: PrismaService, private readonly audit: AuditService, private readonly telegram: TelegramService, private readonly storage: StorageService, @Inject(CONFIG) private readonly cfg: Config) {}
 
   onModuleInit() {
     this.timer = setInterval(() => void this.tick(), this.cfg.ALERT_SWEEP_SECONDS * 1000);
@@ -49,15 +53,17 @@ export class AlertsService implements OnModuleInit, OnModuleDestroy {
   private async sweep() {
     const now = Date.now();
     const rows = await this.db.eventBooth.findMany({
-      where: { event: { kind: "SELF_SERVICE", status: "ACTIVE" } },
-      include: { event: { select: { id: true, name: true, timeZone: true, alertFrom: true, alertTo: true } }, booth: { select: { id: true, name: true, device: true, kiosk: true } } },
+      where: { event: { status: "ACTIVE" } },
+      include: { event: { select: { id: true, name: true, kind: true, timeZone: true, startsAt: true, endsAt: true, alertFrom: true, alertTo: true } }, booth: { select: { id: true, name: true, device: true, kiosk: true } } },
     });
     const problems = new Map<string, { kind: AlertKind; text: string }>();
     const quiet = new Set<string>(); // outside its hours: whatever is open just closes, without a message
 
     for (const { event: e, booth: b } of rows) {
       const name = `${b.name} (${e.name})`;
-      if (!withinHours(utcToWallTime(new Date(now), e.timeZone).time, e.alertFrom, e.alertTo)) { quiet.add(b.id).add(e.id); continue; }
+      // self-service: its alert hours; managed: from an hour before it starts (setting up) until it ends
+      const on = e.kind === "SELF_SERVICE" ? withinHours(utcToWallTime(new Date(now), e.timeZone).time, e.alertFrom, e.alertTo) : now >= e.startsAt.getTime() - HOUR && now <= e.endsAt.getTime();
+      if (!on) { quiet.add(b.id).add(e.id); continue; }
       const device = b.device?.lastHeartbeatAt?.getTime() ?? 0, kiosk = b.kiosk?.lastSeenAt?.getTime() ?? 0;
       const seen = Math.max(device, kiosk);
       if (!seen) continue; // never connected yet
@@ -94,13 +100,15 @@ export class AlertsService implements OnModuleInit, OnModuleDestroy {
     }
 
     for (const e of new Map(rows.map((r) => [r.event.id, r.event])).values()) {
-      if (quiet.has(e.id)) continue;
+      if (quiet.has(e.id) || e.kind !== "SELF_SERVICE") continue; // QR payments are self-service only
       const last = await this.db.payment.findMany({
         where: { eventId: e.id, method: "QR", status: { not: "PENDING" }, createdAt: { gt: new Date(now - HOUR) } }, orderBy: { createdAt: "desc" }, take: 3, select: { status: true },
       });
       if (last.length === 3 && last.every((p) => p.status === "FAILED" || p.status === "EXPIRED"))
         problems.set(`payments:${e.id}`, { kind: "PAYMENTS", text: `🟡 ${e.name}: the last 3 QR payments weren't completed. Check that Scan to pay works.` });
     }
+
+    for (const [key, p] of await this.systemProblems(now)) problems.set(key, p);
 
     const open = await this.db.alert.findMany({ where: { clearedAt: null } });
     for (const a of open) {
@@ -109,6 +117,25 @@ export class AlertsService implements OnModuleInit, OnModuleDestroy {
       if (a.sentAt && !quiet.has(a.key.split(":")[1])) await this.notify(`${a.key}:ok`, a.kind as AlertKind, `✅ Resolved: ${a.text.replace(/^\S+ /, "")}`);
     }
     for (const [key, p] of problems) await this.db.alert.create({ data: { key, ...p } });
+  }
+
+  /** The server's own health: storage reachable, a backup in the last day, photos processing. */
+  private async systemProblems(now: number) {
+    if (now - this.system.at < 10 * 60_000) return this.system.problems;
+    const out: typeof this.system.problems = [];
+    if (this.storage.enabled) {
+      try {
+        const newest = (await this.storage.list(BACKUP_PREFIX)).find((o) => o.key.startsWith(`${BACKUP_PREFIX}pbooth-`));
+        // the daily backup runs in production only
+        if (this.cfg.NODE_ENV === "production" && (!newest || now - newest.at.getTime() > 26 * HOUR)) out.push(["backup", { kind: "SYSTEM", text: `🟠 No database backup since ${newest ? newest.at.toISOString().slice(0, 16).replace("T", " ") + " UTC" : "ever"}. Check Settings → Backups.` }]);
+      } catch (e) {
+        out.push(["storage", { kind: "SYSTEM", text: `🔴 Photo storage isn't answering: ${(e as Error).message.slice(0, 200)}. Photos and backups can't be saved.` }]);
+      }
+    }
+    const failed = await this.db.photo.count({ where: { status: "FAILED", uploadedAt: { gt: new Date(now - HOUR) } } });
+    if (failed) out.push(["photos", { kind: "SYSTEM", text: `🟠 ${failed} photo${failed === 1 ? "" : "s"} couldn't be processed in the last hour. Check the event galleries.` }]);
+    this.system = { at: now, problems: out };
+    return out;
   }
 
   // ---------- sending ----------

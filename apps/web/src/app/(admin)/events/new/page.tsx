@@ -3,13 +3,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { EventForm } from "@/components/EventForm";
 import { apiGet } from "@/lib/server-api";
-import type { Me } from "@/lib/roles";
+import type { Me } from "@/lib/role-rules";
 
 export const metadata: Metadata = { title: "New event" };
 
 export default async function NewEventPage() {
   const { admin } = await apiGet<{ admin: Me }>("/auth/me");
-  if (admin.role !== "OWNER" && admin.role !== "EVENTS") redirect("/events"); // the API refuses it anyway
+  if (!["OWNER", "SUPER_ADMIN", "EVENTS"].includes(admin.role)) redirect("/events"); // the API refuses it anyway
   return (
     <>
       <section className="detail-head">

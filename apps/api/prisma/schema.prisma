@@ -12,11 +12,13 @@ datasource db {
 
 // Who can do what. OWNER manages everything (users included); the others are limited, see roles.ts.
 enum AdminRole {
-  OWNER // everything, including users, backups and storage
+  OWNER // everything, including users and their roles
+  SUPER_ADMIN // everything except users and roles
+  SALES // sees sales, events, booths and stations; changes nothing
   CASHIER // only the self-service events assigned to them: vouchers and sales
-  EVENTS // events: view, create, edit, run; galleries and exports
-  BOOTHS // booths: manage, pair, enroll; can view events but not change them
-  KIOSK // can only open a booth's kiosk on the computer they're signed in on
+  EVENTS // events: create, edit, run, vouchers, galleries; sees booths and stations
+  BOOTHS // "Hardware admin": booths and stations; sees events
+  KIOSK // "Kiosk admin": opens the kiosks of the events assigned to them, nothing else
 }
 
 // MANAGED: a dated event you run (weddings, parties). SELF_SERVICE: a booth left running at a
@@ -37,6 +39,7 @@ model Admin {
   updatedAt    DateTime       @updatedAt @db.Timestamptz(3)
   sessions     AdminSession[]
   cashierOf    EventCashier[]
+  kioskOf      EventKiosk[]
   vouchers     Voucher[]
 }
 
@@ -104,6 +107,7 @@ model Event {
   photos              Photo[]
   galleries           Gallery[]
   cashiers            EventCashier[]
+  kioskAdmins         EventKiosk[]
   vouchers            Voucher[]
   payments            Payment[]
   refundRequests      RefundRequest[]
@@ -160,7 +164,9 @@ model EventConfig {
 model AuditLog {
   id         String   @id @default(uuid()) @db.Uuid
   at         DateTime @default(now()) @db.Timestamptz(3)
-  actor      String // "admin:<id>", "anonymous", later "device:<id>"
+  actor      String // "admin:<id>", "anonymous", "device:<id>", "booth:<id>", "station:<id>", "system", "cli"
+  actorName  String? // the account's username and role when it happened: still reads right if it's renamed or deleted
+
   action     String // e.g. "auth.login.failed", "event.activate"
   entityType String?
   entityId   String?
@@ -169,6 +175,7 @@ model AuditLog {
 
   @@index([at])
   @@index([entityType, entityId])
+  @@index([actor])
 }
 
 // Enrollment state only. What the admin sees (ONLINE, OFFLINE, ACTIVE, ERROR...) is computed
@@ -358,6 +365,17 @@ model Gallery {
   createdAt DateTime     @default(now()) @db.Timestamptz(3)
 
   @@index([eventId, scope])
+}
+
+// Kiosk admins and the events whose kiosks they may open.
+model EventKiosk {
+  eventId String @db.Uuid
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  adminId String @db.Uuid
+  admin   Admin  @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, adminId])
+  @@index([adminId])
 }
 
 // Cashier accounts and the self-service events they may manage.

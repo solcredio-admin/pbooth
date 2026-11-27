@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { HttpStatus, Inject, Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
 import { PrismaService } from "../prisma.service.js";
-import { AuditService } from "../audit/audit.service.js";
+import { AuditService, changes } from "../audit/audit.service.js";
 import { RealtimeGateway } from "../realtime/realtime.gateway.js";
 import { CONFIG, type Config } from "../config.js";
 import { ApiError, notFound } from "../common/errors.js";
@@ -137,9 +137,16 @@ export class BoothsService implements OnModuleInit, OnModuleDestroy {
 
   // ---------- admin operations ----------
 
-  async list() {
+  /** A kiosk admin's booths: those on the events assigned to them. */
+  private kioskWhere = (kioskId?: string): Prisma.BoothWhereInput => (kioskId ? { events: { some: { event: { kioskAdmins: { some: { adminId: kioskId } } } } } } : {});
+
+  async assertKioskMay(boothId: string, kioskId?: string) {
+    if (kioskId && !(await this.db.booth.count({ where: { id: boothId, ...this.kioskWhere(kioskId) } }))) throw notFound("Booth");
+  }
+
+  async list(kioskId?: string) {
     // shortcut: no paging; one admin runs a handful of booths. Add paging past ~200.
-    const rows = await this.db.booth.findMany({ include: boothInclude, orderBy: { name: "asc" }, take: 200 });
+    const rows = await this.db.booth.findMany({ where: this.kioskWhere(kioskId), include: boothInclude, orderBy: { name: "asc" }, take: 200 });
     return { items: rows.map((b) => this.toDto(b)) };
   }
 
@@ -166,7 +173,7 @@ export class BoothsService implements OnModuleInit, OnModuleDestroy {
   }
 
   async update(id: string, body: UpdateBooth, actor: string, ip?: string) {
-    await this.row(id);
+    const before = await this.row(id);
     const b = await this.db.booth.update({
       where: { id },
       data: {
@@ -176,7 +183,7 @@ export class BoothsService implements OnModuleInit, OnModuleDestroy {
       },
       include: boothInclude,
     });
-    await this.audit.record({ actor, action: "booth.update", entityType: "booth", entityId: id, ip, metadata: { fields: Object.keys(body) } });
+    await this.audit.record({ actor, action: "booth.update", entityType: "booth", entityId: id, ip, metadata: { changes: changes(before as unknown as Record<string, unknown>, body) } as Prisma.InputJsonValue });
     this.push([id]);
     return this.toDto(b);
   }

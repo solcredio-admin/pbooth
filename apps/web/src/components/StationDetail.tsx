@@ -8,10 +8,13 @@ import { DeleteZone } from "./DeleteZone";
 import { PrintJobs } from "./PrintJobs";
 import { stationState } from "./StationsBoard";
 import { send } from "@/lib/client-api";
+import { can, useMe } from "@/lib/roles";
 import type { PrintJobDto, StationDto } from "@/lib/types";
 
 export function StationDetail({ station: s, all, jobs, origin }: { station: StationDto; all: StationDto[]; jobs: PrintJobDto[]; origin: string }) {
   const router = useRouter();
+  const may = can(useMe().role);
+  const readOnly = !may.manageBooths; // event and sales admins see stations, hardware admins run them
   const [code, setCode] = useState<string | null>(null);
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -42,18 +45,19 @@ export function StationDetail({ station: s, all, jobs, origin }: { station: Stat
           <div className="title-row"><h1>{s.name}</h1><span className={`pill ${st.cls}`}>{st.text}</span>{s.computer?.simulated && <span className="sim-badge">Simulated</span>}</div>
           <div className="meta cap"><span>{s.code}</span><span>Last seen <Ago iso={s.lastPollAt} /></span></div>
         </div>
+        {may.admin && <div className="head-actions"><Link className="plain" href={`/settings?history=${s.id}`}>History</Link></div>}
       </section>
       <main className="detail">
         <div className="detail-main">
           {s.lastError && s.online && <p className="booth-error" role="alert">{s.lastError}</p>}
           <section className="host" aria-labelledby="jobs">
             <div className="host-head"><span className="cap">At this station, or sent to it</span><h2 id="jobs">Prints</h2></div>
-            <div className="panel"><PrintJobs jobs={jobs} stations={all} empty="Nothing here right now." /></div>
+            <div className="panel"><PrintJobs jobs={jobs} stations={all} empty="Nothing here right now." readOnly={readOnly} /></div>
           </section>
           <section className="host" aria-labelledby="set">
             <div className="host-head"><span className="cap">Used for every booth that prints here</span><h2 id="set">Printer</h2></div>
             <div className="panel">
-              <form className="form" onSubmit={save} key={`${s.name}${s.enabled}${s.printerName}${s.paperSize}${s.orientation}`}>
+              <form className="form" onSubmit={save} inert={readOnly || undefined} key={`${s.name}${s.enabled}${s.printerName}${s.paperSize}${s.orientation}`}>
                 <div className="fields">
                   <label className="field"><span>Station name</span><input name="name" defaultValue={s.name} maxLength={80} required /><span className="hint">Guests see it: &ldquo;Collect it at {s.name}&rdquo;.</span></label>
                   <label className="field"><span>Printer</span>
@@ -72,11 +76,11 @@ export function StationDetail({ station: s, all, jobs, origin }: { station: Stat
                   </label>
                   <label className="check wide"><input type="checkbox" name="enabled" defaultChecked={s.enabled} /><span>Takes prints (switch off to pause it: what it has finishes, the rest goes to other stations or waits)</span></label>
                 </div>
-                <div className="form-foot"><button className="btn" type="submit" disabled={busy}>Save</button><span className={"cap status " + (status?.ok ? "ok" : "bad")} role="status">{status?.text}</span></div>
+                <div className="form-foot">{!readOnly && <button className="btn" type="submit" disabled={busy}>Save</button>}<span className={"cap status " + (status?.ok ? "ok" : "bad")} role="status">{status?.text}</span></div>
               </form>
             </div>
           </section>
-          <section className="host" aria-labelledby="pc">
+          {!readOnly && <section className="host" aria-labelledby="pc">
             <div className="host-head"><span className="cap">The computer the printer is plugged into · one-time code, valid 30 minutes</span><h2 id="pc">{s.computer ? "Replace its computer" : "Connect its computer"}</h2></div>
             <div className="panel enroll">
               {code ? <><p className="enroll-code" aria-label="Station code">{code}</p><p className="cap">Valid 30 minutes · shown only once</p></> : <p className="cap center">A booth&apos;s own computer can be a station too: run the command there. Its booth keeps working.</p>}
@@ -86,7 +90,7 @@ export function StationDetail({ station: s, all, jobs, origin }: { station: Stat
               </div>
               <AgentInstall origin={origin} code={code} station />
             </div>
-          </section>
+          </section>}
         </div>
         <aside className="detail-side" aria-label="Station status">
           <section className="side-card" aria-labelledby="side-pc">
@@ -99,7 +103,7 @@ export function StationDetail({ station: s, all, jobs, origin }: { station: Stat
                   <dt>Connected</dt><dd><Ago iso={s.computer.enrolledAt} /></dd>
                 </dl>
                 {!s.lastPollAt && <p className="cap">This agent is too old to take prints from other booths. Install the latest one on that computer; its own booth keeps printing until then.</p>}
-                <button className="plain cap" type="button" disabled={busy} onClick={() => run("POST", `/stations/${s.id}/sign-out`)}>Sign this computer out</button>
+                {!readOnly && <button className="plain cap" type="button" disabled={busy} onClick={() => run("POST", `/stations/${s.id}/sign-out`)}>Sign this computer out</button>}
               </>
             ) : <p className="cap">Not connected yet.</p>}
           </section>
@@ -107,7 +111,7 @@ export function StationDetail({ station: s, all, jobs, origin }: { station: Stat
             <h2 id="side-booths">Booths</h2>
             {s.booths.length ? <ul className="plain-list">{s.booths.map((b) => <li key={b.id}><Link href={`/booths/${b.id}`}>{b.name}</Link></li>)}</ul> : <p className="cap">No booth prints here yet. Link it on a booth&apos;s Hardware tab.</p>}
           </section>
-          <DeleteZone what="station" name={s.name} path={`/stations/${s.id}/delete`} back="/stations" lost="Removes the station and disconnects its computer. Booths that print here use their next station, if they have one." />
+          {!readOnly && <DeleteZone what="station" name={s.name} path={`/stations/${s.id}/delete`} back="/stations" lost="Removes the station and disconnects its computer. Booths that print here use their next station, if they have one." />}
         </aside>
       </main>
     </>

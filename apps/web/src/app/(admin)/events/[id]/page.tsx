@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { EventMain } from "@/components/EventMain";
-import { EventCashiers, EventRevenue, type Revenue } from "@/components/EventSales";
+import { EventPeople, EventRevenue, type Revenue } from "@/components/EventSales";
 import type { UserRow } from "@/components/UsersAdmin";
 import { Lifecycle } from "@/components/Lifecycle";
 import { DeleteZone } from "@/components/DeleteZone";
 import { apiGet } from "@/lib/server-api";
 import { BOOTH_LABEL, longDate, STATUS_LABEL, timeRange } from "@/lib/format";
 import type { BoothDto, EventDto } from "@/lib/types";
-import type { Me } from "@/lib/roles";
+import { can, type Me } from "@/lib/role-rules";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -28,11 +28,12 @@ export default async function EventPage({ params }: Props) {
     apiGet<EventDto>(`/events/${id}`),
     cashier ? Promise.resolve({ items: [] as BoothDto[] }) : apiGet<{ items: BoothDto[] }>(`/events/${id}/booths`), // cashiers don't see booths
   ]);
-  const canEdit = admin.role === "OWNER" || admin.role === "EVENTS" || cashier; // the API enforces this too (cashiers: own events)
+  const may = can(admin.role);
+  const canEdit = may.editEvents; // the API enforces all of this too
   const selfService = e.kind === "SELF_SERVICE";
   const [revenue, users] = await Promise.all([
-    selfService && canEdit ? apiGet<Revenue>(`/events/${id}/revenue`) : Promise.resolve(null),
-    selfService && admin.role === "OWNER" ? apiGet<{ items: UserRow[] }>("/users").then((r) => r.items.filter((u) => u.role === "CASHIER")) : Promise.resolve(null),
+    selfService && may.eventMoney ? apiGet<Revenue>(`/events/${id}/revenue`) : Promise.resolve(null),
+    may.assignPeople ? apiGet<{ items: UserRow[] }>("/users").then((r) => r.items) : Promise.resolve(null),
   ]);
   const online = booths.items.filter((b) => b.online).length;
   const c = e.config;
@@ -53,12 +54,13 @@ export default async function EventPage({ params }: Props) {
           <Link className={e.status === "ACTIVE" ? "btn go" : "btn ghost"} href={`/events/${e.id}/booths`}>
             {e.status === "ACTIVE" ? "Open live view" : "Booths"} · {booths.items.length ? `${online}/${booths.items.length} online` : "none booked"}
           </Link>
-          {canEdit && !cashier && <Link className="plain" href={`/events/${e.id}/gallery`}>Gallery &amp; export</Link>}
+          {canEdit && <Link className="plain" href={`/events/${e.id}/gallery`}>Gallery &amp; export</Link>}
+          {may.admin && <Link className="plain" href={`/settings?history=${e.id}`}>History</Link>}
         </div>
       </section>
       <main className="detail">
         <div className="detail-main">
-          <EventMain event={e} canEdit={canEdit} lockMoney={cashier} />
+          <EventMain event={e} canEdit={canEdit} lockMoney={false} vouchers={selfService && may.seeVouchers} makeVouchers={may.vouchers} />
         </div>
         <aside className="detail-side" aria-label="Event status">
           <section className="side-card" aria-labelledby="side-life">
@@ -77,7 +79,8 @@ export default async function EventPage({ params }: Props) {
             </section>
           )}
           {revenue && <EventRevenue revenue={revenue} eventId={e.id} />}
-          {users && <EventCashiers event={e} cashiers={users} />}
+          {users && selfService && <EventPeople event={e} kind="cashiers" people={users.filter((u) => u.role === "CASHIER")} />}
+          {users && <EventPeople event={e} kind="kiosk-admins" people={users.filter((u) => u.role === "KIOSK")} />}
           {!cashier && <section className="side-card" aria-labelledby="side-booths">
             <h2 id="side-booths">Booths · {online} of {booths.items.length} online</h2>
             {booths.items.length === 0 ? (

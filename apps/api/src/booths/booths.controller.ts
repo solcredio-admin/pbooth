@@ -10,9 +10,12 @@ import { KioskService } from "../kiosk/kiosk.service.js";
 import { KIOSK_COOKIE, KIOSK_COOKIE_DAYS } from "../kiosk/kiosk.guard.js";
 import { CONFIG, type Config } from "../config.js";
 import { clientMeta } from "../common/request.js";
+import { EventsService } from "../events/events.service.js";
+import { scope } from "../events/events.controller.js";
 
 const uuid = (what: string) => ({ schema: z.string().uuid(`Not a valid ${what} id`) });
 const actor = (r: Request) => `admin:${r.admin!.id}`;
+const kioskOf = (r: Request) => (r.admin!.role === "KIOSK" ? r.admin!.id : undefined);
 // Deleting needs the name typed back, so a stray click or replayed request can't do it.
 const staffPinSchema = z.object({ pin: z.string().regex(/^\d{4,8}$/, "4 to 8 digits").nullable() });
 const deleteSchema = z.object({ confirmName: z.string().min(1).max(200) });
@@ -22,19 +25,22 @@ const deleteSchema = z.object({ confirmName: z.string().min(1).max(200) });
 export class BoothsController {
   constructor(private readonly booths: BoothsService, private readonly kiosk: KioskService, @Inject(CONFIG) private readonly cfg: Config) {}
 
-  // event admins book booths and kiosk operators pick one, so they see the list too
-  @Allow("EVENTS", "BOOTHS", "KIOSK")
+  // event and sales admins see the booths; kiosk admins only those on their events
+  @Allow("EVENTS", "BOOTHS", "SALES", "KIOSK")
   @Get()
-  list() { return this.booths.list(); }
+  list(@Req() r: Request) { return this.booths.list(kioskOf(r)); }
 
   @Post()
   create(@Body({ schema: createBoothSchema }) body: CreateBooth, @Req() r: Request) {
     return this.booths.create(body, actor(r), r.ip);
   }
 
-  @Allow("BOOTHS", "KIOSK") // kiosk operators see booths, read-only
+  @Allow("EVENTS", "BOOTHS", "SALES", "KIOSK")
   @Get(":id")
-  get(@Param("id", uuid("booth")) id: string) { return this.booths.get(id); }
+  async get(@Param("id", uuid("booth")) id: string, @Req() r: Request) {
+    await this.booths.assertKioskMay(id, kioskOf(r));
+    return this.booths.get(id);
+  }
 
   @Patch(":id")
   update(@Param("id", uuid("booth")) id: string, @Body({ schema: updateBoothSchema }) body: UpdateBooth, @Req() r: Request) {
@@ -71,6 +77,7 @@ export class BoothsController {
   @Allow("BOOTHS", "KIOSK")
   @Post(":id/kiosk/launch") @HttpCode(200)
   async launchKiosk(@Param("id", uuid("booth")) id: string, @Req() r: Request, @Res({ passthrough: true }) res: FastifyReply) {
+    await this.booths.assertKioskMay(id, kioskOf(r));
     const { token, booth } = await this.kiosk.pairSignedIn(id, actor(r), clientMeta(r));
     res.setCookie(KIOSK_COOKIE, token, { httpOnly: true, secure: this.cfg.cookieSecure, sameSite: "strict", path: "/", maxAge: KIOSK_COOKIE_DAYS * 86400 });
     return { booth };
@@ -82,14 +89,16 @@ export class BoothsController {
   }
 }
 
+// Event admins and hardware admins put booths on events; everyone who sees an event sees its booths.
 @Allow("EVENTS", "BOOTHS")
 @Controller("events/:eventId/booths")
 export class EventBoothsController {
-  constructor(private readonly booths: BoothsService, private readonly sessions: SessionsService) {}
+  constructor(private readonly booths: BoothsService, private readonly sessions: SessionsService, private readonly events: EventsService) {}
 
-  @Allow("EVENTS", "BOOTHS", "KIOSK")
+  @Allow("EVENTS", "BOOTHS", "SALES", "KIOSK")
   @Get()
-  async list(@Param("eventId", uuid("event")) eventId: string) {
+  async list(@Param("eventId", uuid("event")) eventId: string, @Req() r: Request) {
+    if (r.admin!.role === "KIOSK") await this.events.get(eventId, scope(r)); // their events only
     const [booths, sessions] = await Promise.all([this.booths.boothsForEvent(eventId), this.sessions.stats(eventId)]);
     return { ...booths, sessions };
   }
