@@ -19,6 +19,7 @@ export interface EventDto {
   local: { date: string; startTime: string; endTime: string };
   activatedAt: string | null; completedAt: string | null; createdAt: string; updatedAt: string;
   config: EventConfig | null; actions: Transition[];
+  frames: { id: string; layout: "landscape" | "strip" | "grid"; shots: number; width: number; height: number }[];
 }
 
 export interface Page<T> { items: T[]; page: number; pageSize: number; total: number }

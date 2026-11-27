@@ -266,7 +266,8 @@ export function EventForm({ event, canEdit = true, lockMoney = false }: { event?
             </div>
             <TemplatePreview logo={logo ? { src: logo, position: look.logoPosition, size: look.logoSize } : null} layout={kind === "SELF_SERVICE" && look.layout === "strip" ? "landscape" : look.layout} shots={look.shots} primaryColor={colors.primaryColor} accentColor={colors.accentColor}
               footer={look.footer || look.name || "Event name"} dateText={look.showDate && kind === "MANAGED" ? previewDate : null}
-              pattern={look.pattern} frameStyle={look.frameStyle} photoStyle={look.photoStyle} fontStyle={look.fontStyle} />
+              pattern={look.pattern} frameStyle={look.frameStyle} photoStyle={look.photoStyle} fontStyle={look.fontStyle}
+              frame={(() => { const l = kind === "SELF_SERVICE" && look.layout === "strip" ? "landscape" : look.layout; const f = event?.frames.find((x) => x.layout === l && x.shots === look.shots); return f ? `/api/v1/frames/${f.id}` : null; })()} />
           </div>
 
         </div>

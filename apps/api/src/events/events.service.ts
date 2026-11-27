@@ -9,7 +9,7 @@ import { eventWindow, utcToWallTime } from "./tz.js";
 import { BoothsService } from "../booths/booths.service.js";
 import { PhotosService } from "../photos/photos.service.js";
 
-const withConfig = { config: true, cashiers: { select: { admin: { select: { id: true, username: true } } } } } as const;
+const withConfig = { config: true, frames: { select: { id: true, layout: true, shots: true, width: true, height: true } }, cashiers: { select: { admin: { select: { id: true, username: true } } } } } as const;
 
 /** A cashier sees only the events assigned to them; everyone else sees all. */
 export type EventScope = { cashierId?: string };
@@ -30,6 +30,7 @@ export function toDto(e: EventRow) {
     local: { date: start.date, startTime: start.time, endTime: end.time },
     activatedAt: e.activatedAt, completedAt: e.completedAt, createdAt: e.createdAt, updatedAt: e.updatedAt,
     config: e.config ? config : null,
+    frames: e.frames,
     actions: allowedTransitions(e.status),
   };
 }

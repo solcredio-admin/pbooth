@@ -20,6 +20,7 @@ export interface TemplateInput {
   frameStyle?: FrameStyle;
   photoStyle?: PhotoStyle;
   fontStyle?: FontStyle;
+  frame?: string | null; // the owner's own PNG for this layout: drawn over the photos instead of all of the above
 }
 
 const FONTS: Record<FontStyle, { family: string; weight: number }> = {
@@ -43,6 +44,17 @@ export async function composeTemplate(photos: CanvasImageSource[], t: TemplateIn
   const g = canvas.getContext("2d")!;
   const ink = luminance(t.primaryColor) > 0.55 ? "#141414" : "#f6f5f0";
   const unit = Math.min(p.width, p.height);
+
+  // The owner's own frame: photos in their slots, the frame over them, nothing else. Not the page's shape
+  // or not loadable (offline, never cached): the built-in design below.
+  const frame = t.frame ? await loadImage(t.frame) : null;
+  if (frame && Math.abs(frame.naturalWidth / frame.naturalHeight - p.width / p.height) < 0.01) {
+    g.fillStyle = "#ffffff";
+    g.fillRect(0, 0, p.width, p.height);
+    photos.forEach((img, i) => drawPhoto(g, img, p.slots[i], "square", unit));
+    g.drawImage(frame, 0, 0, p.width, p.height);
+    return canvas;
+  }
 
   g.fillStyle = t.primaryColor;
   g.fillRect(0, 0, p.width, p.height);

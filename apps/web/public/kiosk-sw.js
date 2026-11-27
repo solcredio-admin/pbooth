@@ -3,7 +3,8 @@
 // still opens and keeps serving guests. API calls are never cached: the kiosk's own outbox
 // (IndexedDB) handles sending sessions and photos once the network is back.
 const CACHE = "pbooth-kiosk-v1";
-const STATIC = /^\/(_next\/static\/|theme\.js|logo-|favicon|apple-touch-icon)/;
+// An event frame never changes under its id either: cached like the app files, so a kiosk prints its frame offline.
+const STATIC = /^\/(_next\/static\/|theme\.js|logo-|favicon|apple-touch-icon|api\/v1\/frames\/)/;
 
 // /kiosk/PB-7K3M and /kiosk/PB-7K3M/session/<id> are the same app: store one copy per booth.
 const pageKey = (path) => {

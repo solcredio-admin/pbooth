@@ -32,6 +32,8 @@ import { BackupsController } from "./backups/backups.controller.js";
 import { BoothStationsController, ReprintController, StationAgentController, StationsController } from "./stations/stations.controller.js";
 import { StationsService } from "./stations/stations.service.js";
 import { StationGuard } from "./stations/station.guard.js";
+import { EventFramesController, FramesController } from "./frames/frames.controller.js";
+import { FramesService } from "./frames/frames.service.js";
 import { UsersController } from "./users/users.controller.js";
 import { SelfServiceController } from "./selfservice/selfservice.controller.js";
 import { SelfServiceService } from "./selfservice/selfservice.service.js";
@@ -53,10 +55,10 @@ export class AppModule {
   static forRoot(cfg: Config): DynamicModule {
     return {
       module: AppModule,
-      controllers: [HealthController, AuthController, EventsController, BoothsController, EventBoothsController, DevicesController, KioskController, SessionsController, PhotosController, EventPhotosController, StorageController, GalleriesController, BackupsController, UsersController, SelfServiceController, PaymentsController, RefundsController, TransactionsController, AlertsController, StationsController, BoothStationsController, ReprintController, StationAgentController],
+      controllers: [HealthController, AuthController, EventsController, BoothsController, EventBoothsController, DevicesController, KioskController, SessionsController, PhotosController, EventPhotosController, StorageController, GalleriesController, BackupsController, UsersController, SelfServiceController, PaymentsController, RefundsController, TransactionsController, AlertsController, StationsController, BoothStationsController, ReprintController, StationAgentController, EventFramesController, FramesController],
       providers: [
         { provide: CONFIG, useValue: cfg },
-        PrismaService, AuditService, AuthService, EventsService, BoothsService, DevicesService, DeviceGuard, RealtimeGateway, KioskService, KioskGuard, SessionsService, StorageService, PhotosService, BoothAuthGuard, GalleriesService, BackupsService, UsersService, SelfServiceService, PaymongoService, RefundsService, TransactionsService, TelegramService, AlertsService, StationsService, StationGuard,
+        PrismaService, AuditService, AuthService, EventsService, BoothsService, DevicesService, DeviceGuard, RealtimeGateway, KioskService, KioskGuard, SessionsService, StorageService, PhotosService, BoothAuthGuard, GalleriesService, BackupsService, UsersService, SelfServiceService, PaymongoService, RefundsService, TransactionsService, TelegramService, AlertsService, StationsService, StationGuard, FramesService,
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_FILTER, useClass: ErrorFilter },
       ],

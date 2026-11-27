@@ -108,6 +108,7 @@ model Event {
   payments            Payment[]
   refundRequests      RefundRequest[]
   printJobs           PrintJob[]
+  frames              EventFrame[]
 
   @@index([status, startsAt])
   @@index([startsAt])
@@ -578,4 +579,21 @@ model PrintJob {
   @@index([stationId, status])
   @@index([boothId, status])
   @@index([eventId])
+}
+
+// The owner's own frame for one layout and number of photos: a PNG the size of the page, drawn over the
+// photos (see-through where they show). It replaces the built-in design for that layout. A new upload is
+// a new row (new id), so its URL can be cached for good.
+model EventFrame {
+  id        String   @id @default(uuid()) @db.Uuid
+  eventId   String   @db.Uuid
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  layout    String // landscape | strip | grid
+  shots     Int
+  width     Int
+  height    Int
+  png       Bytes
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@unique([eventId, layout, shots])
 }

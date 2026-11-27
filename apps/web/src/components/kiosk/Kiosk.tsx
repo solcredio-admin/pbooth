@@ -350,6 +350,10 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
     setScreen("countdown");
   }, [guest?.countdownSeconds]);
 
+  // The owner's frames: loaded now, so they're cached for the session (and offline, by the kiosk's helper).
+  const frameUrls = Object.values(guest?.template?.frames ?? {}).join(" ");
+  useEffect(() => { for (const u of frameUrls.split(" ").filter(Boolean)) new Image().src = u; }, [frameUrls]);
+
   // All photos inside the event template: what the guest approves (and, later, what gets printed).
   const compose = useCallback(async (list: Shot[], l: Look | null = look, quiet = false) => {
     if (!quiet) setScreen("composing");
@@ -362,6 +366,7 @@ export function Kiosk({ boothCode }: { boothCode: string }) {
         photoStyle: l?.photoStyle ?? guest?.template?.photoStyle, fontStyle: l?.fontStyle ?? guest?.template?.fontStyle,
         orientation: pageOrientation,
         logo: guest?.template?.logo,
+        frame: guest?.template?.frames?.[`${layout}-${list.length}`] ?? null,
         primaryColor: l?.primaryColor ?? guest?.primaryColor ?? "#0b0c0a",
         accentColor: l?.accentColor ?? guest?.accentColor ?? "#c6f36b",
         footer: guest?.template?.footerText || ev.name,

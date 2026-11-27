@@ -16,7 +16,7 @@ export const boothInclude = {
   device: true,
   kiosk: true,
   stations: { include: { station: { include: { _count: { select: { booths: true } } } } }, orderBy: { position: "asc" } },
-  events: { include: { event: { include: { config: true } } }, orderBy: { event: { startsAt: "asc" } } },
+  events: { include: { event: { include: { config: true, frames: { select: { id: true, layout: true, shots: true } } } } }, orderBy: { event: { startsAt: "asc" } } },
 } as const satisfies Prisma.BoothInclude;
 export type BoothRow = Prisma.BoothGetPayload<{ include: typeof boothInclude }>;
 
@@ -81,7 +81,9 @@ export class BoothsService implements OnModuleInit, OnModuleDestroy {
           printEnabled: c.printEnabled && !(live.kind === "SELF_SERVICE" && live.freeSessions), printCopies: c.printCopies, galleryEnabled: c.galleryEnabled, saveOriginals: c.saveOriginals,
           // self-service prints whole sheets with no date: nobody's there to cut strips, and it runs for months
           template: { layout: live.kind === "SELF_SERVICE" && c.layout === "strip" ? "landscape" : c.layout, footerText: c.footerText || live.name, showDate: c.showDate && live.kind !== "SELF_SERVICE" && !c.logo,
-            logo: c.logo ? { src: c.logo, position: c.logoPosition, size: c.logoSize } : null, pattern: c.pattern, frameStyle: c.frameStyle, photoStyle: c.photoStyle, fontStyle: c.fontStyle },
+            logo: c.logo ? { src: c.logo, position: c.logoPosition, size: c.logoSize } : null,
+            // the owner's own frames, by "layout-shots": drawn over the photos instead of the built-in design
+            frames: Object.fromEntries(live.frames.map((f) => [`${f.layout}-${f.shots}`, `/api/v1/frames/${f.id}`])), pattern: c.pattern, frameStyle: c.frameStyle, photoStyle: c.photoStyle, fontStyle: c.fontStyle },
         } : null,
       } : null,
     };

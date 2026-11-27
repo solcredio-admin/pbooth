@@ -29,6 +29,8 @@ async function bootstrap() {
     }),
   );
 
+  // Event frames are uploaded as the PNG itself: bigger than anything else, and only on that route.
+  app.getHttpAdapter().getInstance().addContentTypeParser("image/png", { parseAs: "buffer", bodyLimit: 12 * 1024 * 1024 }, (_req, body, done) => done(null, body));
   await app.register(helmet, { contentSecurityPolicy: false }); // JSON API; the web app sets the page CSP
   await app.register(cookie);
   await app.register(rateLimit, { max: 300, timeWindow: "1 minute" });

@@ -6,6 +6,7 @@ import type { Layout } from "@/lib/template/layout";
 export interface PreviewProps {
   layout: Layout; shots: number; primaryColor: string; accentColor: string; footer: string; dateText: string | null; logo: Logo | null;
   pattern: Pattern; frameStyle: FrameStyle; photoStyle: PhotoStyle; fontStyle: FontStyle;
+  frame?: string | null;
 }
 
 // Stand-in "photos": soft gradients with a figure, so the preview shows the design, not a stock image.
@@ -31,16 +32,16 @@ export function TemplatePreview(p: PreviewProps) {
   useEffect(() => {
     let alive = true;
     const t = setTimeout(async () => {
-      const design = await composeTemplate(Array.from({ length: p.shots }, (_, i) => placeholder(i)), { ...p, orientation: "landscape" });
+      const design = await composeTemplate(Array.from({ length: p.shots }, (_, i) => placeholder(i)), { ...p, orientation: p.layout === "grid" ? "portrait" : "landscape" });
       // show the sheet as it prints (a strip appears twice, ready to cut)
       if (alive) setSrc(printCanvas(design, p.layout, p.shots).toDataURL("image/jpeg", 0.85));
     }, 120); // redraw once typing pauses
     return () => { alive = false; clearTimeout(t); };
-  }, [p.layout, p.shots, p.primaryColor, p.accentColor, p.footer, p.dateText, p.logo?.src, p.logo?.position, p.logo?.size, p.pattern, p.frameStyle, p.photoStyle, p.fontStyle]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [p.layout, p.shots, p.primaryColor, p.accentColor, p.footer, p.dateText, p.logo?.src, p.logo?.position, p.logo?.size, p.pattern, p.frameStyle, p.photoStyle, p.fontStyle, p.frame]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <figure className="template-preview">
       {src ? <img src={src} alt="Preview of the event's photo design" /> : <div className="skeleton" />}
-      <figcaption className="cap">{p.layout === "landscape" ? "4R landscape" : p.shots === 1 ? "4R framed photo" : p.layout === "strip" ? "Two 2×6 strips on one 4R sheet, cut in half" : "4R portrait grid"} · placeholder photos</figcaption>
+      <figcaption className="cap">{p.frame ? "Your own frame" : p.layout === "landscape" ? "4R landscape" : p.shots === 1 ? "4R framed photo" : p.layout === "strip" ? "Two 2×6 strips on one 4R sheet, cut in half" : "4R portrait grid"} · placeholder photos</figcaption>
     </figure>
   );
 }
